@@ -1,14 +1,14 @@
-import type { LucideIcon } from 'lucide-react';
+// import type { LucideIcon } from 'lucide-react'; // No se usa directamente en este archivo
 
 export interface Service {
-  id: string;
+  id: string; // Será _id de MongoDB como string
   name: string;
   description: string;
-  iconName: string; // Changed from icon: LucideIcon to iconName: string
+  iconName: string; 
 }
 
 export interface GalleryImage {
-  id: string;
+  id: string; // Será _id de MongoDB como string
   src: string;
   alt: string;
   category: string;
@@ -16,11 +16,13 @@ export interface GalleryImage {
 }
 
 export interface AppointmentFormData {
+  id?: string; // Opcional, será _id de MongoDB como string
   name: string;
   email: string;
   phone: string;
   service: string;
   date: Date;
   time: string;
-  message?: string; // Added optional message
+  message?: string;
+  status?: 'pending' | 'confirmed' | 'rejected' | 'completed'; // Estado de la cita
 }

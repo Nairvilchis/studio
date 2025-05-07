@@ -3,7 +3,7 @@
 
 import Image from 'next/image';
 import type { GalleryImage } from '@/lib/types';
-import { galleryImages as initialGalleryImages } from '@/lib/data';
+import { createGalleryImage, readGalleryImages, updateGalleryImage, deleteGalleryImage } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,34 +15,66 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Pencil, PlusCircle } from 'lucide-react';
+import { Pencil, PlusCircle, Trash2, Loader2 } from 'lucide-react';
 
 const ManageGalleryPage = () => {
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
-  const [currentImageId, setCurrentImageId] = useState<string | null>(null); // null for add, id for edit
+  const [currentImage, setCurrentImage] = useState<GalleryImage | null>(null); // null for add, object for edit
 
-  // Form fields state
   const [formImageUrl, setFormImageUrl] = useState('');
   const [formImageAlt, setFormImageAlt] = useState('');
   const [formImageCategory, setFormImageCategory] = useState('');
+  const [formImageDataAiHint, setFormDataAiHint] = useState('');
 
+
+  const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
+  const fetchGalleryImages = async () => {
+    setIsLoading(true);
+    try {
+      const response = await readGalleryImages();
+      if (response.success && response.data) {
+        setGalleryImages(response.data);
+      } else {
+        toast({ title: 'Error', description: response.message || 'Failed to fetch gallery images.', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error fetching gallery images:', error);
+      toast({ title: 'Error', description: 'Failed to fetch gallery images.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setGalleryImages(initialGalleryImages);
+    fetchGalleryImages();
   }, []);
 
   const resetFormFields = () => {
     setFormImageUrl('');
     setFormImageAlt('');
     setFormImageCategory('');
-    setCurrentImageId(null);
+    setFormDataAiHint('');
+    setCurrentImage(null);
   };
 
   const handleOpenAddDialog = () => {
@@ -51,27 +83,35 @@ const ManageGalleryPage = () => {
   };
 
   const handleOpenEditDialog = (image: GalleryImage) => {
-    setCurrentImageId(image.id);
+    setCurrentImage(image);
     setFormImageUrl(image.src);
     setFormImageAlt(image.alt);
     setFormImageCategory(image.category);
+    setFormDataAiHint(image.dataAiHint || '');
     setIsFormDialogOpen(true);
   };
 
   const handleDeleteImage = (id: string) => {
-    setGalleryImages((prevImages) => prevImages.filter((image) => image.id !== id));
-    toast({
-      title: 'Image Deleted',
-      description: `Image with ID: ${id} has been removed.`,
-      variant: 'default',
+    startTransition(async () => {
+      const result = await deleteGalleryImage(id);
+      if (result.success) {
+        await fetchGalleryImages();
+        toast({
+          title: 'Imagen Eliminada',
+          description: result.message,
+          variant: 'default',
+        });
+      } else {
+        toast({ title: 'Error', description: result.message || 'No se pudo eliminar la imagen.', variant: 'destructive'});
+      }
     });
   };
 
   const handleSaveImage = () => {
     if (!formImageAlt.trim() || !formImageCategory.trim() || !formImageUrl.trim()) {
       toast({
-        title: 'Validation Error',
-        description: 'Please provide alt text, category, and a valid image URL.',
+        title: 'Error de Validación',
+        description: 'URL de imagen, texto alternativo y categoría son requeridos.',
         variant: 'destructive',
       });
       return;
@@ -81,127 +121,138 @@ const ManageGalleryPage = () => {
       new URL(formImageUrl);
     } catch (_) {
       toast({
-        title: 'Invalid URL',
-        description: 'Please enter a valid image URL.',
+        title: 'URL Inválida',
+        description: 'Por favor, introduce una URL de imagen válida.',
         variant: 'destructive',
       });
       return;
     }
 
-    const dataAiHint = formImageAlt.trim().toLowerCase().split(/\s+/).slice(0, 2).join(' ');
+    const imageData = {
+      src: formImageUrl.trim(),
+      alt: formImageAlt.trim(),
+      category: formImageCategory.trim(),
+      dataAiHint: formImageDataAiHint.trim() || formImageAlt.trim().toLowerCase().split(/\s+/).slice(0, 2).join(' '),
+    };
 
-    if (currentImageId) {
-      // Edit mode
-      setGalleryImages((prevImages) =>
-        prevImages.map((img) =>
-          img.id === currentImageId
-            ? {
-                ...img,
-                src: formImageUrl.trim(),
-                alt: formImageAlt.trim(),
-                category: formImageCategory.trim(),
-                dataAiHint: dataAiHint || 'updated image',
-              }
-            : img
-        )
-      );
-      toast({
-        title: 'Image Updated',
-        description: `Image "${formImageAlt.trim()}" updated successfully.`,
-        variant: 'default',
-      });
-    } else {
-      // Add mode
-      const newId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      const newImage: GalleryImage = {
-        id: newId,
-        src: formImageUrl.trim(),
-        alt: formImageAlt.trim(),
-        category: formImageCategory.trim(),
-        dataAiHint: dataAiHint || 'new image',
-      };
-      setGalleryImages((prevImages) => [newImage, ...prevImages]);
-      toast({
-        title: 'Image Added',
-        description: `New image "${newImage.alt}" added successfully.`,
-        variant: 'default',
-      });
-    }
+    startTransition(async () => {
+      let result;
+      if (currentImage && currentImage.id) {
+        // Edit mode
+        result = await updateGalleryImage(currentImage.id, imageData);
+      } else {
+        // Add mode
+        result = await createGalleryImage(imageData);
+      }
 
-    setIsFormDialogOpen(false);
-    resetFormFields();
+      if (result.success) {
+        await fetchGalleryImages();
+        toast({
+          title: currentImage ? 'Imagen Actualizada' : 'Imagen Añadida',
+          description: result.message,
+          variant: 'default',
+        });
+        setIsFormDialogOpen(false);
+        resetFormFields();
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'No se pudo guardar la imagen.',
+          variant: 'destructive',
+        });
+      }
+    });
   };
 
 
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-foreground">Manage Gallery Images</h1>
-        <Button onClick={handleOpenAddDialog}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add New Image
+        <h1 className="text-3xl font-bold text-foreground">Gestionar Imágenes de Galería</h1>
+        <Button onClick={handleOpenAddDialog} disabled={isPending}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Añadir Nueva Imagen
         </Button>
       </div>
 
       <Dialog open={isFormDialogOpen} onOpenChange={(isOpen) => { setIsFormDialogOpen(isOpen); if (!isOpen) resetFormFields();}}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{currentImageId ? 'Edit Gallery Image' : 'Add New Gallery Image'}</DialogTitle>
+            <DialogTitle>{currentImage ? 'Editar Imagen de Galería' : 'Añadir Nueva Imagen de Galería'}</DialogTitle>
             <DialogDescription>
-              {currentImageId ? 'Update the details for the image.' : 'Fill in the details for the new image. Provide a URL for the image source.'}
+              {currentImage ? 'Actualiza los detalles de la imagen.' : 'Completa los detalles para la nueva imagen. Proporciona una URL para la fuente de la imagen.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="imageUrl" className="text-right">
-                Image URL
+                URL Imagen
               </Label>
               <Input
                 id="imageUrl"
                 value={formImageUrl}
                 onChange={(e) => setFormImageUrl(e.target.value)}
                 className="col-span-3"
-                placeholder="https://example.com/image.jpg"
+                placeholder="https://picsum.photos/600/800"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="altText" className="text-right">
-                Alt Text
+                Texto Alt
               </Label>
               <Input
                 id="altText"
                 value={formImageAlt}
                 onChange={(e) => setFormImageAlt(e.target.value)}
                 className="col-span-3"
-                placeholder="e.g., Beautiful sunset"
+                placeholder="Ej: Diseño de uñas elegante"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="category" className="text-right">
-                Category
+                Categoría
               </Label>
               <Input
                 id="category"
                 value={formImageCategory}
                 onChange={(e) => setFormImageCategory(e.target.value)}
                 className="col-span-3"
-                placeholder="e.g., Nature, Hair, Nails"
+                placeholder="Ej: Nails, Hair, Microblading"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="dataAiHint" className="text-right">
+                AI Hint
+              </Label>
+              <Input
+                id="dataAiHint"
+                value={formImageDataAiHint}
+                onChange={(e) => setFormDataAiHint(e.target.value)}
+                className="col-span-3"
+                placeholder="Ej: nail art (opcional)"
               />
             </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">Cancel</Button>
+              <Button type="button" variant="outline" disabled={isPending}>Cancelar</Button>
             </DialogClose>
-            <Button type="submit" onClick={handleSaveImage}>{currentImageId ? 'Save Changes' : 'Save Image'}</Button>
+            <Button type="submit" onClick={handleSaveImage} disabled={isPending}>
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {currentImage ? 'Guardar Cambios' : 'Guardar Imagen'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {galleryImages.length === 0 ? (
+      {isLoading ? (
+         <div className="flex justify-center items-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+      ) : galleryImages.length === 0 ? (
          <Card className="mt-6">
           <CardContent className="pt-6">
             <p className="text-muted-foreground text-center">
-              No images in the gallery yet. Click "Add New Image" to get started.
+              No hay imágenes en la galería. Haz clic en "Añadir Nueva Imagen" para empezar.
             </p>
           </CardContent>
         </Card>
@@ -215,35 +266,55 @@ const ManageGalleryPage = () => {
                   alt={image.alt}
                   fill
                   style={{ objectFit: 'cover' }}
-                  data-ai-hint={image.dataAiHint}
+                  data-ai-hint={image.dataAiHint || image.alt.split(' ').slice(0,2).join(' ')}
                   sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${image.id}/600/800`;
-                    (e.target as HTMLImageElement).alt = 'Error loading image - placeholder shown';
+                    (e.target as HTMLImageElement).alt = 'Error al cargar imagen - placeholder mostrado';
                   }}
                 />
               </div>
               <div className="p-4 flex flex-col flex-grow">
                 <p className="text-base font-semibold text-card-foreground truncate" title={image.alt}>{image.alt}</p>
-                <p className="text-xs text-muted-foreground mb-1">Category: {image.category}</p>
-                <p className="text-xs text-muted-foreground mb-3">Hint: {image.dataAiHint}</p>
+                <p className="text-xs text-muted-foreground mb-1">Categoría: {image.category}</p>
+                {image.dataAiHint && <p className="text-xs text-muted-foreground mb-3">Hint: {image.dataAiHint}</p>}
                 <div className="mt-auto flex gap-2">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={() => handleOpenEditDialog(image)}
                     className="flex-1"
+                    disabled={isPending}
                   >
-                    <Pencil className="mr-2 h-3 w-3" /> Edit
+                    <Pencil className="mr-2 h-3 w-3" /> Editar
                   </Button>
-                  <Button 
-                    variant="destructive" 
-                    size="sm" 
-                    onClick={() => handleDeleteImage(image.id)}
-                    className="flex-1"
-                  >
-                    Delete
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="flex-1"
+                        disabled={isPending}
+                      >
+                         <Trash2 className="mr-2 h-3 w-3" /> Eliminar
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acción no se puede deshacer. Esto eliminará permanentemente la imagen de la galería.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDeleteImage(image.id)} disabled={isPending}>
+                          {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                           Eliminar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </div>

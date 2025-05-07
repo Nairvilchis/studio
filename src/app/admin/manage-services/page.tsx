@@ -1,9 +1,9 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import type { Service } from '@/lib/types';
-import { servicesData as initialServicesData } from '@/components/services-section';
+import { createService, readServices, updateService, deleteService } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -39,11 +39,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import * as Icons from 'lucide-react';
-import { HelpCircle, PlusCircle, Edit3, Trash2 } from 'lucide-react'; // Specific icons for UI elements
+import { HelpCircle, PlusCircle, Edit3, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const ManageServicesPage = () => {
   const [services, setServices] = useState<Service[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [currentService, setCurrentService] = useState<Service | null>(null);
@@ -52,11 +53,28 @@ const ManageServicesPage = () => {
   const [serviceDescription, setServiceDescription] = useState('');
   const [serviceIconName, setServiceIconName] = useState('');
 
+  const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
+  const fetchServices = async () => {
+    setIsLoading(true);
+    try {
+      const response = await readServices();
+      if (response.success && response.data) {
+        setServices(response.data);
+      } else {
+        toast({ title: 'Error', description: response.message || 'Failed to fetch services.', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      toast({ title: 'Error', description: 'Failed to fetch services.', variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Initialize services from imported data on mount
-    setServices(initialServicesData);
+    fetchServices();
   }, []);
 
   const resetFormFields = () => {
@@ -69,30 +87,39 @@ const ManageServicesPage = () => {
   const isValidIconName = (iconNameInput: string): boolean => {
     const trimmedIconName = iconNameInput.trim();
     if (!trimmedIconName) return false;
-    // Check if it's an own property and a function
     return Icons.hasOwnProperty(trimmedIconName) && typeof (Icons as any)[trimmedIconName] === 'function';
   };
 
   const handleAddService = () => {
     if (!serviceName.trim() || !serviceDescription.trim()) {
-      toast({ title: 'Error', description: 'Nombre y descripción son requeridos.', variant: 'destructive' });
+      toast({ title: 'Error de Validación', description: 'Nombre y descripción son requeridos.', variant: 'destructive' });
       return;
     }
+    if (!serviceIconName.trim()){
+        toast({ title: 'Error de Validación', description: 'Nombre del icono es requerido.', variant: 'destructive' });
+        return;
+    }
     if (!isValidIconName(serviceIconName)) {
-      toast({ title: 'Error', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons.`, variant: 'destructive' });
+      toast({ title: 'Error de Icono', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons.`, variant: 'destructive' });
       return;
     }
 
-    const newService: Service = {
-      id: `service-${Date.now()}`,
-      name: serviceName.trim(),
-      description: serviceDescription.trim(),
-      iconName: serviceIconName.trim(),
-    };
-    setServices((prev) => [newService, ...prev]);
-    toast({ title: 'Éxito', description: 'Servicio añadido correctamente.' });
-    setIsAddDialogOpen(false);
-    resetFormFields();
+    startTransition(async () => {
+      const result = await createService({
+        name: serviceName.trim(),
+        description: serviceDescription.trim(),
+        iconName: serviceIconName.trim(),
+      });
+      if (result.success && result.data) {
+        // setServices((prev) => [result.data!, ...prev]); // Or re-fetch
+        await fetchServices(); // Re-fetch to get the latest data including MongoDB ID
+        toast({ title: 'Éxito', description: result.message });
+        setIsAddDialogOpen(false);
+        resetFormFields();
+      } else {
+        toast({ title: 'Error', description: result.message || 'No se pudo añadir el servicio.', variant: 'destructive' });
+      }
+    });
   };
 
   const handleEditService = (service: Service) => {
@@ -105,29 +132,47 @@ const ManageServicesPage = () => {
 
   const handleUpdateService = () => {
     if (!currentService || !serviceName.trim() || !serviceDescription.trim()) {
-      toast({ title: 'Error', description: 'Nombre y descripción son requeridos.', variant: 'destructive' });
+      toast({ title: 'Error de Validación', description: 'Nombre y descripción son requeridos.', variant: 'destructive' });
       return;
     }
-     if (!isValidIconName(serviceIconName)) {
-      toast({ title: 'Error', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons.`, variant: 'destructive' });
+    if (!serviceIconName.trim()){
+        toast({ title: 'Error de Validación', description: 'Nombre del icono es requerido.', variant: 'destructive' });
+        return;
+    }
+    if (!isValidIconName(serviceIconName)) {
+      toast({ title: 'Error de Icono', description: `El icono "${serviceIconName.trim()}" no es válido.`, variant: 'destructive' });
       return;
     }
 
-    setServices((prev) =>
-      prev.map((s) =>
-        s.id === currentService.id
-          ? { ...s, name: serviceName.trim(), description: serviceDescription.trim(), iconName: serviceIconName.trim() }
-          : s
-      )
-    );
-    toast({ title: 'Éxito', description: 'Servicio actualizado correctamente.' });
-    setIsEditDialogOpen(false);
-    resetFormFields();
+    startTransition(async () => {
+      const result = await updateService(currentService.id, {
+        name: serviceName.trim(),
+        description: serviceDescription.trim(),
+        iconName: serviceIconName.trim(),
+      });
+      if (result.success) {
+        // setServices((prev) => prev.map((s) => (s.id === currentService.id ? { ...s, ...result.data } : s))); // Or re-fetch
+        await fetchServices();
+        toast({ title: 'Éxito', description: result.message });
+        setIsEditDialogOpen(false);
+        resetFormFields();
+      } else {
+        toast({ title: 'Error', description: result.message || 'No se pudo actualizar el servicio.', variant: 'destructive' });
+      }
+    });
   };
 
   const handleDeleteService = (serviceId: string) => {
-    setServices((prev) => prev.filter((s) => s.id !== serviceId));
-    toast({ title: 'Éxito', description: 'Servicio eliminado correctamente.' });
+    startTransition(async () => {
+      const result = await deleteService(serviceId);
+      if (result.success) {
+        // setServices((prev) => prev.filter((s) => s.id !== serviceId)); // Or re-fetch
+        await fetchServices();
+        toast({ title: 'Éxito', description: result.message });
+      } else {
+        toast({ title: 'Error', description: result.message || 'No se pudo eliminar el servicio.', variant: 'destructive' });
+      }
+    });
   };
 
   const renderIcon = (iconName: string) => {
@@ -142,7 +187,7 @@ const ManageServicesPage = () => {
           <CardTitle className="text-2xl font-bold">Gestionar Servicios</CardTitle>
           <Dialog open={isAddDialogOpen} onOpenChange={(isOpen) => { setIsAddDialogOpen(isOpen); if (!isOpen) resetFormFields(); }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={isPending}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Añadir Servicio
               </Button>
             </DialogTrigger>
@@ -169,14 +214,21 @@ const ManageServicesPage = () => {
                   </p>
               </div>
               <DialogFooter>
-                <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                <Button onClick={handleAddService}>Guardar Servicio</Button>
+                <DialogClose asChild><Button variant="outline" disabled={isPending}>Cancelar</Button></DialogClose>
+                <Button onClick={handleAddService} disabled={isPending}>
+                  {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Guardar Servicio
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </CardHeader>
         <CardContent>
-          {services.length === 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center items-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : services.length === 0 ? (
             <p className="text-muted-foreground text-center py-10">No hay servicios para mostrar. ¡Añade uno!</p>
           ) : (
             <div className="rounded-md border mt-4">
@@ -196,12 +248,12 @@ const ManageServicesPage = () => {
                       <TableCell className="max-w-xs truncate">{service.description}</TableCell>
                       <TableCell>{renderIcon(service.iconName)}</TableCell>
                       <TableCell className="text-right space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => handleEditService(service)}>
+                        <Button variant="outline" size="sm" onClick={() => handleEditService(service)} disabled={isPending}>
                           <Edit3 className="h-4 w-4" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm">
+                            <Button variant="destructive" size="sm" disabled={isPending}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
@@ -213,8 +265,9 @@ const ManageServicesPage = () => {
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteService(service.id)}>
+                              <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteService(service.id)} disabled={isPending}>
+                                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Eliminar
                               </AlertDialogAction>
                             </AlertDialogFooter>
@@ -230,7 +283,6 @@ const ManageServicesPage = () => {
         </CardContent>
       </Card>
 
-      {/* Edit Service Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if(!isOpen) resetFormFields(); }}>
         <DialogContent>
           <DialogHeader>
@@ -255,8 +307,11 @@ const ManageServicesPage = () => {
             </p>
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-            <Button onClick={handleUpdateService}>Guardar Cambios</Button>
+            <DialogClose asChild><Button variant="outline" disabled={isPending}>Cancelar</Button></DialogClose>
+            <Button onClick={handleUpdateService} disabled={isPending}>
+              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar Cambios
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -265,5 +320,3 @@ const ManageServicesPage = () => {
 };
 
 export default ManageServicesPage;
-
-    
