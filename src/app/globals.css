@@ -8,22 +8,22 @@ body {
 
 @layer base {
   :root {
-    --background: 220 15% 94%; /* Light grayish blue, clearly off-white */
+    --background: 220 15% 90%; /* Slightly darker grayish blue */
     --foreground: 220 10% 20%; /* Dark grayish blue, good contrast */
 
-    --card: 220 15% 97%; /* Slightly lighter than main bg for elevation */
+    --card: 220 15% 93%; /* Slightly lighter than main bg for elevation */
     --card-foreground: 220 10% 15%; /* Very dark for card text */
 
-    --popover: 220 15% 97%; /* Slightly lighter than main bg for elevation */
+    --popover: 220 15% 93%; /* Slightly lighter than main bg for elevation */
     --popover-foreground: 220 10% 15%; /* Very dark for popover text */
 
     --primary: 210 75% 58%; /* Vibrant but not overly bright blue */
     --primary-foreground: 210 20% 98%; /* Almost white for high contrast on blue */
 
-    --secondary: 220 12% 88%; /* Lighter cool gray for secondary elements */
+    --secondary: 220 12% 85%; /* Cool gray for secondary elements, darker than new bg */
     --secondary-foreground: 220 8% 40%; /* Medium cool gray for secondary text */
 
-    --muted: 220 12% 91%; /* Slightly lighter than secondary for muted backgrounds */
+    --muted: 220 12% 88%; /* Lighter cool gray for muted backgrounds, slightly darker than new bg */
     --muted-foreground: 220 8% 50%; /* Lighter cool gray for muted text */
 
     --accent: 200 80% 65%; /* Slightly lighter, sky-blue accent */
@@ -32,8 +32,8 @@ body {
     --destructive: 0 70% 50%; /* Standard clear red */
     --destructive-foreground: 0 0% 98%; /* White text on red */
 
-    --border: 220 10% 82%; /* Subtle cool gray border */
-    --input: 220 10% 98%; /* Very light, almost white input background for clarity */
+    --border: 220 10% 80%; /* Subtle cool gray border, adjusted */
+    --input: 220 10% 95%; /* Very light input background for clarity, adjusted */
     --ring: 210 75% 60%; /* Primary color for focus rings */
     --radius: 0.5rem;
 
@@ -45,13 +45,13 @@ body {
     --chart-5: 230 40% 70%; /* Light lavender/blue */
 
     /* Sidebar colors */
-    --sidebar-background: 220 15% 92%; /* Slightly darker than main background */
+    --sidebar-background: 220 15% 88%; /* Slightly darker than new main background */
     --sidebar-foreground: 220 10% 25%; /* Darker text for sidebar */
     --sidebar-primary: 210 75% 58%; /* Same as main primary */
     --sidebar-primary-foreground: 210 20% 98%; /* Same as main primary foreground */
     --sidebar-accent: 200 80% 65%; /* Same as main accent */
     --sidebar-accent-foreground: 200 20% 15%; /* Same as main accent foreground */
-    --sidebar-border: 220 10% 80%; /* Slightly darker border for sidebar */
+    --sidebar-border: 220 10% 78%; /* Slightly darker border for sidebar, adjusted */
     --sidebar-ring: 210 75% 60%; /* Same as main ring */
   }
 }
