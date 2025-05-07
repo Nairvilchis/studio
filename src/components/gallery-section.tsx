@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/carousel';
 import type { GalleryImage } from '@/lib/types';
 
-const galleryImagesData: GalleryImage[] = [
+export const galleryImagesData: GalleryImage[] = [
   { id: 'nail1', src: 'https://picsum.photos/600/800?random=1', alt: 'Diseño de uñas elegante', category: 'Nails', dataAiHint: "nail art design" },
   { id: 'hair1', src: 'https://picsum.photos/600/800?random=2', alt: 'Peinado moderno', category: 'Hair', dataAiHint: "modern hairstyle" },
   { id: 'micro1', src: 'https://picsum.photos/600/800?random=3', alt: 'Resultado de microblading', category: 'Microblading', dataAiHint: "eyebrow microblading" },
@@ -22,7 +22,7 @@ const galleryImagesData: GalleryImage[] = [
 
 export default function GallerySection() {
   return (
-    <section id="gallery" className="py-16 md:py-24 bg-muted/30">
+    <section id="gallery" className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4">
         <h2 className="text-4xl md:text-5xl font-bold text-center text-foreground mb-4">
           Galería de <span className="text-primary">Transformaciones</span>
@@ -57,8 +57,8 @@ export default function GallerySection() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious className="hidden sm:flex bg-background/70 hover:bg-accent hover:text-accent-foreground border-primary text-primary" />
-          <CarouselNext className="hidden sm:flex bg-background/70 hover:bg-accent hover:text-accent-foreground border-primary text-primary" />
+          <CarouselPrevious className="hidden sm:flex bg-card/70 hover:bg-accent hover:text-accent-foreground border-primary text-primary" />
+          <CarouselNext className="hidden sm:flex bg-card/70 hover:bg-accent hover:text-accent-foreground border-primary text-primary" />
         </Carousel>
       </div>
     </section>
