@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <footer className="bg-muted/30 border-t border-border/40">
       <div className="container mx-auto px-4 py-12 md:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
           <div>
             <Link href="/" className="flex items-center space-x-2 mb-4">
               <Gem className="h-8 w-8 text-primary" />
@@ -16,16 +16,6 @@ export default function Footer() {
               Transformando belleza, realzando confianza. <br />
               Tu oasis de elegancia y bienestar.
             </p>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-semibold text-foreground mb-4">Enlaces Rápidos</h3>
-            <ul className="space-y-2">
-              <li><Link href="#hero" className="text-sm text-muted-foreground hover:text-primary transition-colors">Inicio</Link></li>
-              <li><Link href="#services" className="text-sm text-muted-foreground hover:text-primary transition-colors">Servicios</Link></li>
-              <li><Link href="#gallery" className="text-sm text-muted-foreground hover:text-primary transition-colors">Galería</Link></li>
-              <li><Link href="#appointment" className="text-sm text-muted-foreground hover:text-primary transition-colors">Agendar Cita</Link></li>
-            </ul>
           </div>
 
           <div>
