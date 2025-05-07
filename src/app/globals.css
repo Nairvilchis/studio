@@ -10,7 +10,7 @@ body {
   :root {
     --background: 0 0% 7%; /* #121212 */
     --foreground: 0 0% 90%; /* Lighter gray for text */
-    --card: 0 0% 10%; /* Slightly lighter than background for cards */
+    --card: 0 0% 12%; /* Slightly lighter than background for cards - Adjusted from 10% */
     --card-foreground: 0 0% 90%;
     --popover: 0 0% 5%; /* Darker for popovers */
     --popover-foreground: 0 0% 90%;
@@ -24,8 +24,8 @@ body {
     --accent-foreground: 30 70% 10%;
     --destructive: 0 70% 45%; /* A standard red for destructive actions */
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 20%; /* Darker border */
-    --input: 0 0% 10%; /* Input background same as card */
+    --border: 0 0% 22%; /* Darker border - Adjusted from 20% */
+    --input: 0 0% 12%; /* Input background same as card - Adjusted from 10% */
     --ring: 51 100% 50%; /* Gold for focus rings */
     --radius: 0.5rem;
 

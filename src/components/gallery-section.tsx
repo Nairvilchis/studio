@@ -22,7 +22,7 @@ const galleryImagesData: GalleryImage[] = [
 
 export default function GallerySection() {
   return (
-    <section id="gallery" className="py-16 md:py-24 bg-muted/20">
+    <section id="gallery" className="py-16 md:py-24 bg-muted/30">
       <div className="container mx-auto px-4">
         <h2 className="text-4xl md:text-5xl font-bold text-center text-foreground mb-4">
           Galería de <span className="text-primary">Transformaciones</span>
@@ -41,7 +41,7 @@ export default function GallerySection() {
             {galleryImagesData.map((image) => (
               <CarouselItem key={image.id} className="sm:basis-1/2 lg:basis-1/3">
                 <div className="p-1">
-                  <Card className="overflow-hidden shadow-lg hover:shadow-primary/20 transition-shadow duration-300">
+                  <Card className="overflow-hidden shadow-lg hover:shadow-primary/20 transition-all duration-300 ease-in-out transform hover:scale-105">
                     <CardContent className="flex aspect-[3/4] items-center justify-center p-0">
                       <Image
                         src={image.src}
@@ -57,8 +57,8 @@ export default function GallerySection() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious className="hidden sm:flex" />
-          <CarouselNext className="hidden sm:flex" />
+          <CarouselPrevious className="hidden sm:flex bg-background/70 hover:bg-accent hover:text-accent-foreground border-primary text-primary" />
+          <CarouselNext className="hidden sm:flex bg-background/70 hover:bg-accent hover:text-accent-foreground border-primary text-primary" />
         </Carousel>
       </div>
     </section>

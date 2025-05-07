@@ -19,7 +19,7 @@ export default function HeroSection() {
       </div>
       
       <div className="relative z-20 container mx-auto px-4 py-16">
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-foreground">
+        <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-foreground drop-shadow-md">
           Descubre tu <span className="text-primary">Belleza Interior</span>
         </h1>
         <p className="mt-6 max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground">
