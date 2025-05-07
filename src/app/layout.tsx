@@ -21,11 +21,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className="dark"> {/* Apply dark class by default */}
-      {/*
-        Use GeistSans.variable and GeistMono.variable directly.
-        These are class names that apply the CSS custom properties.
-        The font-family is then applied via globals.css using these CSS vars.
-      */}
+      {/* Next.js handles <head> injection.
+          Ensure no extra whitespace nodes are children of <html> before <body>. */}
       <body className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}>
         {children}
         <Toaster />
