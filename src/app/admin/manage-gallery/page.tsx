@@ -1,3 +1,4 @@
+
 'use client';
 
 import Image from 'next/image';
@@ -24,10 +25,10 @@ const ManageGalleryPage = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newImageAlt, setNewImageAlt] = useState('');
   const [newImageCategory, setNewImageCategory] = useState('');
+  const [newImageUrl, setNewImageUrl] = useState(''); // Added state for image URL
   const { toast } = useToast();
 
   useEffect(() => {
-    // Simulate fetching data or use initial data
     setGalleryImages(initialGalleryImages);
   }, []);
 
@@ -42,22 +43,34 @@ const ManageGalleryPage = () => {
   };
 
   const handleAddImage = () => {
-    if (!newImageAlt.trim() || !newImageCategory.trim()) {
+    if (!newImageAlt.trim() || !newImageCategory.trim() || !newImageUrl.trim()) {
       toast({
         title: 'Validation Error',
-        description: 'Please provide both alt text and category.',
+        description: 'Please provide alt text, category, and a valid image URL.',
         variant: 'destructive',
       });
       return;
     }
 
+    // Basic URL validation (can be more robust)
+    try {
+      new URL(newImageUrl);
+    } catch (_) {
+      toast({
+        title: 'Invalid URL',
+        description: 'Please enter a valid image URL.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+
     const newId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const randomImageNumber = Math.floor(Math.random() * 100) + 10; // for unique picsum photos
     const dataAiHint = newImageAlt.trim().toLowerCase().split(/\s+/).slice(0, 2).join(' ');
 
     const newImage: GalleryImage = {
       id: newId,
-      src: `https://picsum.photos/600/800?random=${randomImageNumber}`,
+      src: newImageUrl.trim(),
       alt: newImageAlt.trim(),
       category: newImageCategory.trim(),
       dataAiHint: dataAiHint || 'new image',
@@ -72,6 +85,7 @@ const ManageGalleryPage = () => {
     setIsAddDialogOpen(false);
     setNewImageAlt('');
     setNewImageCategory('');
+    setNewImageUrl(''); // Clear the URL input
   };
 
   return (
@@ -86,10 +100,22 @@ const ManageGalleryPage = () => {
             <DialogHeader>
               <DialogTitle>Add New Gallery Image</DialogTitle>
               <DialogDescription>
-                Fill in the details for the new image. A random placeholder image will be used.
+                Fill in the details for the new image. Provide a URL for the image source.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="imageUrl" className="text-right">
+                  Image URL
+                </Label>
+                <Input
+                  id="imageUrl"
+                  value={newImageUrl}
+                  onChange={(e) => setNewImageUrl(e.target.value)}
+                  className="col-span-3"
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="altText" className="text-right">
                   Alt Text
@@ -99,7 +125,7 @@ const ManageGalleryPage = () => {
                   value={newImageAlt}
                   onChange={(e) => setNewImageAlt(e.target.value)}
                   className="col-span-3"
-                  placeholder="e.g., Beautiful sunset over mountains"
+                  placeholder="e.g., Beautiful sunset"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -116,7 +142,12 @@ const ManageGalleryPage = () => {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => {
+                setIsAddDialogOpen(false);
+                setNewImageAlt('');
+                setNewImageCategory('');
+                setNewImageUrl('');
+              }}>Cancel</Button>
               <Button type="submit" onClick={handleAddImage}>Save Image</Button>
             </DialogFooter>
           </DialogContent>
@@ -135,7 +166,7 @@ const ManageGalleryPage = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {galleryImages.map((image) => (
             <div key={image.id} className="border rounded-lg overflow-hidden shadow-md bg-card flex flex-col">
-              <div className="relative w-full h-64"> {/* Increased height for better preview */}
+              <div className="relative w-full h-64">
                 <Image
                   src={image.src}
                   alt={image.alt}
@@ -143,6 +174,11 @@ const ManageGalleryPage = () => {
                   style={{ objectFit: 'cover' }}
                   data-ai-hint={image.dataAiHint}
                   sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  onError={(e) => {
+                    // Fallback for broken image links
+                    (e.target as HTMLImageElement).src = 'https://picsum.photos/600/800?random=0';
+                    (e.target as HTMLImageElement).alt = 'Error loading image - placeholder shown';
+                  }}
                 />
               </div>
               <div className="p-4 flex flex-col flex-grow">
@@ -153,7 +189,7 @@ const ManageGalleryPage = () => {
                   variant="destructive" 
                   size="sm" 
                   onClick={() => handleDeleteImage(image.id)}
-                  className="mt-auto w-full" // Ensure button is at the bottom and full width
+                  className="mt-auto w-full"
                 >
                   Delete
                 </Button>
@@ -167,3 +203,5 @@ const ManageGalleryPage = () => {
 };
 
 export default ManageGalleryPage;
+
+    
