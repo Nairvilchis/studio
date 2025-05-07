@@ -9,4 +9,5 @@ export const galleryImages: GalleryImage[] = [
   { id: 'hair2', src: 'https://picsum.photos/600/800?random=6', alt: 'Corte de cabello estilizado', category: 'Hair', dataAiHint: "stylish haircut" },
   { id: 'micro2', src: 'https://picsum.photos/600/800?random=7', alt: 'Cejas con microblading', category: 'Microblading', dataAiHint: "perfect eyebrows" },
   { id: 'body1', src: 'https://picsum.photos/600/800?random=8', alt: 'Masaje relajante', category: 'Aesthetics', dataAiHint: "relaxing massage" },
+  { id: 'aesthetic1', src: 'https://picsum.photos/600/800?random=9', alt: 'Aplicación de tratamiento estético avanzado', category: 'Aesthetics', dataAiHint: "advanced aesthetics" },
 ];
