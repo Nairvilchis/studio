@@ -1,6 +1,8 @@
+'use client';
+
 import Image from 'next/image';
-import { GalleryImage } from '@/lib/types';
-import { galleryImagesData } from '@/components/gallery-section';
+import type { GalleryImage } from '@/lib/types';
+import { galleryImages as galleryImagesData } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 
 const ManageGalleryPage = () => {
@@ -18,24 +20,25 @@ const ManageGalleryPage = () => {
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Manage Gallery Images</h1>
+      <h1 className="text-3xl font-bold mb-6 text-foreground">Manage Gallery Images</h1>
 
       <Button className="mb-6" onClick={handleAddImage}>Add New Image</Button>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {galleryImages.map((image) => (
-          <div key={image.id} className="border rounded-lg overflow-hidden shadow-md">
+          <div key={image.id} className="border rounded-lg overflow-hidden shadow-md bg-card">
             <div className="relative w-full h-48">
               <Image
                 src={image.src}
                 alt={image.alt}
-                layout="fill"
-                objectFit="cover"
+                fill
+                style={{ objectFit: 'cover' }}
+                data-ai-hint={image.dataAiHint}
               />
             </div>
             <div className="p-4">
-              <p className="text-sm font-semibold">{image.alt}</p>
-              <p className="text-xs text-gray-500 mb-2">{image.category}</p>
+              <p className="text-sm font-semibold text-card-foreground">{image.alt}</p>
+              <p className="text-xs text-muted-foreground mb-2">{image.category}</p>
               <Button variant="destructive" size="sm" onClick={() => handleDeleteImage(image.id)}>
                 Delete
               </Button>
