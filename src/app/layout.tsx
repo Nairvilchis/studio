@@ -19,10 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="dark">
+    <html lang="es">
       {/*
         Next.js automatically injects the <head> tag.
-        The 'dark' class on <html> sets the default theme.
         Font variables like GeistSans.variable are applied to the <body>.
         It's crucial to avoid any direct child whitespace text nodes within <html>
         (before <head> or <body>) to prevent hydration errors.
