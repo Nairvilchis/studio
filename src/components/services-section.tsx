@@ -1,37 +1,38 @@
 import type { Service } from '@/lib/types';
 import ServiceCard from './service-card';
-import { Paintbrush, Scissors, PenTool, Sparkles, Waves } from 'lucide-react'; // Replaced Spa with Waves
+// Icons are now referenced by name (string)
+// import { Paintbrush, Scissors, PenTool, Sparkles, Waves } from 'lucide-react';
 
-export const  servicesData: Service[] = [
+export const servicesData: Service[] = [
   {
     id: 'nails',
     name: 'Manicura y Pedicura',
     description: 'Diseños creativos y cuidado experto para tus uñas, manos y pies.',
-    icon: Paintbrush,
+    iconName: 'Paintbrush',
   },
   {
     id: 'hair',
     name: 'Peluquería Profesional',
     description: 'Cortes, coloración y peinados vanguardistas que realzan tu belleza natural.',
-    icon: Scissors,
+    iconName: 'Scissors',
   },
   {
     id: 'microblading',
     name: 'Microblading de Cejas',
     description: 'Cejas perfectas, definidas y naturales con técnicas de micropigmentación avanzadas.',
-    icon: PenTool,
+    iconName: 'PenTool',
   },
   {
     id: 'facial',
     name: 'Tratamientos Faciales',
     description: 'Rejuvenece e ilumina tu piel con nuestros tratamientos personalizados y efectivos.',
-    icon: Sparkles,
+    iconName: 'Sparkles',
   },
   {
     id: 'body',
     name: 'Tratamientos Corporales',
     description: 'Relájate y revitaliza tu cuerpo con terapias exclusivas y masajes relajantes.',
-    icon: Waves, // Using Waves as a proxy for spa/body treatments
+    iconName: 'Waves', // Using Waves as a proxy for spa/body treatments
   },
 ];
 

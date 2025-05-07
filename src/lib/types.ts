@@ -4,7 +4,7 @@ export interface Service {
   id: string;
   name: string;
   description: string;
-  icon: LucideIcon;
+  iconName: string; // Changed from icon: LucideIcon to iconName: string
 }
 
 export interface GalleryImage {

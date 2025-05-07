@@ -2,13 +2,15 @@ import type { Service } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import * as Icons from 'lucide-react';
+import { HelpCircle } from 'lucide-react'; // Fallback icon
 
 interface ServiceCardProps {
   service: Service;
 }
 
 export default function ServiceCard({ service }: ServiceCardProps) {
-  const IconComponent = service.icon;
+  const IconComponent = (Icons as any)[service.iconName] || HelpCircle;
   return (
     <Card className="flex flex-col h-full bg-card/80 backdrop-blur-sm shadow-md hover:shadow-xl hover:shadow-primary/20 transition-all duration-300 ease-in-out">
       <CardHeader className="items-center text-center">
