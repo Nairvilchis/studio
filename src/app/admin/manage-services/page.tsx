@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -65,13 +66,20 @@ const ManageServicesPage = () => {
     setCurrentService(null);
   };
 
+  const isValidIconName = (iconNameInput: string): boolean => {
+    const trimmedIconName = iconNameInput.trim();
+    if (!trimmedIconName) return false;
+    // Check if it's an own property and a function
+    return Icons.hasOwnProperty(trimmedIconName) && typeof (Icons as any)[trimmedIconName] === 'function';
+  };
+
   const handleAddService = () => {
-    if (!serviceName.trim() || !serviceDescription.trim() || !serviceIconName.trim()) {
-      toast({ title: 'Error', description: 'Todos los campos son requeridos.', variant: 'destructive' });
+    if (!serviceName.trim() || !serviceDescription.trim()) {
+      toast({ title: 'Error', description: 'Nombre y descripción son requeridos.', variant: 'destructive' });
       return;
     }
-    if (!(Icons as any)[serviceIconName.trim()]) {
-      toast({ title: 'Error', description: `El icono "${serviceIconName.trim()}" no es válido.`, variant: 'destructive' });
+    if (!isValidIconName(serviceIconName)) {
+      toast({ title: 'Error', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons.`, variant: 'destructive' });
       return;
     }
 
@@ -96,12 +104,12 @@ const ManageServicesPage = () => {
   };
 
   const handleUpdateService = () => {
-    if (!currentService || !serviceName.trim() || !serviceDescription.trim() || !serviceIconName.trim()) {
-      toast({ title: 'Error', description: 'Todos los campos son requeridos.', variant: 'destructive' });
+    if (!currentService || !serviceName.trim() || !serviceDescription.trim()) {
+      toast({ title: 'Error', description: 'Nombre y descripción son requeridos.', variant: 'destructive' });
       return;
     }
-     if (!(Icons as any)[serviceIconName.trim()]) {
-      toast({ title: 'Error', description: `El icono "${serviceIconName.trim()}" no es válido.`, variant: 'destructive' });
+     if (!isValidIconName(serviceIconName)) {
+      toast({ title: 'Error', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons.`, variant: 'destructive' });
       return;
     }
 
@@ -157,7 +165,7 @@ const ManageServicesPage = () => {
                   <Input id="iconName" value={serviceIconName} onChange={(e) => setServiceIconName(e.target.value)} className="col-span-3" placeholder="Ej: Scissors" />
                 </div>
                  <p className="text-xs text-muted-foreground col-span-4 px-1 text-center">
-                    Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a>.
+                    Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a> (ej: Smile, Home).
                   </p>
               </div>
               <DialogFooter>
@@ -243,7 +251,7 @@ const ManageServicesPage = () => {
               <Input id="edit-iconName" value={serviceIconName} onChange={(e) => setServiceIconName(e.target.value)} className="col-span-3" />
             </div>
             <p className="text-xs text-muted-foreground col-span-4 px-1 text-center">
-                Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a>.
+                Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a> (ej: Smile, Home).
             </p>
           </div>
           <DialogFooter>
@@ -257,3 +265,5 @@ const ManageServicesPage = () => {
 };
 
 export default ManageServicesPage;
+
+    
