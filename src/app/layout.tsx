@@ -1,13 +1,12 @@
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
-import { GeistMono } from 'geist/font/mono';
+// import { GeistMono } from 'geist/font/mono'; // Ensure GeistMono is not used if not available
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
-// The imported GeistSans and GeistMono are already font objects.
-// They are not functions to be called.
-// Their .variable property provides a className that sets up the CSS variables
-// (e.g., --font-geist-sans, --font-geist-mono) which are used in globals.css.
+// The imported GeistSans is already a font object.
+// Its .variable property provides a className that sets up the CSS variables
+// (e.g., --font-geist-sans) which are used in globals.css.
 
 export const metadata: Metadata = {
   title: 'Elegance Aesthetics',
@@ -20,10 +19,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="dark"> {/* Apply dark class by default */}
-      {/* Next.js handles <head> injection.
-          Ensure no extra whitespace nodes are children of <html> before <body>. */}
-      <body className={`${GeistSans.variable} ${GeistMono.variable} antialiased`}>
+    <html lang="es" className="dark">
+      {/*
+        Next.js automatically injects the <head> tag.
+        The 'dark' class on <html> sets the default theme.
+        Font variables like GeistSans.variable are applied to the <body>.
+        It's crucial to avoid any direct child whitespace text nodes within <html>
+        (before <head> or <body>) to prevent hydration errors.
+      */}
+      <body className={`${GeistSans.variable} antialiased`}>
         {children}
         <Toaster />
       </body>
