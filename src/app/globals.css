@@ -8,51 +8,51 @@ body {
 
 @layer base {
   :root {
-    --background: 210 20% 98%; /* Very light cool gray */
-    --foreground: 210 10% 23%; /* Dark cool gray */
+    --background: 220 15% 94%; /* Light grayish blue, clearly off-white */
+    --foreground: 220 10% 20%; /* Dark grayish blue, good contrast */
 
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 210 10% 23%; /* Dark cool gray */
+    --card: 220 15% 97%; /* Slightly lighter than main bg for elevation */
+    --card-foreground: 220 10% 15%; /* Very dark for card text */
 
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 210 10% 23%; /* Dark cool gray */
+    --popover: 220 15% 97%; /* Slightly lighter than main bg for elevation */
+    --popover-foreground: 220 10% 15%; /* Very dark for popover text */
 
-    --primary: 45 95% 55%; /* A slightly softer, richer gold #E6A719 */
-    --primary-foreground: 30 70% 10%; /* Dark brown for contrast on gold */
+    --primary: 210 75% 58%; /* Vibrant but not overly bright blue */
+    --primary-foreground: 210 20% 98%; /* Almost white for high contrast on blue */
 
-    --secondary: 210 15% 92%; /* Light cool gray */
-    --secondary-foreground: 210 10% 30%; /* Medium-dark cool gray */
+    --secondary: 220 12% 88%; /* Lighter cool gray for secondary elements */
+    --secondary-foreground: 220 8% 40%; /* Medium cool gray for secondary text */
 
-    --muted: 210 15% 92%; /* Light cool gray */
-    --muted-foreground: 210 10% 45%; /* Medium cool gray for muted text */
+    --muted: 220 12% 91%; /* Slightly lighter than secondary for muted backgrounds */
+    --muted-foreground: 220 8% 50%; /* Lighter cool gray for muted text */
 
-    --accent: 45 95% 60%; /* Brighter gold for accent #F0B32C */
-    --accent-foreground: 30 70% 10%; /* Dark brown for contrast on accent */
+    --accent: 200 80% 65%; /* Slightly lighter, sky-blue accent */
+    --accent-foreground: 200 20% 15%; /* Dark blue/gray for text on accent */
 
-    --destructive: 0 75% 55%; /* A slightly brighter, clearer red */
+    --destructive: 0 70% 50%; /* Standard clear red */
     --destructive-foreground: 0 0% 98%; /* White text on red */
 
-    --border: 210 15% 88%; /* Light cool gray border */
-    --input: 0 0% 100%; /* White input background */
-    --ring: 45 95% 55%; /* Gold for focus rings, same as primary */
+    --border: 220 10% 82%; /* Subtle cool gray border */
+    --input: 220 10% 98%; /* Very light, almost white input background for clarity */
+    --ring: 210 75% 60%; /* Primary color for focus rings */
     --radius: 0.5rem;
 
-    /* Chart colors (can be adjusted for better light theme visibility) */
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* Chart colors (Cooler, slightly desaturated blues/grays) */
+    --chart-1: 210 70% 55%; /* Primary blue */
+    --chart-2: 200 60% 60%; /* Lighter blue */
+    --chart-3: 220 50% 65%; /* Soft blue-gray */
+    --chart-4: 190 65% 50%; /* Cyan/Teal touch */
+    --chart-5: 230 40% 70%; /* Light lavender/blue */
 
     /* Sidebar colors */
-    --sidebar-background: 210 20% 96%; /* Slightly off-white, cool */
-    --sidebar-foreground: 210 10% 28%; /* Dark cool gray for sidebar text */
-    --sidebar-primary: 45 95% 55%; /* Gold */
-    --sidebar-primary-foreground: 30 70% 10%; /* Dark brown */
-    --sidebar-accent: 45 95% 60%; /* Brighter gold */
-    --sidebar-accent-foreground: 30 70% 10%; /* Dark brown */
-    --sidebar-border: 210 15% 85%; /* Light cool gray border for sidebar elements */
-    --sidebar-ring: 45 95% 55%; /* Gold */
+    --sidebar-background: 220 15% 92%; /* Slightly darker than main background */
+    --sidebar-foreground: 220 10% 25%; /* Darker text for sidebar */
+    --sidebar-primary: 210 75% 58%; /* Same as main primary */
+    --sidebar-primary-foreground: 210 20% 98%; /* Same as main primary foreground */
+    --sidebar-accent: 200 80% 65%; /* Same as main accent */
+    --sidebar-accent-foreground: 200 20% 15%; /* Same as main accent foreground */
+    --sidebar-border: 220 10% 80%; /* Slightly darker border for sidebar */
+    --sidebar-ring: 210 75% 60%; /* Same as main ring */
   }
 }
 
