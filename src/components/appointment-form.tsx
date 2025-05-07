@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { Card } from '@/components/ui/card'; // Added import for Card
 import { CalendarIcon, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -280,11 +281,3 @@ export default function AppointmentForm() {
     </section>
   );
 }
-
-// Need to add Card component to this file for structure.
-// This is a placeholder as actual Card is imported from ui.
-const Card = ({ className, children }: { className?: string, children: React.ReactNode }) => (
-  <div className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}>
-    {children}
-  </div>
-);
