@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useTransition } from 'react';
@@ -91,7 +90,11 @@ const ManageServicesPage = () => {
   const isValidIconName = (iconNameInput: string): boolean => {
     const trimmedIconName = iconNameInput.trim();
     if (!trimmedIconName) return false;
-    return Icons.hasOwnProperty(trimmedIconName) && typeof (Icons as any)[trimmedIconName] === 'function';
+    // Ensure Icons is populated and the iconName is a direct, function property
+    if (Icons && typeof Icons === 'object' && Icons.hasOwnProperty(trimmedIconName) && typeof (Icons as any)[trimmedIconName] === 'function') {
+      return true;
+    }
+    return false;
   };
 
   const isValidUrl = (urlString: string): boolean => {
@@ -114,7 +117,7 @@ const ManageServicesPage = () => {
         return;
     }
     if (!isValidIconName(serviceIconName)) {
-      toast({ title: 'Error de Icono', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons.`, variant: 'destructive' });
+      toast({ title: 'Error de Icono', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons (revisa el nombre y mayúsculas).`, variant: 'destructive' });
       return;
     }
     if (serviceImageUrl.trim() && !isValidUrl(serviceImageUrl.trim())) {
@@ -159,7 +162,7 @@ const ManageServicesPage = () => {
         return;
     }
     if (!isValidIconName(serviceIconName)) {
-      toast({ title: 'Error de Icono', description: `El icono "${serviceIconName.trim()}" no es válido.`, variant: 'destructive' });
+      toast({ title: 'Error de Icono', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons (revisa el nombre y mayúsculas).`, variant: 'destructive' });
       return;
     }
     if (serviceImageUrl.trim() && !isValidUrl(serviceImageUrl.trim())) {
@@ -232,7 +235,7 @@ const ManageServicesPage = () => {
                   <Input id="iconName" value={serviceIconName} onChange={(e) => setServiceIconName(e.target.value)} className="col-span-3" placeholder="Ej: Scissors" />
                 </div>
                  <p className="text-xs text-muted-foreground col-span-4 px-1 text-center">
-                    Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a> (ej: Smile, Home).
+                    Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a> (ej: Smile, Home). Asegúrate de usar mayúsculas y minúsculas correctamente.
                   </p>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="imageUrl" className="text-right">URL de Imagen</Label>
@@ -272,7 +275,17 @@ const ManageServicesPage = () => {
                     <TableRow key={service.id}>
                       <TableCell>
                         {service.imageUrl ? (
-                          <Image src={service.imageUrl} alt={service.name} width={40} height={40} className="rounded aspect-square object-cover" data-ai-hint="service beauty" />
+                          <Image src={service.imageUrl} alt={service.name} width={40} height={40} className="rounded aspect-square object-cover" data-ai-hint="service beauty" 
+                           onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            // Create a temporary span to render the icon if image fails
+                            const fallbackIconContainer = document.createElement('span');
+                            e.currentTarget.parentNode?.appendChild(fallbackIconContainer);
+                            const root = require('react-dom/client').createRoot(fallbackIconContainer); // Requires react-dom/client
+                            const IconComponent = (Icons as any)[service.iconName] || HelpCircle;
+                            root.render(React.createElement(IconComponent, { className: "h-5 w-5 text-foreground" }));
+                          }}
+                          />
                         ) : (
                           renderIcon(service.iconName)
                         )}
@@ -335,7 +348,7 @@ const ManageServicesPage = () => {
               <Input id="edit-iconName" value={serviceIconName} onChange={(e) => setServiceIconName(e.target.value)} className="col-span-3" />
             </div>
             <p className="text-xs text-muted-foreground col-span-4 px-1 text-center">
-                Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a> (ej: Smile, Home).
+                Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a> (ej: Smile, Home). Asegúrate de usar mayúsculas y minúsculas correctamente.
             </p>
             <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-imageUrl" className="text-right">URL de Imagen</Label>
