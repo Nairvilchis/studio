@@ -11,27 +11,32 @@ const sampleServices = [
   {
     name: 'Manicura y Pedicura Deluxe',
     description: 'Diseños creativos y cuidado experto para tus uñas, manos y pies. Incluye exfoliación e hidratación profunda.',
-    iconName: 'Paintbrush', // Nombre del icono de Lucide
+    iconName: 'Paintbrush',
+    imageUrl: 'https://picsum.photos/seed/manicure_service/400/300',
   },
   {
     name: 'Peluquería Profesional Premium',
     description: 'Cortes, coloración vanguardista y peinados que realzan tu belleza natural. Asesoramiento personalizado.',
     iconName: 'Scissors',
+    imageUrl: 'https://picsum.photos/seed/hair_service/400/300',
   },
   {
     name: 'Microblading y Diseño de Cejas',
     description: 'Cejas perfectas, definidas y naturales con técnicas de micropigmentación avanzadas y diseño personalizado.',
     iconName: 'PenTool',
+    imageUrl: 'https://picsum.photos/seed/microblading_service/400/300',
   },
   {
     name: 'Tratamientos Faciales Rejuvenecedores',
     description: 'Rejuvenece e ilumina tu piel con nuestros tratamientos personalizados y efectivos. Diagnóstico facial incluido.',
     iconName: 'Sparkles',
+    imageUrl: 'https://picsum.photos/seed/facial_service/400/300',
   },
   {
     name: 'Tratamientos Corporales Relajantes',
     description: 'Relájate y revitaliza tu cuerpo con terapias exclusivas, envolturas y masajes relajantes.',
     iconName: 'Waves',
+    // No imageUrl for this one to test fallback
   },
 ];
 

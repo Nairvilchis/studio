@@ -5,6 +5,7 @@ export interface Service {
   name: string;
   description: string;
   iconName: string; 
+  imageUrl?: string; // Optional URL for the service image
 }
 
 export interface GalleryImage {

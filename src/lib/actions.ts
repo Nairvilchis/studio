@@ -24,6 +24,7 @@ const ServiceSchemaDB = z.object({
   name: z.string().min(1, "El nombre es requerido."),
   description: z.string().min(1, "La descripción es requerida."),
   iconName: z.string().min(1, "El nombre del icono es requerido."),
+  imageUrl: z.string().url({ message: "Debe ser una URL válida." }).optional().or(z.literal('')).transform(val => val === '' ? undefined : val),
 });
 
 // Esquema de validación para imágenes de galería (backend/admin)

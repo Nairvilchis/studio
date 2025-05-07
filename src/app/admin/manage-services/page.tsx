@@ -39,8 +39,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import * as Icons from 'lucide-react';
-import { HelpCircle, PlusCircle, Edit3, Trash2, Loader2 } from 'lucide-react';
+import { HelpCircle, PlusCircle, Edit3, Trash2, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Image from 'next/image';
 
 const ManageServicesPage = () => {
   const [services, setServices] = useState<Service[]>([]);
@@ -52,6 +53,8 @@ const ManageServicesPage = () => {
   const [serviceName, setServiceName] = useState('');
   const [serviceDescription, setServiceDescription] = useState('');
   const [serviceIconName, setServiceIconName] = useState('');
+  const [serviceImageUrl, setServiceImageUrl] = useState('');
+
 
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
@@ -81,6 +84,7 @@ const ManageServicesPage = () => {
     setServiceName('');
     setServiceDescription('');
     setServiceIconName('');
+    setServiceImageUrl('');
     setCurrentService(null);
   };
 
@@ -88,6 +92,16 @@ const ManageServicesPage = () => {
     const trimmedIconName = iconNameInput.trim();
     if (!trimmedIconName) return false;
     return Icons.hasOwnProperty(trimmedIconName) && typeof (Icons as any)[trimmedIconName] === 'function';
+  };
+
+  const isValidUrl = (urlString: string): boolean => {
+    if (!urlString) return true; // Optional field
+    try {
+      new URL(urlString);
+      return true;
+    } catch (_) {
+      return false;
+    }
   };
 
   const handleAddService = () => {
@@ -103,16 +117,20 @@ const ManageServicesPage = () => {
       toast({ title: 'Error de Icono', description: `El icono "${serviceIconName.trim()}" no es válido. Por favor, elige un icono de Lucide Icons.`, variant: 'destructive' });
       return;
     }
+    if (serviceImageUrl.trim() && !isValidUrl(serviceImageUrl.trim())) {
+      toast({ title: 'URL Inválida', description: 'La URL de la imagen no es válida.', variant: 'destructive' });
+      return;
+    }
 
     startTransition(async () => {
       const result = await createService({
         name: serviceName.trim(),
         description: serviceDescription.trim(),
         iconName: serviceIconName.trim(),
+        imageUrl: serviceImageUrl.trim() || undefined,
       });
       if (result.success && result.data) {
-        // setServices((prev) => [result.data!, ...prev]); // Or re-fetch
-        await fetchServices(); // Re-fetch to get the latest data including MongoDB ID
+        await fetchServices(); 
         toast({ title: 'Éxito', description: result.message });
         setIsAddDialogOpen(false);
         resetFormFields();
@@ -127,6 +145,7 @@ const ManageServicesPage = () => {
     setServiceName(service.name);
     setServiceDescription(service.description);
     setServiceIconName(service.iconName);
+    setServiceImageUrl(service.imageUrl || '');
     setIsEditDialogOpen(true);
   };
 
@@ -143,15 +162,19 @@ const ManageServicesPage = () => {
       toast({ title: 'Error de Icono', description: `El icono "${serviceIconName.trim()}" no es válido.`, variant: 'destructive' });
       return;
     }
+    if (serviceImageUrl.trim() && !isValidUrl(serviceImageUrl.trim())) {
+      toast({ title: 'URL Inválida', description: 'La URL de la imagen no es válida.', variant: 'destructive' });
+      return;
+    }
 
     startTransition(async () => {
       const result = await updateService(currentService.id, {
         name: serviceName.trim(),
         description: serviceDescription.trim(),
         iconName: serviceIconName.trim(),
+        imageUrl: serviceImageUrl.trim() || undefined,
       });
       if (result.success) {
-        // setServices((prev) => prev.map((s) => (s.id === currentService.id ? { ...s, ...result.data } : s))); // Or re-fetch
         await fetchServices();
         toast({ title: 'Éxito', description: result.message });
         setIsEditDialogOpen(false);
@@ -166,7 +189,6 @@ const ManageServicesPage = () => {
     startTransition(async () => {
       const result = await deleteService(serviceId);
       if (result.success) {
-        // setServices((prev) => prev.filter((s) => s.id !== serviceId)); // Or re-fetch
         await fetchServices();
         toast({ title: 'Éxito', description: result.message });
       } else {
@@ -191,7 +213,7 @@ const ManageServicesPage = () => {
                 <PlusCircle className="mr-2 h-4 w-4" /> Añadir Servicio
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Añadir Nuevo Servicio</DialogTitle>
                 <DialogDescription>Completa los detalles del nuevo servicio.</DialogDescription>
@@ -212,6 +234,10 @@ const ManageServicesPage = () => {
                  <p className="text-xs text-muted-foreground col-span-4 px-1 text-center">
                     Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a> (ej: Smile, Home).
                   </p>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="imageUrl" className="text-right">URL de Imagen</Label>
+                  <Input id="imageUrl" value={serviceImageUrl} onChange={(e) => setServiceImageUrl(e.target.value)} className="col-span-3" placeholder="https://ejemplo.com/imagen.jpg (Opcional)" />
+                </div>
               </div>
               <DialogFooter>
                 <DialogClose asChild><Button variant="outline" disabled={isPending}>Cancelar</Button></DialogClose>
@@ -235,18 +261,24 @@ const ManageServicesPage = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Imagen/Icono</TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>Descripción</TableHead>
-                    <TableHead>Icono</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {services.map((service) => (
                     <TableRow key={service.id}>
+                      <TableCell>
+                        {service.imageUrl ? (
+                          <Image src={service.imageUrl} alt={service.name} width={40} height={40} className="rounded aspect-square object-cover" data-ai-hint="service beauty" />
+                        ) : (
+                          renderIcon(service.iconName)
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium">{service.name}</TableCell>
                       <TableCell className="max-w-xs truncate">{service.description}</TableCell>
-                      <TableCell>{renderIcon(service.iconName)}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button variant="outline" size="sm" onClick={() => handleEditService(service)} disabled={isPending}>
                           <Edit3 className="h-4 w-4" />
@@ -284,7 +316,7 @@ const ManageServicesPage = () => {
       </Card>
 
       <Dialog open={isEditDialogOpen} onOpenChange={(isOpen) => { setIsEditDialogOpen(isOpen); if(!isOpen) resetFormFields(); }}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Editar Servicio</DialogTitle>
             <DialogDescription>Actualiza los detalles del servicio.</DialogDescription>
@@ -305,6 +337,10 @@ const ManageServicesPage = () => {
             <p className="text-xs text-muted-foreground col-span-4 px-1 text-center">
                 Usa un nombre de icono de <a href="https://lucide.dev/icons/" target="_blank" rel="noopener noreferrer" className="underline">Lucide Icons</a> (ej: Smile, Home).
             </p>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-imageUrl" className="text-right">URL de Imagen</Label>
+                <Input id="edit-imageUrl" value={serviceImageUrl} onChange={(e) => setServiceImageUrl(e.target.value)} className="col-span-3" placeholder="https://ejemplo.com/imagen.jpg (Opcional)" />
+            </div>
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline" disabled={isPending}>Cancelar</Button></DialogClose>
