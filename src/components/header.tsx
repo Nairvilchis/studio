@@ -16,7 +16,7 @@ export default function Header() {
       <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
         <Link href="/" className="flex items-center space-x-2">
           <Gem className="h-6 w-6 text-primary" />
-          <span className="font-bold text-xl text-foreground">Elegance Aesthetics</span>
+          <span className="font-bold text-xl text-foreground">Nova Glow</span>
         </Link>
 
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">

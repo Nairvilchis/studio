@@ -10,20 +10,20 @@ export default function Footer() {
           <div>
             <Link href="/" className="flex items-center space-x-2 mb-4">
               <Gem className="h-8 w-8 text-primary" />
-              <span className="font-bold text-2xl text-foreground">Elegance Aesthetics</span>
+              <span className="font-bold text-2xl text-foreground">Nova Glow</span>
             </Link>
             <p className="text-muted-foreground text-sm">
               Transformando belleza, realzando confianza. <br />
               Tu oasis de elegancia y bienestar.
             </p>
           </div>
-
+  
           <div>
             <h3 className="text-lg font-semibold text-foreground mb-4">Contacto</h3>
             <address className="not-italic text-sm text-muted-foreground space-y-2">
               <p>Calle Falsa 123, Ciudad Ejemplo, CP 08000</p>
-              <p>Email: <a href="mailto:contacto@eleganceaesthetics.com" className="hover:text-primary transition-colors">contacto@eleganceaesthetics.com</a></p>
-              <p>Teléfono: <a href="tel:+34900123456" className="hover:text-primary transition-colors">(+34) 900 123 456</a></p>
+              <p>Email: <a href="mailto:contacto@novaglow.com" className="hover:text-primary transition-colors">contacto@novaglow.com</a></p>
+              <p>Teléfono: <a href="tel:+34900123456" className="hover:text-primary transition-colors">(+34) 900 123 456</a> </p>
             </address>
             <div className="flex space-x-4 mt-6">
               <Link href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary transition-colors"><Facebook size={20} /></Link>
@@ -34,7 +34,7 @@ export default function Footer() {
           </div>
         </div>
         <div className="border-t border-border/40 pt-8 text-center text-sm text-muted-foreground">
-          <p>&copy; {currentYear} Elegance Aesthetics. Todos los derechos reservados.</p>
+          <p>&copy; {currentYear} Nova Glow. Todos los derechos reservados.</p>
         </div>
       </div>
     </footer>

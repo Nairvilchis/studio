@@ -9,8 +9,8 @@ import { Toaster } from '@/components/ui/toaster';
 // (e.g., --font-geist-sans) which are used in globals.css.
 
 export const metadata: Metadata = {
-  title: 'Elegance Aesthetics',
-  description: 'Salón de belleza y estética. Uñas, cabello, microblading y tratamientos.',
+  title: 'Nova Glow',
+  description: 'Nova Glow: Salón de belleza y estética. Uñas, cabello, microblading y tratamientos.',
 };
 
 export default function RootLayout({
