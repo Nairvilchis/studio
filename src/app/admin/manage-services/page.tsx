@@ -38,9 +38,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import * as Icons from 'lucide-react';
-import { HelpCircle, PlusCircle, Edit3, Trash2, Loader2, Image as ImageIcon } from 'lucide-react';
+import { HelpCircle, PlusCircle, Edit3, Trash2, Loader2, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const ManageServicesPage = () => {
   const [services, setServices] = useState<Service[]>([]);
@@ -207,6 +208,14 @@ const ManageServicesPage = () => {
 
   return (
     <div className="container mx-auto py-8 px-4">
+      <div className="mb-6">
+        <Button asChild variant="outline">
+          <Link href="/admin">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver al Dashboard
+          </Link>
+        </Button>
+      </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-2xl font-bold">Gestionar Servicios</CardTitle>
@@ -280,10 +289,19 @@ const ManageServicesPage = () => {
                             (e.target as HTMLImageElement).style.display = 'none';
                             // Create a temporary span to render the icon if image fails
                             const fallbackIconContainer = document.createElement('span');
-                            e.currentTarget.parentNode?.appendChild(fallbackIconContainer);
-                            const root = require('react-dom/client').createRoot(fallbackIconContainer); // Requires react-dom/client
-                            const IconComponent = (Icons as any)[service.iconName] || HelpCircle;
-                            root.render(React.createElement(IconComponent, { className: "h-5 w-5 text-foreground" }));
+                            const parentNode = e.currentTarget.parentNode;
+                            if (parentNode) {
+                                parentNode.appendChild(fallbackIconContainer);
+                                try {
+                                    const root = require('react-dom/client').createRoot(fallbackIconContainer); 
+                                    const IconComponent = (Icons as any)[service.iconName] || HelpCircle;
+                                    root.render(React.createElement(IconComponent, { className: "h-5 w-5 text-foreground" }));
+                                } catch (renderError) {
+                                    console.error("Error rendering fallback icon:", renderError);
+                                    // Fallback to just text if React rendering fails
+                                    fallbackIconContainer.textContent = service.iconName.substring(0,3);
+                                }
+                            }
                           }}
                           />
                         ) : (

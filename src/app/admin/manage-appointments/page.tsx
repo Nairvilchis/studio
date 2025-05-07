@@ -17,7 +17,7 @@ import { useState, useEffect, useTransition } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, Trash2, ArrowLeft } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 
 
 export default function ManageAppointmentsPage() {
@@ -120,6 +121,14 @@ export default function ManageAppointmentsPage() {
 
   return (
     <div className="container mx-auto py-8">
+       <div className="mb-6">
+        <Button asChild variant="outline">
+          <Link href="/admin">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver al Dashboard
+          </Link>
+        </Button>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Gestionar Citas</CardTitle>

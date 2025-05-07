@@ -31,7 +31,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import React, { useState, useEffect, useTransition } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Pencil, PlusCircle, Trash2, Loader2 } from 'lucide-react';
+import { Pencil, PlusCircle, Trash2, Loader2, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 const ManageGalleryPage = () => {
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
@@ -167,6 +168,14 @@ const ManageGalleryPage = () => {
 
   return (
     <div className="container mx-auto py-8 px-4">
+      <div className="mb-6">
+        <Button asChild variant="outline">
+          <Link href="/admin">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver al Dashboard
+          </Link>
+        </Button>
+      </div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-foreground">Gestionar Imágenes de Galería</h1>
         <Button onClick={handleOpenAddDialog} disabled={isPending}>
