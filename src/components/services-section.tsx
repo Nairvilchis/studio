@@ -2,7 +2,7 @@ import type { Service } from '@/lib/types';
 import ServiceCard from './service-card';
 import { Paintbrush, Scissors, PenTool, Sparkles, Waves } from 'lucide-react'; // Replaced Spa with Waves
 
-const servicesData: Service[] = [
+export const  servicesData: Service[] = [
   {
     id: 'nails',
     name: 'Manicura y Pedicura',

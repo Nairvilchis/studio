@@ -22,4 +22,5 @@ export interface AppointmentFormData {
   service: string;
   date: Date;
   time: string;
+  message?: string; // Added optional message
 }

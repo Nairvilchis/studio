@@ -1,0 +1,71 @@
+import React from "react";
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+const AdminPage: React.FC = () => {
+  return (
+    <div className="container mx-auto py-10 px-4">
+      <h1 className="text-4xl font-bold text-center mb-10">Admin Dashboard</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Services Management Section */}
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">
+              Manage Services
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-gray-600">
+              Manage the services offered, including adding new ones, editing
+              existing services, or removing outdated ones.
+            </p>
+            <Button asChild variant="link">
+              <Link href="/admin/manage-services">Go to Manage Services</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Gallery Management Section */}
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">
+              Manage Gallery Images
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-gray-600">
+              Manage the images displayed in the gallery, add new ones, or
+              remove unwanted images.
+            </p>
+            <Button asChild variant="link">
+              <Link href="/admin/manage-gallery">Go to Manage Gallery</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        {/* Appointments Management Section */}
+        <Card className="shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">
+              Manage Appointments
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-gray-600">
+              View, approve, or reject pending appointments and manage the
+              appointment calendar.
+            </p>
+            <Button asChild variant="link">
+              <Link href="/admin/manage-appointments">
+                Go to Manage Appointments
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default AdminPage;
