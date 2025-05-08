@@ -3,7 +3,7 @@ import React from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Cog, Images, CalendarDays, Info, LayoutPanelTop, TypeIcon } from "lucide-react"; // Added TypeIcon
+import { Cog, Images, CalendarDays, Info, LayoutPanelTop, TypeIcon, GalleryHorizontalEnd } from "lucide-react"; 
 
 const AdminPage: React.FC = () => {
   return (
@@ -65,9 +65,26 @@ const AdminPage: React.FC = () => {
 
         <Card className="shadow-lg hover:shadow-primary/20 transition-shadow duration-300 flex flex-col">
           <CardHeader className="flex flex-row items-center space-x-3 pb-4">
+            <GalleryHorizontalEnd className="h-8 w-8 text-primary" />
+            <CardTitle className="text-xl font-semibold text-foreground">
+              Contenido Sección Galería
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 flex-grow flex flex-col justify-between">
+            <p className="text-muted-foreground">
+              Editar título y descripción de la sección de galería.
+            </p>
+            <Button asChild variant="outline" className="w-full mt-auto border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors duration-200">
+              <Link href="/admin/manage-gallery-section">Gestionar Contenido</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg hover:shadow-primary/20 transition-shadow duration-300 flex flex-col">
+          <CardHeader className="flex flex-row items-center space-x-3 pb-4">
             <Images className="h-8 w-8 text-primary" />
             <CardTitle className="text-xl font-semibold text-foreground">
-              Gestionar Galería
+              Gestionar Galería (Imágenes)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 flex-grow flex flex-col justify-between">
@@ -75,7 +92,7 @@ const AdminPage: React.FC = () => {
               Administrar las imágenes de la galería.
             </p>
             <Button asChild variant="outline" className="w-full mt-auto border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors duration-200">
-              <Link href="/admin/manage-gallery">Gestionar Galería</Link>
+              <Link href="/admin/manage-gallery">Gestionar Imágenes</Link>
             </Button>
           </CardContent>
         </Card>

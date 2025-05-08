@@ -5,7 +5,8 @@ import { GalleryImage } from './src/models/GalleryImage';
 import { Appointment } from './src/models/Appointment';
 import { ContactInfo } from './src/models/ContactInfo';
 import { HeroContent } from './src/models/HeroContent';
-import { ServicesSectionContent } from './src/models/ServicesSectionContent'; // Import ServicesSectionContent model
+import { ServicesSectionContent } from './src/models/ServicesSectionContent';
+import { GallerySectionContent } from './src/models/GallerySectionContent'; // Import GallerySectionContent model
 import connectToDatabase from './src/lib/mongodb'; 
 import dotenv from 'dotenv';
 
@@ -138,6 +139,12 @@ const sampleServicesSectionContent = {
   description: "Descubre la gama de tratamientos que hemos diseñado para ti, utilizando productos de alta calidad y las últimas tendencias.",
 };
 
+const sampleGallerySectionContent = {
+  titlePrefix: "Galería de",
+  titleHighlight: "Transformaciones",
+  description: "Inspírate con algunos de nuestros trabajos y visualiza tu próximo cambio de look.",
+};
+
 
 const seedDatabase = async () => {
   try {
@@ -151,7 +158,8 @@ const seedDatabase = async () => {
     await Appointment.deleteMany({});
     await ContactInfo.deleteMany({});
     await HeroContent.deleteMany({});
-    await ServicesSectionContent.deleteMany({}); // Clear existing services section content
+    await ServicesSectionContent.deleteMany({});
+    await GallerySectionContent.deleteMany({}); // Clear existing gallery section content
     console.log('Existing data cleared.');
 
     console.log('Inserting sample services...');
@@ -177,6 +185,11 @@ const seedDatabase = async () => {
     console.log('Inserting sample services section content...');
     await ServicesSectionContent.create(sampleServicesSectionContent);
     console.log('Services section content inserted.');
+
+    console.log('Inserting sample gallery section content...');
+    await GallerySectionContent.create(sampleGallerySectionContent); // Insert gallery section content
+    console.log('Gallery section content inserted.');
+
 
     console.log('Sample data inserted successfully.');
 

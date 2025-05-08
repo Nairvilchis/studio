@@ -1,4 +1,5 @@
 
+
 // import type { LucideIcon } from 'lucide-react'; // No se usa directamente en este archivo
 
 export interface Service {
@@ -55,6 +56,13 @@ export interface HeroContentData {
 }
 
 export interface ServicesSectionContentData {
+  id?: string;
+  titlePrefix: string;
+  titleHighlight: string;
+  description: string;
+}
+
+export interface GallerySectionContentData {
   id?: string;
   titlePrefix: string;
   titleHighlight: string;

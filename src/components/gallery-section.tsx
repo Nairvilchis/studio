@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -7,39 +8,47 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
-import type { GalleryImage } from '@/lib/types';
-import { readGalleryImages } from '@/lib/actions'; // Importar la server action
-
-// Los datos estáticos se eliminarán o se usarán como fallback/semilla.
-// export const galleryImagesData: GalleryImage[] = [ ... ];
+import type { GalleryImage, GallerySectionContentData } from '@/lib/types';
+import { readGalleryImages, readGallerySectionContent } from '@/lib/actions';
 
 export default async function GallerySection() {
-  // Cargar imágenes de la galería desde la base de datos
   const galleryResponse = await readGalleryImages();
   let galleryImagesData: GalleryImage[] = [];
 
   if (galleryResponse.success && galleryResponse.data) {
     galleryImagesData = galleryResponse.data;
   } else {
-    // Manejar el caso de error
     console.error("Failed to load gallery images:", galleryResponse.message);
-    // galleryImagesData = [ ... fallback data ... ];
+  }
+
+  const contentResponse = await readGallerySectionContent();
+  let sectionContent: GallerySectionContentData;
+
+  if (contentResponse.success && contentResponse.data) {
+    sectionContent = contentResponse.data;
+  } else {
+    console.warn("Failed to load gallery section content, using fallback data. Message:", contentResponse.message);
+    sectionContent = {
+      titlePrefix: "Galería de",
+      titleHighlight: "Transformaciones",
+      description: "Inspírate con algunos de nuestros trabajos y visualiza tu próximo cambio de look.",
+    };
   }
   
   return (
     <section id="gallery" className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4">
         <h2 className="text-4xl md:text-5xl font-bold text-center text-foreground mb-4">
-          Galería de <span className="text-primary">Transformaciones</span>
+          {sectionContent.titlePrefix} <span className="text-primary">{sectionContent.titleHighlight}</span>
         </h2>
         <p className="text-lg text-muted-foreground text-center mb-12 md:mb-16 max-w-2xl mx-auto">
-          Inspírate con algunos de nuestros trabajos y visualiza tu próximo cambio de look.
+          {sectionContent.description}
         </p>
         {galleryImagesData.length > 0 ? (
           <Carousel
             opts={{
               align: 'start',
-              loop: galleryImagesData.length > 3, // Solo hacer loop si hay suficientes imágenes
+              loop: galleryImagesData.length > 3, 
             }}
             className="w-full max-w-xs sm:max-w-xl md:max-w-3xl lg:max-w-5xl mx-auto"
           >

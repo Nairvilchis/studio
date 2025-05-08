@@ -7,9 +7,10 @@ import { Service as ServiceModel } from '@/models/Service';
 import { GalleryImage as GalleryImageModel } from '@/models/GalleryImage';
 import { Appointment as AppointmentModel } from '@/models/Appointment';
 import { ContactInfo as ContactInfoModel } from '@/models/ContactInfo';
-import { HeroContent as HeroContentModel } from '@/models/HeroContent'; // Added HeroContentModel
-import { ServicesSectionContent as ServicesSectionContentModel } from '@/models/ServicesSectionContent'; // Added ServicesSectionContentModel
-import type { AppointmentFormData, Service, GalleryImage as GalleryImageType, ContactInfo, HeroContentData, ServicesSectionContentData } from './types';
+import { HeroContent as HeroContentModel } from '@/models/HeroContent'; 
+import { ServicesSectionContent as ServicesSectionContentModel } from '@/models/ServicesSectionContent';
+import { GallerySectionContent as GallerySectionContentModel } from '@/models/GallerySectionContent'; // Added GallerySectionContentModel
+import type { AppointmentFormData, Service, GalleryImage as GalleryImageType, ContactInfo, HeroContentData, ServicesSectionContentData, GallerySectionContentData } from './types';
 import { revalidatePath } from 'next/cache';
 
 // Esquema de validación para citas (frontend)
@@ -58,14 +59,21 @@ const HeroContentSchemaDB = z.object({
   titleHighlight: z.string().min(1, "El texto destacado del título es requerido."),
   subtitle: z.string().min(1, "El subtítulo es requerido."),
   primaryButtonText: z.string().min(1, "El texto del botón principal es requerido."),
-  primaryButtonLink: z.string().min(1, "El enlace del botón principal es requerido."), // Basic validation, can be improved
+  primaryButtonLink: z.string().min(1, "El enlace del botón principal es requerido."), 
   secondaryButtonText: z.string().min(1, "El texto del botón secundario es requerido."),
-  secondaryButtonLink: z.string().min(1, "El enlace del botón secundario es requerido."), // Basic validation
+  secondaryButtonLink: z.string().min(1, "El enlace del botón secundario es requerido."), 
   backgroundImageUrl: z.string().url("URL de imagen de fondo inválida.").optional().or(z.literal('')).transform(val => val === '' ? undefined : val),
 });
 
 // Esquema de validación para Services Section Content (backend/admin)
 const ServicesSectionContentSchemaDB = z.object({
+  titlePrefix: z.string().min(1, "El prefijo del título es requerido."),
+  titleHighlight: z.string().min(1, "El texto destacado del título es requerido."),
+  description: z.string().min(1, "La descripción es requerida.").max(500, "La descripción no debe exceder los 500 caracteres."),
+});
+
+// Esquema de validación para Gallery Section Content (backend/admin)
+const GallerySectionContentSchemaDB = z.object({
   titlePrefix: z.string().min(1, "El prefijo del título es requerido."),
   titleHighlight: z.string().min(1, "El texto destacado del título es requerido."),
   description: z.string().min(1, "La descripción es requerida.").max(500, "La descripción no debe exceder los 500 caracteres."),
@@ -77,7 +85,6 @@ function mongoDocToPlainObject<T extends { _id: any }>(doc: T): Omit<T, '_id'> &
   const obj = doc.toObject ? doc.toObject({ virtuals: true }) : { ...doc };
   obj.id = obj._id.toString();
   delete obj._id;
-  // También eliminamos __v si existe
   if (obj.__v !== undefined) {
     delete obj.__v;
   }
@@ -115,11 +122,11 @@ export async function scheduleAppointmentAction(
     await connectToDatabase();
     const newAppointment = new AppointmentModel({
       ...validatedFields.data,
-      status: 'pending', // Estado inicial
+      status: 'pending', 
     });
     await newAppointment.save();
     
-    revalidatePath('/admin/manage-appointments'); // Revalidar la página de admin
+    revalidatePath('/admin/manage-appointments'); 
     
     return {
       message: `¡Gracias, ${validatedFields.data.name}! Tu cita para ${validatedFields.data.service} el ${new Date(validatedFields.data.date).toLocaleDateString('es-ES')} a las ${validatedFields.data.time} ha sido solicitada. Te contactaremos pronto para confirmar.`,
@@ -413,7 +420,6 @@ export async function readHeroContent(): Promise<{ success: boolean; data?: Hero
     if (heroContentDoc) {
       return { success: true, data: mongoDocToPlainObject(heroContentDoc) as HeroContentData };
     }
-    // Default values if no content is found in the database
     return { 
       success: true, 
       data: {
@@ -432,7 +438,7 @@ export async function readHeroContent(): Promise<{ success: boolean; data?: Hero
     return { 
       success: false, 
       message: 'Error del servidor al leer el contenido del hero.',
-      data: { // Provide fallback defaults on error as well
+      data: { 
         titlePrefix: "Descubre tu",
         titleHighlight: "Belleza Radiante",
         subtitle: "Error al cargar contenido. Por favor, intente más tarde.",
@@ -466,7 +472,7 @@ export async function updateHeroContent(data: Partial<Omit<HeroContentData, 'id'
       return { success: false, message: 'No se pudo actualizar o crear el contenido del hero.' };
     }
     
-    revalidatePath('/'); // For hero section on homepage
+    revalidatePath('/'); 
     revalidatePath('/admin/manage-hero');
     
     return { success: true, data: mongoDocToPlainObject(updatedHeroContent) as HeroContentData, message: 'Contenido del hero actualizado exitosamente.' };
@@ -520,11 +526,64 @@ export async function updateServicesSectionContent(data: Partial<Omit<ServicesSe
     }
     
     revalidatePath('/#services'); 
-    revalidatePath('/admin/manage-services-section'); // Assuming this will be the admin page path
+    revalidatePath('/admin/manage-services-section'); 
     
     return { success: true, data: mongoDocToPlainObject(updatedContent) as ServicesSectionContentData, message: 'Contenido de la sección de servicios actualizado exitosamente.' };
   } catch (error) {
     console.error('Error al actualizar contenido de la sección de servicios:', error);
     return { success: false, message: 'Error del servidor al actualizar el contenido de la sección de servicios.' };
+  }
+}
+
+// --- GALLERY SECTION CONTENT ---
+export async function readGallerySectionContent(): Promise<{ success: boolean; data?: GallerySectionContentData; message?: string }> {
+  try {
+    await connectToDatabase();
+    const contentDoc = await GallerySectionContentModel.findOne({});
+    if (contentDoc) {
+      return { success: true, data: mongoDocToPlainObject(contentDoc) as GallerySectionContentData };
+    }
+    return { 
+      success: true, 
+      data: {
+        titlePrefix: "Galería de",
+        titleHighlight: "Transformaciones",
+        description: "Inspírate con algunos de nuestros trabajos y visualiza tu próximo cambio de look.",
+      } 
+    };
+  } catch (error) {
+    console.error('Error al leer contenido de la sección de galería:', error);
+    return { 
+      success: false, 
+      message: 'Error del servidor al leer el contenido de la sección de galería.',
+      data: {
+        titlePrefix: "Galería de",
+        titleHighlight: "Transformaciones",
+        description: "Error al cargar la descripción. Intente más tarde.",
+      }
+    };
+  }
+}
+
+export async function updateGallerySectionContent(data: Partial<Omit<GallerySectionContentData, 'id'>>): Promise<{ success: boolean; data?: GallerySectionContentData; message?: string; errors?: any }> {
+  const validatedFields = GallerySectionContentSchemaDB.partial().safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: "Error de validación.", errors: validatedFields.error.flatten().fieldErrors };
+  }
+  try {
+    await connectToDatabase();
+    const updatedContent = await GallerySectionContentModel.findOneAndUpdate({}, validatedFields.data, { new: true, upsert: true, runValidators: true });
+    
+    if (!updatedContent) {
+      return { success: false, message: 'No se pudo actualizar o crear el contenido de la sección de galería.' };
+    }
+    
+    revalidatePath('/#gallery'); 
+    revalidatePath('/admin/manage-gallery-section');
+    
+    return { success: true, data: mongoDocToPlainObject(updatedContent) as GallerySectionContentData, message: 'Contenido de la sección de galería actualizado exitosamente.' };
+  } catch (error) {
+    console.error('Error al actualizar contenido de la sección de galería:', error);
+    return { success: false, message: 'Error del servidor al actualizar el contenido de la sección de galería.' };
   }
 }
