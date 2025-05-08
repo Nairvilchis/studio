@@ -41,6 +41,7 @@ export interface ContactInfo {
   instagramUrl?: string;
   twitterUrl?: string;
   youtubeUrl?: string;
+  footerTagline?: string; // Added for footer tagline
 }
 
 export interface HeroContentData {
@@ -68,3 +69,4 @@ export interface GallerySectionContentData {
   titleHighlight: string;
   description: string;
 }
+

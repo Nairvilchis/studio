@@ -51,6 +51,7 @@ const ContactInfoSchemaDB = z.object({
   instagramUrl: z.string().url("URL de Instagram inválida.").optional().or(z.literal('')),
   twitterUrl: z.string().url("URL de Twitter inválida.").optional().or(z.literal('')),
   youtubeUrl: z.string().url("URL de YouTube inválida.").optional().or(z.literal('')),
+  footerTagline: z.string().max(200, "El tagline no debe exceder los 200 caracteres.").optional().or(z.literal('')),
 });
 
 // Esquema de validación para Hero Content (backend/admin)
@@ -331,6 +332,7 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
           instagramUrl: plainObject.instagramUrl || '',
           twitterUrl: plainObject.twitterUrl || '',
           youtubeUrl: plainObject.youtubeUrl || '',
+          footerTagline: plainObject.footerTagline || "Transformando belleza, realzando confianza. Tu oasis de elegancia y bienestar.",
         }
       };
     }
@@ -346,6 +348,7 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
         instagramUrl: "",
         twitterUrl: "",
         youtubeUrl: "",
+        footerTagline: "Transformando belleza, realzando confianza. Tu oasis de elegancia y bienestar.",
       } 
     };
   } catch (error) {
@@ -363,6 +366,7 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
             instagramUrl: "#",
             twitterUrl: "#",
             youtubeUrl: "#",
+            footerTagline: "Error al cargar tagline.",
         }
     };
   }
@@ -375,6 +379,7 @@ export async function updateContactInfo(data: Partial<Omit<ContactInfo, 'id'>>):
     instagramUrl: data.instagramUrl || undefined,
     twitterUrl: data.twitterUrl || undefined,
     youtubeUrl: data.youtubeUrl || undefined,
+    footerTagline: data.footerTagline || undefined,
   };
 
   const validatedFields = ContactInfoSchemaDB.partial().safeParse(dataToValidate);
@@ -403,6 +408,7 @@ export async function updateContactInfo(data: Partial<Omit<ContactInfo, 'id'>>):
           instagramUrl: plainObject.instagramUrl || '',
           twitterUrl: plainObject.twitterUrl || '',
           youtubeUrl: plainObject.youtubeUrl || '',
+          footerTagline: plainObject.footerTagline || '',
         },
         message: 'Información de contacto actualizada exitosamente.'
       };

@@ -6,7 +6,7 @@ import type { ContactInfo } from '@/lib/types';
 import { readContactInfo, updateContactInfo } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label'; // Unused, FormLabel is used from form component
+import { Textarea } from '@/components/ui/textarea'; // Added Textarea
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Save, ArrowLeft, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -23,6 +23,7 @@ const ContactInfoSchema = z.object({
   postalCode: z.string().min(1, "El código postal es requerido."),
   email: z.string().email("Debe ser un email válido."),
   phone: z.string().min(9, "El teléfono debe tener al menos 9 dígitos."),
+  footerTagline: z.string().max(200, "El tagline del pie de página no debe exceder los 200 caracteres.").optional().or(z.literal('')),
   facebookUrl: z.string().url("URL de Facebook inválida. Debe ser una URL completa (ej: https://facebook.com/novaglow).").optional().or(z.literal('')),
   instagramUrl: z.string().url("URL de Instagram inválida. Debe ser una URL completa (ej: https://instagram.com/novaglow).").optional().or(z.literal('')),
   twitterUrl: z.string().url("URL de Twitter inválida. Debe ser una URL completa (ej: https://twitter.com/novaglow).").optional().or(z.literal('')),
@@ -44,6 +45,7 @@ export default function ManageContactInfoPage() {
       postalCode: '',
       email: '',
       phone: '',
+      footerTagline: '',
       facebookUrl: '',
       instagramUrl: '',
       twitterUrl: '',
@@ -57,13 +59,13 @@ export default function ManageContactInfoPage() {
       try {
         const response = await readContactInfo();
         if (response.success && response.data) {
-          // Ensure all fields, including optional ones, get a default value if not present in DB
           form.reset({
             addressLine1: response.data.addressLine1 || '',
             city: response.data.city || '',
             postalCode: response.data.postalCode || '',
             email: response.data.email || '',
             phone: response.data.phone || '',
+            footerTagline: response.data.footerTagline || '',
             facebookUrl: response.data.facebookUrl || '',
             instagramUrl: response.data.instagramUrl || '',
             twitterUrl: response.data.twitterUrl || '',
@@ -80,13 +82,13 @@ export default function ManageContactInfoPage() {
       }
     };
     fetchContactInfo();
-  }, [form, toast]); // form and toast are stable, fine for deps array
+  }, [form, toast]); 
 
   const onSubmit = (values: ContactInfoFormValues) => {
     startTransition(async () => {
-      // Ensure empty strings are passed if that's how schema expects to treat them as 'optional'
       const payload = {
         ...values,
+        footerTagline: values.footerTagline || '',
         facebookUrl: values.facebookUrl || '',
         instagramUrl: values.instagramUrl || '',
         twitterUrl: values.twitterUrl || '',
@@ -132,8 +134,8 @@ export default function ManageContactInfoPage() {
       </div>
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold">Gestionar Información de Contacto</CardTitle>
-          <CardDescription>Actualiza los detalles de contacto y redes sociales que se mostrarán en la web.</CardDescription>
+          <CardTitle className="text-2xl font-bold">Gestionar Información de Contacto y Pie de Página</CardTitle>
+          <CardDescription>Actualiza los detalles de contacto, redes sociales y el tagline del pie de página.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -205,6 +207,28 @@ export default function ManageContactInfoPage() {
                   </FormItem>
                 )}
               />
+              
+              <Separator />
+              <h3 className="text-lg font-medium text-foreground">Contenido del Pie de Página</h3>
+              <FormField
+                control={form.control}
+                name="footerTagline"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tagline del Pie de Página</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Ej: Transformando belleza, realzando confianza..." 
+                        {...field} 
+                        rows={3}
+                      />
+                    </FormControl>
+                    <FormDescription>Este texto aparecerá debajo del logo en el pie de página.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
 
               <Separator />
               <h3 className="text-lg font-medium text-foreground">Redes Sociales (Opcional)</h3>
@@ -297,4 +321,3 @@ export default function ManageContactInfoPage() {
     </div>
   );
 }
-

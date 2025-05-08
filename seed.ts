@@ -120,6 +120,7 @@ const sampleContactInfo = {
   instagramUrl: 'https://instagram.com/novaglow',
   twitterUrl: 'https://twitter.com/novaglow',
   youtubeUrl: 'https://youtube.com/novaglow',
+  footerTagline: "Transformando belleza, realzando confianza. Tu oasis de elegancia y bienestar.",
 };
 
 const sampleHeroContent = {

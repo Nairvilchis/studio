@@ -1,3 +1,4 @@
+
 import mongoose, { Document, Schema } from 'mongoose';
 
 // Interface para el documento de Información de Contacto
@@ -11,6 +12,7 @@ export interface IContactInfo extends Document {
   instagramUrl?: string;
   twitterUrl?: string;
   youtubeUrl?: string;
+  footerTagline?: string; // Added for footer tagline
 }
 
 const ContactInfoSchema: Schema = new Schema({
@@ -23,6 +25,7 @@ const ContactInfoSchema: Schema = new Schema({
   instagramUrl: { type: String, trim: true, required: false },
   twitterUrl: { type: String, trim: true, required: false },
   youtubeUrl: { type: String, trim: true, required: false },
+  footerTagline: { type: String, trim: true, required: false }, // Added for footer tagline
 }, { timestamps: true, versionKey: false }); // Añade createdAt y updatedAt automáticamente, deshabilita __v
 
 // Evita recompilar el modelo si ya existe

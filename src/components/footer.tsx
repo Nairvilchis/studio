@@ -1,4 +1,5 @@
 
+import React from 'react'; // Import React
 import Link from 'next/link';
 import { Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
 import { readContactInfo } from '@/lib/actions';
@@ -7,13 +8,14 @@ import Image from 'next/image'; // Import Image component
 
 export default async function Footer() {
   const currentYear = new Date().getFullYear();
-  
-  let contactInfo: ContactInfo = { 
-    addressLine1: "Calle Falsa 123",
-    city: "Ciudad Ejemplo",
-    postalCode: "08000",
-    email: "contacto@novaglow.com",
-    phone: "(+34) 900 123 456",
+
+  let contactInfo: ContactInfo = {
+    addressLine1: "Tu Dirección Aquí",
+    city: "Tu Ciudad",
+    postalCode: "00000",
+    email: "tuemail@ejemplo.com",
+    phone: "(000) 000-0000",
+    footerTagline: "Transformando belleza, realzando confianza. Tu oasis de elegancia y bienestar.",
     facebookUrl: "#",
     instagramUrl: "#",
     twitterUrl: "#",
@@ -23,9 +25,9 @@ export default async function Footer() {
   const response = await readContactInfo();
   if (response.success && response.data) {
     contactInfo = {
-        ...contactInfo, // Spread defaults first
-        ...response.data, // Then override with fetched data
-        // Ensure URLs have a fallback if they are empty strings from DB
+        ...contactInfo,
+        ...response.data,
+        footerTagline: response.data.footerTagline || contactInfo.footerTagline, // Use fetched or default
         facebookUrl: response.data.facebookUrl || "#",
         instagramUrl: response.data.instagramUrl || "#",
         twitterUrl: response.data.twitterUrl || "#",
@@ -40,25 +42,29 @@ export default async function Footer() {
     <footer className="bg-card/50 border-t border-border/40">
       <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 items-start">
-          
+
           <div className="md:col-span-1">
             <Link href="/" className="flex items-center space-x-3 mb-4">
-              <Image 
-                src="https://live.staticflickr.com/65535/54503507872_f9dc874b84_b.jpg" 
-                alt="Nova Glow Logo" 
-                width={40} 
-                height={40} 
+              <Image
+                src="https://live.staticflickr.com/65535/54503507872_f9dc874b84_b.jpg"
+                alt="Nova Glow Logo"
+                width={40}
+                height={40}
                 className="rounded-full"
                 data-ai-hint="company logo"
               />
               <span className="font-bold text-2xl text-foreground">Nova Glow</span>
             </Link>
             <p className="text-muted-foreground text-sm">
-              Transformando belleza, realzando confianza. <br />
-              Tu oasis de elegancia y bienestar.
+              {contactInfo.footerTagline?.split('\n').map((line, index, arr) => (
+                <React.Fragment key={index}>
+                  {line}
+                  {index < arr.length - 1 && <br />}
+                </React.Fragment>
+              ))}
             </p>
           </div>
-  
+
           <div className="md:col-span-1">
             <h3 className="text-lg font-semibold text-foreground mb-4">Contacto</h3>
             <address className="not-italic text-sm text-muted-foreground space-y-2">
@@ -86,4 +92,3 @@ export default async function Footer() {
     </footer>
   );
 }
-
