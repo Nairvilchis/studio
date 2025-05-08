@@ -3,11 +3,12 @@ import mongoose from 'mongoose';
 import { Service } from './src/models/Service';
 import { GalleryImage } from './src/models/GalleryImage';
 import { Appointment } from './src/models/Appointment';
-import { ContactInfo } from './src/models/ContactInfo'; // Import ContactInfo model
-import connectToDatabase from './src/lib/mongodb'; // Asegúrate que la ruta es correcta
+import { ContactInfo } from './src/models/ContactInfo';
+import { HeroContent } from './src/models/HeroContent'; // Import HeroContent model
+import connectToDatabase from './src/lib/mongodb'; 
 import dotenv from 'dotenv';
 
-dotenv.config(); // Carga variables de entorno desde .env
+dotenv.config(); 
 
 const sampleServices = [
   {
@@ -119,6 +120,18 @@ const sampleContactInfo = {
   youtubeUrl: 'https://youtube.com/novaglow',
 };
 
+const sampleHeroContent = {
+  titlePrefix: "Descubre tu",
+  titleHighlight: "Belleza Radiante",
+  subtitle: "En Nova Glow, combinamos arte y técnica para realzar tu esplendor natural. Experimenta servicios de lujo en un ambiente sofisticado y acogedor.",
+  primaryButtonText: "Agendar una Cita",
+  primaryButtonLink: "#appointment",
+  secondaryButtonText: "Ver Servicios",
+  secondaryButtonLink: "#services",
+  backgroundImageUrl: "https://picsum.photos/1920/1080?random=hero",
+};
+
+
 const seedDatabase = async () => {
   try {
     console.log('Connecting to database...');
@@ -129,7 +142,8 @@ const seedDatabase = async () => {
     await Service.deleteMany({});
     await GalleryImage.deleteMany({});
     await Appointment.deleteMany({});
-    await ContactInfo.deleteMany({}); // Clear existing contact info
+    await ContactInfo.deleteMany({});
+    await HeroContent.deleteMany({}); // Clear existing hero content
     console.log('Existing data cleared.');
 
     console.log('Inserting sample services...');
@@ -148,6 +162,10 @@ const seedDatabase = async () => {
     await ContactInfo.create(sampleContactInfo); 
     console.log('Contact information inserted.');
 
+    console.log('Inserting sample hero content...');
+    await HeroContent.create(sampleHeroContent);
+    console.log('Hero content inserted.');
+
     console.log('Sample data inserted successfully.');
 
   } catch (error) {
@@ -160,4 +178,3 @@ const seedDatabase = async () => {
 };
 
 seedDatabase();
-

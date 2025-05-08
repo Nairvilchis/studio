@@ -3,14 +3,33 @@ import React from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Cog, Images, CalendarDays, Info } from "lucide-react"; // Added Info icon
+import { Cog, Images, CalendarDays, Info, LayoutPanelTop } from "lucide-react"; // Added Info, LayoutPanelTop icon
 
 const AdminPage: React.FC = () => {
   return (
     <div className="container mx-auto py-10 px-4">
       <h1 className="text-4xl font-bold text-center mb-10 text-foreground">Admin Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"> {/* Adjusted to lg:grid-cols-3 for better spacing with 5 items */}
+        
+        {/* Hero Content Management Section */}
+        <Card className="shadow-lg hover:shadow-primary/20 transition-shadow duration-300 flex flex-col">
+          <CardHeader className="flex flex-row items-center space-x-3 pb-4">
+            <LayoutPanelTop className="h-8 w-8 text-primary" />
+            <CardTitle className="text-xl font-semibold text-foreground">
+              Sección Principal
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 flex-grow flex flex-col justify-between">
+            <p className="text-muted-foreground">
+              Editar el contenido de la sección principal (hero).
+            </p>
+            <Button asChild variant="outline" className="w-full mt-auto border-primary text-primary hover:bg-primary/10 hover:text-primary-foreground">
+              <Link href="/admin/manage-hero">Ir a Sección Principal</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* Services Management Section */}
         <Card className="shadow-lg hover:shadow-primary/20 transition-shadow duration-300 flex flex-col">
           <CardHeader className="flex flex-row items-center space-x-3 pb-4">

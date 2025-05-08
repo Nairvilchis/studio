@@ -41,3 +41,15 @@ export interface ContactInfo {
   youtubeUrl?: string;
 }
 
+export interface HeroContentData {
+  id?: string;
+  titlePrefix: string;
+  titleHighlight: string;
+  subtitle: string;
+  primaryButtonText: string;
+  primaryButtonLink: string;
+  secondaryButtonText: string;
+  secondaryButtonLink: string;
+  backgroundImageUrl?: string;
+}
+

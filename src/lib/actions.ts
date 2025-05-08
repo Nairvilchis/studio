@@ -7,7 +7,8 @@ import { Service as ServiceModel } from '@/models/Service';
 import { GalleryImage as GalleryImageModel } from '@/models/GalleryImage';
 import { Appointment as AppointmentModel } from '@/models/Appointment';
 import { ContactInfo as ContactInfoModel } from '@/models/ContactInfo';
-import type { AppointmentFormData, Service, GalleryImage as GalleryImageType, ContactInfo } from './types';
+import { HeroContent as HeroContentModel } from '@/models/HeroContent'; // Added HeroContentModel
+import type { AppointmentFormData, Service, GalleryImage as GalleryImageType, ContactInfo, HeroContentData } from './types';
 import { revalidatePath } from 'next/cache';
 
 // Esquema de validación para citas (frontend)
@@ -48,6 +49,18 @@ const ContactInfoSchemaDB = z.object({
   instagramUrl: z.string().url("URL de Instagram inválida.").optional().or(z.literal('')),
   twitterUrl: z.string().url("URL de Twitter inválida.").optional().or(z.literal('')),
   youtubeUrl: z.string().url("URL de YouTube inválida.").optional().or(z.literal('')),
+});
+
+// Esquema de validación para Hero Content (backend/admin)
+const HeroContentSchemaDB = z.object({
+  titlePrefix: z.string().min(1, "El prefijo del título es requerido."),
+  titleHighlight: z.string().min(1, "El texto destacado del título es requerido."),
+  subtitle: z.string().min(1, "El subtítulo es requerido."),
+  primaryButtonText: z.string().min(1, "El texto del botón principal es requerido."),
+  primaryButtonLink: z.string().min(1, "El enlace del botón principal es requerido."), // Basic validation, can be improved
+  secondaryButtonText: z.string().min(1, "El texto del botón secundario es requerido."),
+  secondaryButtonLink: z.string().min(1, "El enlace del botón secundario es requerido."), // Basic validation
+  backgroundImageUrl: z.string().url("URL de imagen de fondo inválida.").optional().or(z.literal('')).transform(val => val === '' ? undefined : val),
 });
 
 
@@ -295,7 +308,6 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
     const contactInfoDoc = await ContactInfoModel.findOne({});
     if (contactInfoDoc) {
       const plainObject = mongoDocToPlainObject(contactInfoDoc) as ContactInfo;
-      // Ensure social URLs have default empty string values if not present
       return { 
         success: true, 
         data: {
@@ -307,7 +319,6 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
         }
       };
     }
-    // Return default/empty structure if no contact info is found
     return { 
       success: true, 
       data: {
@@ -327,7 +338,7 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
     return { 
         success: false, 
         message: 'Error del servidor al leer la información de contacto.',
-        data: { // Provide fallback defaults on error as well
+        data: { 
             addressLine1: "Error al cargar",
             city: "Error",
             postalCode: "Error",
@@ -343,7 +354,6 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
 }
 
 export async function updateContactInfo(data: Partial<Omit<ContactInfo, 'id'>>): Promise<{ success: boolean; data?: ContactInfo; message?: string; errors?: any }> {
-  // Transform empty strings from form to undefined for optional URL fields if necessary, or rely on Zod's .or(z.literal(''))
   const dataToValidate = {
     ...data,
     facebookUrl: data.facebookUrl || undefined,
@@ -359,18 +369,14 @@ export async function updateContactInfo(data: Partial<Omit<ContactInfo, 'id'>>):
   try {
     await connectToDatabase();
     const updateData = { ...validatedFields.data };
-    // Ensure empty strings are saved as undefined or null if that's preferred, or let MongoDB handle empty strings
-    // For example, if an empty URL should be stored as undefined:
-    // if (updateData.facebookUrl === '') delete updateData.facebookUrl; // or updateData.facebookUrl = undefined;
-    // This is handled by .or(z.literal('')).transform(...) in schema or directly by .optional() if empty string is acceptable
-
+    
     const updatedContactInfo = await ContactInfoModel.findOneAndUpdate({}, updateData, { new: true, upsert: true, runValidators: true });
     
     if (!updatedContactInfo) {
       return { success: false, message: 'No se pudo actualizar o crear la información de contacto.' };
     }
     
-    revalidatePath('/'); // For footer
+    revalidatePath('/'); 
     revalidatePath('/admin/manage-contact-info');
     
     const plainObject = mongoDocToPlainObject(updatedContactInfo) as ContactInfo;
@@ -391,3 +397,73 @@ export async function updateContactInfo(data: Partial<Omit<ContactInfo, 'id'>>):
   }
 }
 
+// --- HERO CONTENT ---
+export async function readHeroContent(): Promise<{ success: boolean; data?: HeroContentData; message?: string }> {
+  try {
+    await connectToDatabase();
+    const heroContentDoc = await HeroContentModel.findOne({});
+    if (heroContentDoc) {
+      return { success: true, data: mongoDocToPlainObject(heroContentDoc) as HeroContentData };
+    }
+    // Default values if no content is found in the database
+    return { 
+      success: true, 
+      data: {
+        titlePrefix: "Descubre tu",
+        titleHighlight: "Belleza Radiante",
+        subtitle: "En Nova Glow, combinamos arte y técnica para realzar tu esplendor natural. Experimenta servicios de lujo en un ambiente sofisticado y acogedor.",
+        primaryButtonText: "Agendar una Cita",
+        primaryButtonLink: "#appointment",
+        secondaryButtonText: "Ver Servicios",
+        secondaryButtonLink: "#services",
+        backgroundImageUrl: "https://picsum.photos/1920/1080?random=10",
+      } 
+    };
+  } catch (error) {
+    console.error('Error al leer contenido del hero:', error);
+    return { 
+      success: false, 
+      message: 'Error del servidor al leer el contenido del hero.',
+      data: { // Provide fallback defaults on error as well
+        titlePrefix: "Descubre tu",
+        titleHighlight: "Belleza Radiante",
+        subtitle: "Error al cargar contenido. Por favor, intente más tarde.",
+        primaryButtonText: "Agendar Cita",
+        primaryButtonLink: "#",
+        secondaryButtonText: "Ver Servicios",
+        secondaryButtonLink: "#",
+        backgroundImageUrl: "https://picsum.photos/1920/1080?random=1",
+      }
+    };
+  }
+}
+
+export async function updateHeroContent(data: Partial<Omit<HeroContentData, 'id'>>): Promise<{ success: boolean; data?: HeroContentData; message?: string; errors?: any }> {
+  const dataToValidate = {
+    ...data,
+    backgroundImageUrl: data.backgroundImageUrl || undefined,
+  };
+
+  const validatedFields = HeroContentSchemaDB.partial().safeParse(dataToValidate);
+  if (!validatedFields.success) {
+    return { success: false, message: "Error de validación.", errors: validatedFields.error.flatten().fieldErrors };
+  }
+  try {
+    await connectToDatabase();
+    const updateData = { ...validatedFields.data };
+    
+    const updatedHeroContent = await HeroContentModel.findOneAndUpdate({}, updateData, { new: true, upsert: true, runValidators: true });
+    
+    if (!updatedHeroContent) {
+      return { success: false, message: 'No se pudo actualizar o crear el contenido del hero.' };
+    }
+    
+    revalidatePath('/'); // For hero section on homepage
+    revalidatePath('/admin/manage-hero');
+    
+    return { success: true, data: mongoDocToPlainObject(updatedHeroContent) as HeroContentData, message: 'Contenido del hero actualizado exitosamente.' };
+  } catch (error) {
+    console.error('Error al actualizar contenido del hero:', error);
+    return { success: false, message: 'Error del servidor al actualizar el contenido del hero.' };
+  }
+}
