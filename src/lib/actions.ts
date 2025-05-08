@@ -8,7 +8,8 @@ import { GalleryImage as GalleryImageModel } from '@/models/GalleryImage';
 import { Appointment as AppointmentModel } from '@/models/Appointment';
 import { ContactInfo as ContactInfoModel } from '@/models/ContactInfo';
 import { HeroContent as HeroContentModel } from '@/models/HeroContent'; // Added HeroContentModel
-import type { AppointmentFormData, Service, GalleryImage as GalleryImageType, ContactInfo, HeroContentData } from './types';
+import { ServicesSectionContent as ServicesSectionContentModel } from '@/models/ServicesSectionContent'; // Added ServicesSectionContentModel
+import type { AppointmentFormData, Service, GalleryImage as GalleryImageType, ContactInfo, HeroContentData, ServicesSectionContentData } from './types';
 import { revalidatePath } from 'next/cache';
 
 // Esquema de validación para citas (frontend)
@@ -61,6 +62,13 @@ const HeroContentSchemaDB = z.object({
   secondaryButtonText: z.string().min(1, "El texto del botón secundario es requerido."),
   secondaryButtonLink: z.string().min(1, "El enlace del botón secundario es requerido."), // Basic validation
   backgroundImageUrl: z.string().url("URL de imagen de fondo inválida.").optional().or(z.literal('')).transform(val => val === '' ? undefined : val),
+});
+
+// Esquema de validación para Services Section Content (backend/admin)
+const ServicesSectionContentSchemaDB = z.object({
+  titlePrefix: z.string().min(1, "El prefijo del título es requerido."),
+  titleHighlight: z.string().min(1, "El texto destacado del título es requerido."),
+  description: z.string().min(1, "La descripción es requerida.").max(500, "La descripción no debe exceder los 500 caracteres."),
 });
 
 
@@ -465,5 +473,58 @@ export async function updateHeroContent(data: Partial<Omit<HeroContentData, 'id'
   } catch (error) {
     console.error('Error al actualizar contenido del hero:', error);
     return { success: false, message: 'Error del servidor al actualizar el contenido del hero.' };
+  }
+}
+
+// --- SERVICES SECTION CONTENT ---
+export async function readServicesSectionContent(): Promise<{ success: boolean; data?: ServicesSectionContentData; message?: string }> {
+  try {
+    await connectToDatabase();
+    const contentDoc = await ServicesSectionContentModel.findOne({});
+    if (contentDoc) {
+      return { success: true, data: mongoDocToPlainObject(contentDoc) as ServicesSectionContentData };
+    }
+    return { 
+      success: true, 
+      data: {
+        titlePrefix: "Nuestros",
+        titleHighlight: "Servicios Exclusivos",
+        description: "Descubre la gama de tratamientos que hemos diseñado para ti, utilizando productos de alta calidad y las últimas tendencias.",
+      } 
+    };
+  } catch (error) {
+    console.error('Error al leer contenido de la sección de servicios:', error);
+    return { 
+      success: false, 
+      message: 'Error del servidor al leer el contenido de la sección de servicios.',
+      data: {
+        titlePrefix: "Nuestros",
+        titleHighlight: "Servicios Exclusivos",
+        description: "Error al cargar la descripción. Intente más tarde.",
+      }
+    };
+  }
+}
+
+export async function updateServicesSectionContent(data: Partial<Omit<ServicesSectionContentData, 'id'>>): Promise<{ success: boolean; data?: ServicesSectionContentData; message?: string; errors?: any }> {
+  const validatedFields = ServicesSectionContentSchemaDB.partial().safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: "Error de validación.", errors: validatedFields.error.flatten().fieldErrors };
+  }
+  try {
+    await connectToDatabase();
+    const updatedContent = await ServicesSectionContentModel.findOneAndUpdate({}, validatedFields.data, { new: true, upsert: true, runValidators: true });
+    
+    if (!updatedContent) {
+      return { success: false, message: 'No se pudo actualizar o crear el contenido de la sección de servicios.' };
+    }
+    
+    revalidatePath('/#services'); 
+    revalidatePath('/admin/manage-services-section'); // Assuming this will be the admin page path
+    
+    return { success: true, data: mongoDocToPlainObject(updatedContent) as ServicesSectionContentData, message: 'Contenido de la sección de servicios actualizado exitosamente.' };
+  } catch (error) {
+    console.error('Error al actualizar contenido de la sección de servicios:', error);
+    return { success: false, message: 'Error del servidor al actualizar el contenido de la sección de servicios.' };
   }
 }

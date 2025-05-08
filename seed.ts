@@ -4,7 +4,8 @@ import { Service } from './src/models/Service';
 import { GalleryImage } from './src/models/GalleryImage';
 import { Appointment } from './src/models/Appointment';
 import { ContactInfo } from './src/models/ContactInfo';
-import { HeroContent } from './src/models/HeroContent'; // Import HeroContent model
+import { HeroContent } from './src/models/HeroContent';
+import { ServicesSectionContent } from './src/models/ServicesSectionContent'; // Import ServicesSectionContent model
 import connectToDatabase from './src/lib/mongodb'; 
 import dotenv from 'dotenv';
 
@@ -131,6 +132,12 @@ const sampleHeroContent = {
   backgroundImageUrl: "https://picsum.photos/1920/1080?random=hero",
 };
 
+const sampleServicesSectionContent = {
+  titlePrefix: "Nuestros",
+  titleHighlight: "Servicios Exclusivos",
+  description: "Descubre la gama de tratamientos que hemos diseñado para ti, utilizando productos de alta calidad y las últimas tendencias.",
+};
+
 
 const seedDatabase = async () => {
   try {
@@ -143,7 +150,8 @@ const seedDatabase = async () => {
     await GalleryImage.deleteMany({});
     await Appointment.deleteMany({});
     await ContactInfo.deleteMany({});
-    await HeroContent.deleteMany({}); // Clear existing hero content
+    await HeroContent.deleteMany({});
+    await ServicesSectionContent.deleteMany({}); // Clear existing services section content
     console.log('Existing data cleared.');
 
     console.log('Inserting sample services...');
@@ -165,6 +173,10 @@ const seedDatabase = async () => {
     console.log('Inserting sample hero content...');
     await HeroContent.create(sampleHeroContent);
     console.log('Hero content inserted.');
+
+    console.log('Inserting sample services section content...');
+    await ServicesSectionContent.create(sampleServicesSectionContent);
+    console.log('Services section content inserted.');
 
     console.log('Sample data inserted successfully.');
 

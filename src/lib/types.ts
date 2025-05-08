@@ -1,3 +1,4 @@
+
 // import type { LucideIcon } from 'lucide-react'; // No se usa directamente en este archivo
 
 export interface Service {
@@ -53,3 +54,9 @@ export interface HeroContentData {
   backgroundImageUrl?: string;
 }
 
+export interface ServicesSectionContentData {
+  id?: string;
+  titlePrefix: string;
+  titleHighlight: string;
+  description: string;
+}
