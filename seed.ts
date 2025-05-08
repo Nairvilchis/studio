@@ -113,6 +113,10 @@ const sampleContactInfo = {
   postalCode: '08020',
   email: 'info@novaglow.example.com',
   phone: '(+34) 930 987 654',
+  facebookUrl: 'https://facebook.com/novaglow',
+  instagramUrl: 'https://instagram.com/novaglow',
+  twitterUrl: 'https://twitter.com/novaglow',
+  youtubeUrl: 'https://youtube.com/novaglow',
 };
 
 const seedDatabase = async () => {
@@ -141,7 +145,7 @@ const seedDatabase = async () => {
     console.log(`${sampleAppointments.length} appointments inserted.`);
 
     console.log('Inserting sample contact information...');
-    await ContactInfo.create(sampleContactInfo); // Use create for single document or if schema defaults/hooks are involved
+    await ContactInfo.create(sampleContactInfo); 
     console.log('Contact information inserted.');
 
     console.log('Sample data inserted successfully.');
@@ -156,3 +160,4 @@ const seedDatabase = async () => {
 };
 
 seedDatabase();
+

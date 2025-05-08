@@ -7,10 +7,10 @@ export interface IContactInfo extends Document {
   postalCode: string;
   email: string;
   phone: string;
-  // facebookUrl?: string;
-  // instagramUrl?: string;
-  // twitterUrl?: string;
-  // youtubeUrl?: string;
+  facebookUrl?: string;
+  instagramUrl?: string;
+  twitterUrl?: string;
+  youtubeUrl?: string;
 }
 
 const ContactInfoSchema: Schema = new Schema({
@@ -19,10 +19,10 @@ const ContactInfoSchema: Schema = new Schema({
   postalCode: { type: String, required: true, trim: true },
   email: { type: String, required: true, trim: true },
   phone: { type: String, required: true, trim: true },
-  // facebookUrl: { type: String, trim: true },
-  // instagramUrl: { type: String, trim: true },
-  // twitterUrl: { type: String, trim: true },
-  // youtubeUrl: { type: String, trim: true },
+  facebookUrl: { type: String, trim: true, required: false },
+  instagramUrl: { type: String, trim: true, required: false },
+  twitterUrl: { type: String, trim: true, required: false },
+  youtubeUrl: { type: String, trim: true, required: false },
 }, { timestamps: true, versionKey: false }); // Añade createdAt y updatedAt automáticamente, deshabilita __v
 
 // Evita recompilar el modelo si ya existe
@@ -30,3 +30,4 @@ const ContactInfoSchema: Schema = new Schema({
 // o 'contactinfos' si Mongoose pluraliza.
 // Para forzar un nombre de colección específico: mongoose.model<IContactInfo>('ContactInfo', ContactInfoSchema, 'contact_information_collection');
 export const ContactInfo = mongoose.models.ContactInfo || mongoose.model<IContactInfo>('ContactInfo', ContactInfoSchema);
+

@@ -44,6 +44,10 @@ const ContactInfoSchemaDB = z.object({
   postalCode: z.string().min(1, "El código postal es requerido."),
   email: z.string().email("Debe ser un email válido."),
   phone: z.string().min(9, "El teléfono debe tener al menos 9 dígitos."),
+  facebookUrl: z.string().url("URL de Facebook inválida.").optional().or(z.literal('')),
+  instagramUrl: z.string().url("URL de Instagram inválida.").optional().or(z.literal('')),
+  twitterUrl: z.string().url("URL de Twitter inválida.").optional().or(z.literal('')),
+  youtubeUrl: z.string().url("URL de YouTube inválida.").optional().or(z.literal('')),
 });
 
 
@@ -290,7 +294,18 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
     await connectToDatabase();
     const contactInfoDoc = await ContactInfoModel.findOne({});
     if (contactInfoDoc) {
-      return { success: true, data: mongoDocToPlainObject(contactInfoDoc) as ContactInfo };
+      const plainObject = mongoDocToPlainObject(contactInfoDoc) as ContactInfo;
+      // Ensure social URLs have default empty string values if not present
+      return { 
+        success: true, 
+        data: {
+          ...plainObject,
+          facebookUrl: plainObject.facebookUrl || '',
+          instagramUrl: plainObject.instagramUrl || '',
+          twitterUrl: plainObject.twitterUrl || '',
+          youtubeUrl: plainObject.youtubeUrl || '',
+        }
+      };
     }
     // Return default/empty structure if no contact info is found
     return { 
@@ -300,37 +315,79 @@ export async function readContactInfo(): Promise<{ success: boolean; data?: Cont
         city: "Tu Ciudad",
         postalCode: "00000",
         email: "tuemail@ejemplo.com",
-        phone: "(000) 000-0000"
+        phone: "(000) 000-0000",
+        facebookUrl: "",
+        instagramUrl: "",
+        twitterUrl: "",
+        youtubeUrl: "",
       } 
     };
   } catch (error) {
     console.error('Error al leer información de contacto:', error);
-    return { success: false, message: 'Error del servidor al leer la información de contacto.' };
+    return { 
+        success: false, 
+        message: 'Error del servidor al leer la información de contacto.',
+        data: { // Provide fallback defaults on error as well
+            addressLine1: "Error al cargar",
+            city: "Error",
+            postalCode: "Error",
+            email: "error@example.com",
+            phone: "Error",
+            facebookUrl: "#",
+            instagramUrl: "#",
+            twitterUrl: "#",
+            youtubeUrl: "#",
+        }
+    };
   }
 }
 
 export async function updateContactInfo(data: Partial<Omit<ContactInfo, 'id'>>): Promise<{ success: boolean; data?: ContactInfo; message?: string; errors?: any }> {
-  const validatedFields = ContactInfoSchemaDB.partial().safeParse(data);
+  // Transform empty strings from form to undefined for optional URL fields if necessary, or rely on Zod's .or(z.literal(''))
+  const dataToValidate = {
+    ...data,
+    facebookUrl: data.facebookUrl || undefined,
+    instagramUrl: data.instagramUrl || undefined,
+    twitterUrl: data.twitterUrl || undefined,
+    youtubeUrl: data.youtubeUrl || undefined,
+  };
+
+  const validatedFields = ContactInfoSchemaDB.partial().safeParse(dataToValidate);
   if (!validatedFields.success) {
     return { success: false, message: "Error de validación.", errors: validatedFields.error.flatten().fieldErrors };
   }
   try {
     await connectToDatabase();
-    // Use findOneAndUpdate with upsert: true to create if not exists, or update if exists.
-    // The filter {} will match the single document if it exists.
-    const updatedContactInfo = await ContactInfoModel.findOneAndUpdate({}, validatedFields.data, { new: true, upsert: true, runValidators: true });
+    const updateData = { ...validatedFields.data };
+    // Ensure empty strings are saved as undefined or null if that's preferred, or let MongoDB handle empty strings
+    // For example, if an empty URL should be stored as undefined:
+    // if (updateData.facebookUrl === '') delete updateData.facebookUrl; // or updateData.facebookUrl = undefined;
+    // This is handled by .or(z.literal('')).transform(...) in schema or directly by .optional() if empty string is acceptable
+
+    const updatedContactInfo = await ContactInfoModel.findOneAndUpdate({}, updateData, { new: true, upsert: true, runValidators: true });
     
     if (!updatedContactInfo) {
-      // This case should ideally not be reached due to upsert:true, but as a safeguard:
       return { success: false, message: 'No se pudo actualizar o crear la información de contacto.' };
     }
     
     revalidatePath('/'); // For footer
     revalidatePath('/admin/manage-contact-info');
     
-    return { success: true, data: mongoDocToPlainObject(updatedContactInfo) as ContactInfo, message: 'Información de contacto actualizada exitosamente.' };
+    const plainObject = mongoDocToPlainObject(updatedContactInfo) as ContactInfo;
+     return { 
+        success: true, 
+        data: {
+          ...plainObject,
+          facebookUrl: plainObject.facebookUrl || '',
+          instagramUrl: plainObject.instagramUrl || '',
+          twitterUrl: plainObject.twitterUrl || '',
+          youtubeUrl: plainObject.youtubeUrl || '',
+        },
+        message: 'Información de contacto actualizada exitosamente.'
+      };
   } catch (error) {
     console.error('Error al actualizar información de contacto:', error);
     return { success: false, message: 'Error del servidor al actualizar la información de contacto.' };
   }
 }
+

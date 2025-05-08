@@ -8,20 +8,33 @@ import Image from 'next/image'; // Import Image component
 export default async function Footer() {
   const currentYear = new Date().getFullYear();
   
-  let contactInfo: ContactInfo = { // Default values
+  let contactInfo: ContactInfo = { 
     addressLine1: "Calle Falsa 123",
     city: "Ciudad Ejemplo",
     postalCode: "08000",
     email: "contacto@novaglow.com",
     phone: "(+34) 900 123 456",
+    facebookUrl: "#",
+    instagramUrl: "#",
+    twitterUrl: "#",
+    youtubeUrl: "#",
   };
 
   const response = await readContactInfo();
   if (response.success && response.data) {
-    contactInfo = response.data;
+    contactInfo = {
+        ...contactInfo, // Spread defaults first
+        ...response.data, // Then override with fetched data
+        // Ensure URLs have a fallback if they are empty strings from DB
+        facebookUrl: response.data.facebookUrl || "#",
+        instagramUrl: response.data.instagramUrl || "#",
+        twitterUrl: response.data.twitterUrl || "#",
+        youtubeUrl: response.data.youtubeUrl || "#",
+    };
   } else {
-    console.warn("Could not load contact info for footer, using defaults.");
+    console.warn("Could not load contact info for footer, using defaults. Message:", response.message);
   }
+
 
   return (
     <footer className="bg-card/50 border-t border-border/40">
@@ -58,10 +71,10 @@ export default async function Footer() {
           <div className="md:col-span-1">
             <h3 className="text-lg font-semibold text-foreground mb-4">Síguenos</h3>
             <div className="flex space-x-4">
-              <Link href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary transition-colors"><Facebook size={20} /></Link>
-              <Link href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary transition-colors"><Instagram size={20} /></Link>
-              <Link href="#" aria-label="Twitter" className="text-muted-foreground hover:text-primary transition-colors"><Twitter size={20} /></Link>
-              <Link href="#" aria-label="Youtube" className="text-muted-foreground hover:text-primary transition-colors"><Youtube size={20} /></Link>
+              <Link href={contactInfo.facebookUrl || '#'} aria-label="Facebook" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors"><Facebook size={20} /></Link>
+              <Link href={contactInfo.instagramUrl || '#'} aria-label="Instagram" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors"><Instagram size={20} /></Link>
+              <Link href={contactInfo.twitterUrl || '#'} aria-label="Twitter" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors"><Twitter size={20} /></Link>
+              <Link href={contactInfo.youtubeUrl || '#'} aria-label="Youtube" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors"><Youtube size={20} /></Link>
             </div>
           </div>
 
@@ -73,3 +86,4 @@ export default async function Footer() {
     </footer>
   );
 }
+
