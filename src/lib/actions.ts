@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -5,7 +6,8 @@ import connectToDatabase from './mongodb';
 import { Service as ServiceModel } from '@/models/Service';
 import { GalleryImage as GalleryImageModel } from '@/models/GalleryImage';
 import { Appointment as AppointmentModel } from '@/models/Appointment';
-import type { AppointmentFormData, Service, GalleryImage as GalleryImageType } from './types';
+import { ContactInfo as ContactInfoModel } from '@/models/ContactInfo';
+import type { AppointmentFormData, Service, GalleryImage as GalleryImageType, ContactInfo } from './types';
 import { revalidatePath } from 'next/cache';
 
 // Esquema de validación para citas (frontend)
@@ -33,6 +35,15 @@ const GalleryImageSchemaDB = z.object({
   alt: z.string().min(1, "El texto alternativo es requerido."),
   category: z.string().min(1, "La categoría es requerida."),
   dataAiHint: z.string().optional(),
+});
+
+// Esquema de validación para información de contacto (backend/admin)
+const ContactInfoSchemaDB = z.object({
+  addressLine1: z.string().min(1, "La dirección es requerida."),
+  city: z.string().min(1, "La ciudad es requerida."),
+  postalCode: z.string().min(1, "El código postal es requerido."),
+  email: z.string().email("Debe ser un email válido."),
+  phone: z.string().min(9, "El teléfono debe tener al menos 9 dígitos."),
 });
 
 
@@ -269,5 +280,57 @@ export async function deleteGalleryImage(id: string): Promise<{ success: boolean
   } catch (error) {
     console.error('Error al eliminar imagen de galería:', error);
     return { success: false, message: 'Error del servidor al eliminar la imagen.' };
+  }
+}
+
+
+// --- CONTACT INFO ---
+export async function readContactInfo(): Promise<{ success: boolean; data?: ContactInfo; message?: string }> {
+  try {
+    await connectToDatabase();
+    const contactInfoDoc = await ContactInfoModel.findOne({});
+    if (contactInfoDoc) {
+      return { success: true, data: mongoDocToPlainObject(contactInfoDoc) as ContactInfo };
+    }
+    // Return default/empty structure if no contact info is found
+    return { 
+      success: true, 
+      data: {
+        addressLine1: "Tu Dirección Aquí",
+        city: "Tu Ciudad",
+        postalCode: "00000",
+        email: "tuemail@ejemplo.com",
+        phone: "(000) 000-0000"
+      } 
+    };
+  } catch (error) {
+    console.error('Error al leer información de contacto:', error);
+    return { success: false, message: 'Error del servidor al leer la información de contacto.' };
+  }
+}
+
+export async function updateContactInfo(data: Partial<Omit<ContactInfo, 'id'>>): Promise<{ success: boolean; data?: ContactInfo; message?: string; errors?: any }> {
+  const validatedFields = ContactInfoSchemaDB.partial().safeParse(data);
+  if (!validatedFields.success) {
+    return { success: false, message: "Error de validación.", errors: validatedFields.error.flatten().fieldErrors };
+  }
+  try {
+    await connectToDatabase();
+    // Use findOneAndUpdate with upsert: true to create if not exists, or update if exists.
+    // The filter {} will match the single document if it exists.
+    const updatedContactInfo = await ContactInfoModel.findOneAndUpdate({}, validatedFields.data, { new: true, upsert: true, runValidators: true });
+    
+    if (!updatedContactInfo) {
+      // This case should ideally not be reached due to upsert:true, but as a safeguard:
+      return { success: false, message: 'No se pudo actualizar o crear la información de contacto.' };
+    }
+    
+    revalidatePath('/'); // For footer
+    revalidatePath('/admin/manage-contact-info');
+    
+    return { success: true, data: mongoDocToPlainObject(updatedContactInfo) as ContactInfo, message: 'Información de contacto actualizada exitosamente.' };
+  } catch (error) {
+    console.error('Error al actualizar información de contacto:', error);
+    return { success: false, message: 'Error del servidor al actualizar la información de contacto.' };
   }
 }

@@ -27,3 +27,17 @@ export interface AppointmentFormData {
   message?: string;
   status?: 'pending' | 'confirmed' | 'rejected' | 'completed'; // Estado de la cita
 }
+
+export interface ContactInfo {
+  id?: string; // Opcional, será _id de MongoDB como string
+  addressLine1: string;
+  city: string;
+  postalCode: string;
+  email: string;
+  phone: string;
+  // Potentially add social media links here in the future if they need to be dynamic
+  // facebookUrl?: string;
+  // instagramUrl?: string;
+  // twitterUrl?: string;
+  // youtubeUrl?: string;
+}

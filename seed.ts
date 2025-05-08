@@ -1,7 +1,9 @@
+
 import mongoose from 'mongoose';
 import { Service } from './src/models/Service';
 import { GalleryImage } from './src/models/GalleryImage';
 import { Appointment } from './src/models/Appointment';
+import { ContactInfo } from './src/models/ContactInfo'; // Import ContactInfo model
 import connectToDatabase from './src/lib/mongodb'; // Asegúrate que la ruta es correcta
 import dotenv from 'dotenv';
 
@@ -105,6 +107,14 @@ const sampleAppointments = [
   },
 ];
 
+const sampleContactInfo = {
+  addressLine1: 'Calle Innovación 123, Local B',
+  city: 'Tecnopolis',
+  postalCode: '08020',
+  email: 'info@novaglow.example.com',
+  phone: '(+34) 930 987 654',
+};
+
 const seedDatabase = async () => {
   try {
     console.log('Connecting to database...');
@@ -115,6 +125,7 @@ const seedDatabase = async () => {
     await Service.deleteMany({});
     await GalleryImage.deleteMany({});
     await Appointment.deleteMany({});
+    await ContactInfo.deleteMany({}); // Clear existing contact info
     console.log('Existing data cleared.');
 
     console.log('Inserting sample services...');
@@ -128,6 +139,10 @@ const seedDatabase = async () => {
     console.log('Inserting sample appointments...');
     await Appointment.insertMany(sampleAppointments);
     console.log(`${sampleAppointments.length} appointments inserted.`);
+
+    console.log('Inserting sample contact information...');
+    await ContactInfo.create(sampleContactInfo); // Use create for single document or if schema defaults/hooks are involved
+    console.log('Contact information inserted.');
 
     console.log('Sample data inserted successfully.');
 
