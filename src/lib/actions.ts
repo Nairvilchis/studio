@@ -1,6 +1,7 @@
 
 'use server';
 
+import mongoose, { Document } from 'mongoose';
 import { z } from 'zod';
 import connectToDatabase from './mongodb';
 import { Service as ServiceModel } from '@/models/Service';
@@ -82,8 +83,8 @@ const GallerySectionContentSchemaDB = z.object({
 
 
 // --- Helper para transformar _id a id ---
-function mongoDocToPlainObject<T extends { _id: any }>(doc: T): Omit<T, '_id'> & { id: string } {
-  const obj = doc.toObject ? doc.toObject({ virtuals: true }) : { ...doc };
+function mongoDocToPlainObject<T extends Document>(doc: T): Omit<T, '_id' | '__v' | keyof Document> & { id: string } {
+  const obj = doc.toObject({ virtuals: true }) as any;
   obj.id = obj._id.toString();
   delete obj._id;
   if (obj.__v !== undefined) {
