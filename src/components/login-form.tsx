@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
 const formSchema = z.object({
@@ -154,29 +154,6 @@ export function LoginForm() {
           </form>
         </Form>
       </CardContent>
-      <CardFooter className="flex-col items-stretch gap-6 pt-6">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <Separator />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-3 text-muted-foreground">
-              Or continue with
-            </span>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Button variant="outline" className="w-full h-12 text-base shadow-sm hover:shadow-md transition-all hover:scale-[1.03] active:scale-[0.97] border-border/70 hover:border-primary/50">
-            <Github className="mr-2.5 h-5 w-5" />
-            GitHub
-          </Button>
-          <Button variant="outline" className="w-full h-12 text-base shadow-sm hover:shadow-md transition-all hover:scale-[1.03] active:scale-[0.97] border-border/70 hover:border-primary/50">
-            <svg className="mr-2.5 h-5 w-5" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Google</title><path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.386-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.85l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z" fill="currentColor"/></svg>
-            Google
-          </Button>
-        </div>
-         {/* Removed paragraph with links to /terms and /privacy */}
-      </CardFooter>
     </Card>
   );
 }
