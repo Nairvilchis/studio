@@ -4,7 +4,7 @@ import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Github, KeyRound, Mail, Eye, EyeOff } from "lucide-react";
+import { User, KeyRound, Eye, EyeOff } from "lucide-react"; // Changed Mail to User
 import React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,10 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  username: z.string().min(3, { message: "El usuario debe tener al menos 3 caracteres." }), // Changed email to username and updated validation
+  password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
   rememberMe: z.boolean().optional(),
 });
 
@@ -37,7 +36,7 @@ export function LoginForm() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
+      username: "", // Changed email to username
       password: "",
       rememberMe: false,
     },
@@ -47,11 +46,11 @@ export function LoginForm() {
     // Simulate API call
     console.log(values);
     toast({
-      title: "Login Attempt Successful",
+      title: "Intento de inicio de sesión exitoso", // "Login Attempt Successful"
       description: (
         <div className="mt-2 w-full max-w-xs rounded-md bg-card p-4 text-card-foreground shadow-lg">
-          <p className="text-sm">Email: {values.email}</p>
-          <p className="text-sm">Remember me: {values.rememberMe ? 'Yes' : 'No'}</p>
+          <p className="text-sm">Usuario: {values.username}</p> 
+          <p className="text-sm">Recuérdame: {values.rememberMe ? 'Sí' : 'No'}</p>
         </div>
       ),
       variant: "default",
@@ -64,9 +63,9 @@ export function LoginForm() {
   return (
     <Card className="w-full shadow-2xl backdrop-blur-sm bg-card/80 border-border/50">
       <CardHeader>
-        <CardTitle className="text-3xl font-bold tracking-tight text-center">Welcome Back</CardTitle>
+        <CardTitle className="text-3xl font-bold tracking-tight text-center">Bienvenido de Nuevo</CardTitle> {/* "Welcome Back" */}
         <CardDescription className="text-center text-muted-foreground pt-1">
-          Enter your credentials to access your account.
+          Ingresa tus credenciales para acceder a tu cuenta. {/* "Enter your credentials to access your account." */}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -74,18 +73,18 @@ export function LoginForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="email"
+              name="username" // Changed from email
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-muted-foreground">Email Address</FormLabel>
+                  <FormLabel className="text-muted-foreground">Usuario</FormLabel> {/* Changed from Email Address */}
                   <FormControl>
                     <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/70" />
+                      <User className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/70" /> {/* Changed from Mail icon */}
                       <Input 
-                        placeholder="you@example.com" 
+                        placeholder="tu_usuario" // Changed from you@example.com
                         {...field} 
                         className="pl-11 h-12 text-base transition-shadow duration-300 focus:shadow-lg focus:shadow-primary/20" 
-                        autoComplete="email"
+                        autoComplete="username" // Changed from email
                       />
                     </div>
                   </FormControl>
@@ -98,7 +97,7 @@ export function LoginForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-muted-foreground">Password</FormLabel>
+                  <FormLabel className="text-muted-foreground">Contraseña</FormLabel> {/* "Password" */}
                   <FormControl>
                     <div className="relative">
                        <KeyRound className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/70" />
@@ -115,7 +114,7 @@ export function LoginForm() {
                         size="icon"
                         className="absolute right-2 top-1/2 h-9 w-9 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground hover:bg-primary/10"
                         onClick={togglePasswordVisibility}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"} // "Hide password" : "Show password"
                       >
                         {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                       </Button>
@@ -135,13 +134,13 @@ export function LoginForm() {
                       <Checkbox
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        aria-label="Remember me"
+                        aria-label="Recuérdame" // "Remember me"
                         id="rememberMe"
                         className="h-5 w-5 data-[state=checked]:bg-primary data-[state=checked]:border-primary focus-visible:ring-primary/50"
                       />
                     </FormControl>
                     <FormLabel htmlFor="rememberMe" className="cursor-pointer font-normal text-sm text-muted-foreground hover:text-foreground">
-                        Remember me
+                        Recuérdame {/* "Remember me" */}
                     </FormLabel>
                   </FormItem>
                 )}
@@ -149,7 +148,7 @@ export function LoginForm() {
               {/* Removed Link to /forgot-password */}
             </div>
             <Button type="submit" className="w-full font-semibold text-lg py-7 shadow-md hover:shadow-primary/40 transition-all hover:scale-[1.02] active:scale-[0.98]">
-              Sign In
+              Iniciar Sesión {/* "Sign In" */}
             </Button>
           </form>
         </Form>
