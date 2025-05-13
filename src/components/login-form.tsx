@@ -146,12 +146,7 @@ export function LoginForm() {
                   </FormItem>
                 )}
               />
-              <Link
-                href="/forgot-password"
-                className="text-sm font-medium text-primary hover:underline hover:text-primary/80 transition-colors"
-              >
-                Forgot password?
-              </Link>
+              {/* Removed Link to /forgot-password */}
             </div>
             <Button type="submit" className="w-full font-semibold text-lg py-7 shadow-md hover:shadow-primary/40 transition-all hover:scale-[1.02] active:scale-[0.98]">
               Sign In
@@ -180,23 +175,7 @@ export function LoginForm() {
             Google
           </Button>
         </div>
-         <p className="mt-2 px-2 text-center text-xs text-muted-foreground/80">
-            By signing in, you agree to our{" "}
-            <Link
-              href="/terms"
-              className="underline underline-offset-4 hover:text-primary"
-            >
-              Terms
-            </Link>{" "}
-            &{" "}
-            <Link
-              href="/privacy"
-              className="underline underline-offset-4 hover:text-primary"
-            >
-              Privacy Policy
-            </Link>
-            .
-          </p>
+         {/* Removed paragraph with links to /terms and /privacy */}
       </CardFooter>
     </Card>
   );
