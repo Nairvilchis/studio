@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function LoginPage() {
   return (
     <AuthLayout 
-      title="LoginEase"
+      // title="LoginEase" // Removed to eliminate the H1 element for this title
       description="Seamlessly access your personalized experience."
     >
       <LoginForm />

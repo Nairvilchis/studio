@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   return (
-    <AuthLayout title="LoginEase">
+    <AuthLayout /* title="LoginEase" removed */>
        <Card className="w-full max-w-2xl shadow-2xl backdrop-blur-sm bg-card/80 border-border/50">
         <CardHeader>
           <CardTitle className="text-3xl font-bold tracking-tight text-center">Privacy Policy</CardTitle>

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Sparkles } from 'lucide-react'; 
 
 interface AuthLayoutProps {
-  title: string;
+  title?: string; // Made title optional
   description?: string;
   children: ReactNode;
 }
@@ -16,9 +16,12 @@ export function AuthLayout({ title, description, children }: AuthLayoutProps) {
           <div className="mb-6 inline-flex items-center justify-center rounded-xl bg-primary/10 p-4 shadow-md">
             <Sparkles className="h-12 w-12 text-primary" />
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl">
-            {title}
-          </h1>
+          {/* Conditionally render the H1 tag if title is provided */}
+          {title && (
+            <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl">
+              {title}
+            </h1>
+          )}
           {description && (
             <p className="mt-4 text-lg text-muted-foreground">{description}</p>
           )}
