@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
 import { 
@@ -22,30 +23,19 @@ import {
   updateOrderAction,
   deleteOrderAction,
   getOrderByIdAction,
-  // updateOrderProcesoAction // Not currently used directly in simplified UI
 } from './service-orders/actions';
 import type { Order, NewOrderData, UpdateOrderData } from '@/serviceOrderManager';
 
-// Simplified form types - These need significant updates for the new Order structure
-type TempNewOrderForm = Pick<NewOrderData, 'vin' | 'placas' | 'idCliente' | 'idMarca'> & { 
-  clientName?: string; // Temporary, should be replaced by idCliente lookup
-  vehicleModel?: string; // Temporary, should be replaced by idMarca/idModelo lookup
-  issueDescription?: string; // Maps to 'siniestro'
-};
-
-type TempEditOrderForm = Partial<Pick<Order, 'vin' | 'placas' | 'proceso' | 'idCliente' | 'idMarca' | 'idModelo' | 'año' | 'color' | 'kilometraje' | 'idAsesor' | 'idValuador'>> & { 
-  clientName?: string; 
-  vehicleModel?: string; 
-  issueDescription?: string; // Maps to 'siniestro'
-  estimatedCompletionDate?: string; // Maps to 'fechaPromesa'
-};
+// Form types aligned more closely with Order structure
+// For NewOrderData, many fields are optional or have defaults set by the manager
+type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log'>>;
 
 
 export default function DashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userName, setUserName] = useState<string | null>(null);
-  const [userIdEmpleado, setUserIdEmpleado] = useState<number | null>(null); // User's own ID
+  const [userIdEmpleado, setUserIdEmpleado] = useState<number | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -57,18 +47,37 @@ export default function DashboardPage() {
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [orderToDeleteId, setOrderToDeleteId] = useState<string | null>(null);
 
-  const [newOrderData, setNewOrderData] = useState<TempNewOrderForm>({
+  const initialNewOrderData: OrderFormDataType = {
     vin: '',
     placas: '',
-    clientName: '', 
-    vehicleModel: '',
-    issueDescription: '',
-    // Placeholder default values for required fields in NewOrderData not in TempNewOrderForm
-    idCliente: 0, // Placeholder, actual ID should come from client selection
-    idMarca: 0,   // Placeholder, actual ID should come from brand selection
-  });
+    idCliente: undefined, // Example: will be number
+    idMarca: undefined,
+    idModelo: undefined,
+    año: undefined,
+    color: '',
+    kilometraje: '',
+    idAseguradora: undefined,
+    siniestro: '',
+    poliza: '',
+    folio: '',
+    deducible: undefined,
+    aseguradoTercero: undefined,
+    piso: false,
+    grua: false,
+    fechaValuacion: undefined,
+    fechaRengreso: undefined,
+    fechaEntrega: undefined,
+    fechaPromesa: undefined,
+    idValuador: undefined,
+    idAsesor: undefined,
+    idHojalatero: undefined,
+    idPintor: undefined,
+    idPresupuesto: undefined,
+    proceso: 'pendiente', // Default for new orders
+  };
 
-  const [editOrderData, setEditOrderData] = useState<TempEditOrderForm>({});
+  const [newOrderData, setNewOrderData] = useState<OrderFormDataType>(initialNewOrderData);
+  const [editOrderData, setEditOrderData] = useState<OrderFormDataType>({});
 
   const fetchOrders = async () => {
     setIsLoading(true);
@@ -95,7 +104,10 @@ export default function DashboardPage() {
     } else {
       setUserName(storedUser);
       if (storedIdEmpleado) {
-        setUserIdEmpleado(parseInt(storedIdEmpleado, 10));
+        const parsedId = parseInt(storedIdEmpleado, 10);
+        setUserIdEmpleado(parsedId);
+        // Set default asesor to current user when creating new order
+        setNewOrderData(prev => ({ ...prev, idAsesor: parsedId }));
       }
       fetchOrders();
     }
@@ -109,51 +121,67 @@ export default function DashboardPage() {
     router.replace('/');
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    if (isEditOrderDialogOpen && currentOrder) {
-        setEditOrderData(prev => ({ ...prev, [name]: value }));
-    } else {
-        setNewOrderData(prev => ({ ...prev, [name]: value as any }));
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, formType: 'new' | 'edit') => {
+    const { name, value, type } = e.target;
+    let processedValue: any = value;
+    if (type === 'number') {
+      processedValue = value === '' ? undefined : parseFloat(value);
     }
+    if (type === 'checkbox') {
+      processedValue = (e.target as HTMLInputElement).checked;
+    }
+    if (type === 'date') {
+      processedValue = value ? new Date(value) : undefined;
+    }
+    
+    const setState = formType === 'new' ? setNewOrderData : setEditOrderData;
+    setState(prev => ({ ...prev, [name]: processedValue }));
   };
 
-  const handleSelectChange = (name: keyof TempNewOrderForm | keyof TempEditOrderForm, value: string) => {
-    if (isEditOrderDialogOpen && currentOrder) {
-      setEditOrderData(prev => ({ ...prev, [name as keyof TempEditOrderForm]: value as any }));
-    } else {
-      setNewOrderData(prev => ({ ...prev, [name as keyof TempNewOrderForm]: value as any }));
-    }
+  const handleSelectChange = (name: keyof OrderFormDataType, value: string, formType: 'new' | 'edit') => {
+    const setState = formType === 'new' ? setNewOrderData : setEditOrderData;
+    setState(prev => ({ ...prev, [name]: value as any }));
   };
   
   const handleCreateOrder = async () => {
-    if (!newOrderData.clientName || !newOrderData.vehicleModel || !newOrderData.placas || !newOrderData.issueDescription) {
-      toast({ title: "Error", description: "Por favor, complete los campos obligatorios (Cliente, Vehículo, Placas, Descripción).", variant: "destructive" });
+    // Add more robust validation as needed
+    if (!newOrderData.placas || !newOrderData.idCliente) {
+      toast({ title: "Error", description: "Placas e ID Cliente son obligatorios.", variant: "destructive" });
       return;
     }
     
-    // Map temporary form data to NewOrderData structure.
-    // This is a VERY simplified mapping and needs to be comprehensive.
     const orderToCreate: NewOrderData = {
-      idCliente: newOrderData.idCliente || Date.now(), // Placeholder - needs actual client ID
-      idMarca: newOrderData.idMarca || Date.now(), // Placeholder - needs actual brand ID
-      vin: newOrderData.vin || `VIN-${Date.now()}`,
-      placas: newOrderData.placas,
-      siniestro: newOrderData.issueDescription, 
-      // Other fields from NewOrderData will use defaults or be undefined if not optional
+      ...newOrderData,
+      // Ensure numeric fields are numbers or undefined
+      idCliente: Number(newOrderData.idCliente) || undefined,
+      idMarca: Number(newOrderData.idMarca) || undefined,
+      idModelo: Number(newOrderData.idModelo) || undefined,
+      año: Number(newOrderData.año) || undefined,
+      idAseguradora: Number(newOrderData.idAseguradora) || undefined,
+      deducible: Number(newOrderData.deducible) || undefined,
+      idValuador: Number(newOrderData.idValuador) || undefined,
+      idAsesor: Number(newOrderData.idAsesor) || userIdEmpleado || undefined, // Default to current user if not set
+      idHojalatero: Number(newOrderData.idHojalatero) || undefined,
+      idPintor: Number(newOrderData.idPintor) || undefined,
+      idPresupuesto: Number(newOrderData.idPresupuesto) || undefined,
     };
 
+    // Remove undefined fields to avoid sending them if not set
+    Object.keys(orderToCreate).forEach(key => {
+      if (orderToCreate[key as keyof NewOrderData] === undefined) {
+        delete orderToCreate[key as keyof NewOrderData];
+      }
+    });
+
+
     const result = await createOrderAction(orderToCreate, userIdEmpleado || undefined);
-    if (result.success) {
-      toast({ title: "Éxito", description: result.message });
+    if (result.success && result.data) {
+      toast({ title: "Éxito", description: `Orden OT-${String(result.data.customOrderId || '').padStart(4, '0')} creada.` });
       setIsCreateOrderDialogOpen(false);
       fetchOrders(); 
-      setNewOrderData({ 
-        clientName: '', vehicleModel: '', placas: '', issueDescription: '', vin: '',
-        idCliente: 0, idMarca: 0 // Reset placeholders
-      }); 
+      setNewOrderData(initialNewOrderData); 
     } else {
-      toast({ title: "Error", description: result.error, variant: "destructive" });
+      toast({ title: "Error", description: result.error || "No se pudo crear la orden.", variant: "destructive" });
     }
   };
 
@@ -164,14 +192,13 @@ export default function DashboardPage() {
       const order = result.data;
       setCurrentOrder(order);
       setEditOrderData({
-        vin: order.vin,
-        placas: order.placas,
-        proceso: order.proceso,
-        issueDescription: order.siniestro,
-        estimatedCompletionDate: order.fechaPromesa ? new Date(order.fechaPromesa).toISOString().split('T')[0] : '',
-        // Map other relevant fields from order to editOrderData
-        // Example: clientName should involve a lookup for the client's actual name based on order.idCliente
-      });
+        ...order,
+        // Convert Date objects to string for date inputs
+        fechaValuacion: order.fechaValuacion ? new Date(order.fechaValuacion).toISOString().split('T')[0] : undefined,
+        fechaRengreso: order.fechaRengreso ? new Date(order.fechaRengreso).toISOString().split('T')[0] : undefined,
+        fechaEntrega: order.fechaEntrega ? new Date(order.fechaEntrega).toISOString().split('T')[0] : undefined,
+        fechaPromesa: order.fechaPromesa ? new Date(order.fechaPromesa).toISOString().split('T')[0] : undefined,
+      } as any); // Cast to any because date inputs expect strings
       setIsEditOrderDialogOpen(true);
     } else {
       toast({ title: "Error", description: "No se pudo cargar la orden para editar.", variant: "destructive" });
@@ -182,20 +209,33 @@ export default function DashboardPage() {
     if (!currentOrder || !currentOrder._id) return;
 
     const dataToUpdate: UpdateOrderData = {
-      vin: editOrderData.vin,
-      placas: editOrderData.placas,
-      proceso: editOrderData.proceso,
-      siniestro: editOrderData.issueDescription,
-      // Map other fields from editOrderData to UpdateOrderData
+        ...editOrderData,
+        // Ensure numeric fields are numbers or undefined
+        idCliente: Number(editOrderData.idCliente) || undefined,
+        idMarca: Number(editOrderData.idMarca) || undefined,
+        idModelo: Number(editOrderData.idModelo) || undefined,
+        año: Number(editOrderData.año) || undefined,
+        idAseguradora: Number(editOrderData.idAseguradora) || undefined,
+        deducible: Number(editOrderData.deducible) || undefined,
+        idValuador: Number(editOrderData.idValuador) || undefined,
+        idAsesor: Number(editOrderData.idAsesor) || undefined,
+        idHojalatero: Number(editOrderData.idHojalatero) || undefined,
+        idPintor: Number(editOrderData.idPintor) || undefined,
+        idPresupuesto: Number(editOrderData.idPresupuesto) || undefined,
+        // Convert date strings back to Date objects or undefined
+        fechaValuacion: editOrderData.fechaValuacion ? new Date(editOrderData.fechaValuacion as string) : undefined,
+        fechaRengreso: editOrderData.fechaRengreso ? new Date(editOrderData.fechaRengreso as string) : undefined,
+        fechaEntrega: editOrderData.fechaEntrega ? new Date(editOrderData.fechaEntrega as string) : undefined,
+        fechaPromesa: editOrderData.fechaPromesa ? new Date(editOrderData.fechaPromesa as string) : undefined,
     };
-    if (editOrderData.estimatedCompletionDate) {
-        try {
-            dataToUpdate.fechaPromesa = new Date(editOrderData.estimatedCompletionDate);
-        } catch (e) {
-            console.error("Invalid date for fechaPromesa", e);
-            toast({ title: "Error", description: "Fecha promesa inválida.", variant: "destructive" });
+    
+    // Remove undefined fields to avoid sending them if not explicitly set by user
+    Object.keys(dataToUpdate).forEach(key => {
+        if (dataToUpdate[key as keyof UpdateOrderData] === undefined) {
+            delete dataToUpdate[key as keyof UpdateOrderData];
         }
-    }
+    });
+
 
     const result = await updateOrderAction(currentOrder._id.toString(), dataToUpdate, userIdEmpleado || undefined);
     if (result.success) {
@@ -238,15 +278,22 @@ export default function DashboardPage() {
     setOrderToDeleteId(null);
   };
 
-  // Helper to format date (handles undefined and potential string input)
   const formatDate = (dateInput?: Date | string): string => {
     if (!dateInput) return 'N/A';
     const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
     if (isNaN(date.getTime())) return 'Fecha Inválida';
-    // Ensure date is treated as UTC to avoid timezone shifts if it's just a date string
-    const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    return utcDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'UTC' });
+    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return date.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: userTimeZone });
   };
+  
+  const formatDateTime = (dateInput?: Date | string): string => {
+    if (!dateInput) return 'N/A';
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(date.getTime())) return 'Fecha Inválida';
+    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return date.toLocaleString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: userTimeZone });
+  };
+
 
   if (!userName) {
     return (
@@ -256,40 +303,96 @@ export default function DashboardPage() {
     );
   }
 
-  // Dummy data for inventory, could be fetched or managed elsewhere
   const inventoryItems = [
     { id: 'INV-001', name: 'Filtro de Aceite', quantity: 50, category: 'Filtros' },
     { id: 'INV-002', name: 'Pastillas de Freno (Del.)', quantity: 30, category: 'Frenos' },
     { id: 'INV-003', name: 'Aceite Motor 10W-40 (Litro)', quantity: 100, category: 'Lubricantes' },
   ];
   
-  // Helper to determine Badge variant based on 'proceso'
   const getProcesoVariant = (proceso?: Order['proceso']) => {
     switch (proceso) {
-      case 'entregado':
-      case 'facturado':
-        return 'default'; 
-      case 'listo_entrega':
-        return 'default'; 
-      case 'hojalateria':
-      case 'pintura':
-      case 'mecanica':
-      case 'armado':
-      case 'detallado_lavado':
-      case 'control_calidad':
-      case 'refacciones_listas':
-        return 'secondary'; 
-      case 'espera_refacciones':
-      case 'valuacion':
-        return 'outline'; 
-      case 'pendiente': 
-        return 'outline';
-      case 'cancelado': 
-        return 'destructive'; 
-      default:
-        return 'secondary';
+      case 'entregado': case 'facturado': return 'default'; 
+      case 'listo_entrega': return 'default'; 
+      case 'hojalateria': case 'pintura': case 'mecanica': case 'armado': case 'detallado_lavado': case 'control_calidad': case 'refacciones_listas': return 'secondary'; 
+      case 'espera_refacciones': case 'valuacion': return 'outline'; 
+      case 'pendiente': return 'outline';
+      case 'cancelado': return 'destructive'; 
+      default: return 'secondary';
     }
   };
+
+  const procesoOptions: Order['proceso'][] = [
+    'pendiente', 'valuacion', 'espera_refacciones', 'refacciones_listas', 
+    'hojalateria', 'preparacion_pintura', 'pintura', 'mecanica', 'armado', 
+    'detallado_lavado', 'control_calidad', 'listo_entrega', 'entregado', 
+    'facturado', 'garantia', 'cancelado'
+  ];
+
+  // Helper function to render dialog fields consistently
+  const renderDialogField = (label: string, name: keyof OrderFormDataType, type: string = "text", placeholder?: string, formType: 'new' | 'edit' = 'new', options?: { value: string; label: string }[], isCheckbox?: boolean, isTextarea?: boolean) => {
+    const data = formType === 'new' ? newOrderData : editOrderData;
+    const value = data[name] as any;
+
+    if (isCheckbox) {
+      return (
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor={`${formType}_${name}`} className="text-right">{label}</Label>
+          <Checkbox
+            id={`${formType}_${name}`}
+            name={name}
+            checked={!!value}
+            onCheckedChange={(checked) => handleInputChange({ target: { name, value: checked, type: 'checkbox' } } as any, formType)}
+            className="col-span-3"
+          />
+        </div>
+      );
+    }
+    if (isTextarea) {
+        return (
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor={`${formType}_${name}`} className="text-right">{label}</Label>
+                <Textarea
+                    id={`${formType}_${name}`}
+                    name={name}
+                    value={value || ''}
+                    onChange={(e) => handleInputChange(e, formType)}
+                    className="col-span-3"
+                    placeholder={placeholder}
+                />
+            </div>
+        );
+    }
+    if (options) {
+      return (
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor={`${formType}_${name}`} className="text-right">{label}</Label>
+          <Select name={name} value={value || ''} onValueChange={(val) => handleSelectChange(name, val, formType)}>
+            <SelectTrigger className="col-span-3">
+              <SelectValue placeholder={placeholder || `Seleccione ${label.toLowerCase()}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor={`${formType}_${name}`} className="text-right">{label}</Label>
+        <Input
+          id={`${formType}_${name}`}
+          name={name}
+          type={type}
+          value={type === 'date' && value instanceof Date ? value.toISOString().split('T')[0] : value || ''}
+          onChange={(e) => handleInputChange(e, formType)}
+          className="col-span-3"
+          placeholder={placeholder}
+        />
+      </div>
+    );
+  };
+
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30 dark:bg-muted/10">
@@ -371,9 +474,10 @@ export default function DashboardPage() {
                     <TableRow>
                       <TableHead className="w-[100px]">ID Orden</TableHead>
                       <TableHead>Cliente (ID)</TableHead>
-                      <TableHead>Vehículo (Placas)</TableHead>
+                      <TableHead>Placas</TableHead>
                       <TableHead>Proceso</TableHead>
                       <TableHead>Fecha Registro</TableHead>
+                      <TableHead>Asesor (ID)</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -382,11 +486,12 @@ export default function DashboardPage() {
                       <TableRow key={order._id?.toString()}>
                         <TableCell className="font-medium">OT-{String(order.idOrder || '').padStart(4, '0')}</TableCell>
                         <TableCell>{order.idCliente || 'N/A'}</TableCell>
-                        <TableCell>{order.placas || 'N/A'} ({order.idMarca ? `Marca ${order.idMarca}` : 'Vehículo Desc.'})</TableCell>
+                        <TableCell>{order.placas || 'N/A'}</TableCell>
                         <TableCell>
                            <Badge variant={getProcesoVariant(order.proceso) as any}>{order.proceso}</Badge>
                         </TableCell>
                         <TableCell>{formatDate(order.fechaRegistro)}</TableCell>
+                        <TableCell>{order.idAsesor || 'N/A'}</TableCell>
                         <TableCell className="text-right space-x-2">
                           <Button variant="ghost" size="icon" onClick={() => openViewDialog(order._id!.toString())} aria-label="Ver Detalles">
                             <EyeIcon className="h-4 w-4" />
@@ -450,34 +555,36 @@ export default function DashboardPage() {
         </Tabs>
       </main>
 
-      {/* Create Order Dialog - VERY SIMPLIFIED, NEEDS FULL UPDATE FOR NEW 'Order' STRUCTURE */}
+      {/* Create Order Dialog */}
       <Dialog open={isCreateOrderDialogOpen} onOpenChange={setIsCreateOrderDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Crear Nueva Orden</DialogTitle>
-            <DialogDescription>Complete los detalles básicos. Más campos disponibles al editar.</DialogDescription>
+            <DialogTitle>Crear Nueva Orden de Servicio</DialogTitle>
+            <DialogDescription>Complete todos los campos requeridos para la nueva orden.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="clientName" className="text-right">Cliente (Nombre Temp)</Label>
-              <Input id="clientName" name="clientName" value={newOrderData.clientName || ''} onChange={handleInputChange} className="col-span-3" placeholder="Nombre del cliente"/>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="vehicleModel" className="text-right">Vehículo (Modelo Temp)</Label>
-              <Input id="vehicleModel" name="vehicleModel" value={newOrderData.vehicleModel || ''} onChange={handleInputChange} className="col-span-3" placeholder="Marca y Modelo"/>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="placas" className="text-right">Placas</Label>
-              <Input id="placas" name="placas" value={newOrderData.placas || ''} onChange={handleInputChange} className="col-span-3" placeholder="ABC-123"/>
-            </div>
-             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="vin" className="text-right">VIN</Label>
-              <Input id="vin" name="vin" value={newOrderData.vin || ''} onChange={handleInputChange} className="col-span-3" placeholder="Número de Identificación Vehicular"/>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="issueDescription" className="text-right">Siniestro/Problema</Label>
-              <Textarea id="issueDescription" name="issueDescription" value={newOrderData.issueDescription || ''} onChange={handleInputChange} className="col-span-3" placeholder="Describa el problema o servicio requerido"/>
-            </div>
+            {renderDialogField("ID Cliente", "idCliente", "number", "Ej: 101", "new")}
+            {renderDialogField("VIN", "vin", "text", "Número de Identificación Vehicular", "new")}
+            {renderDialogField("ID Marca", "idMarca", "number", "Ej: 1 (Toyota)", "new")}
+            {renderDialogField("ID Modelo", "idModelo", "number", "Ej: 5 (Corolla)", "new")}
+            {renderDialogField("Año", "año", "number", "Ej: 2022", "new")}
+            {renderDialogField("Placas", "placas", "text", "ABC-123", "new")}
+            {renderDialogField("Color", "color", "text", "Ej: Rojo", "new")}
+            {renderDialogField("Kilometraje", "kilometraje", "text", "Ej: 55000", "new")}
+            {renderDialogField("ID Aseguradora", "idAseguradora", "number", "Ej: 1 (GNP)", "new")}
+            {renderDialogField("Siniestro / Problema", "siniestro", "text", "Describa el problema", "new", undefined, false, true)}
+            {renderDialogField("Póliza", "poliza", "text", "Número de Póliza", "new")}
+            {renderDialogField("Folio", "folio", "text", "Folio de Aseguradora", "new")}
+            {renderDialogField("Deducible", "deducible", "number", "Monto del deducible", "new")}
+            {renderDialogField("Asegurado/Tercero", "aseguradoTercero", "select", "Seleccione tipo", "new", [{value: "asegurado", label: "Asegurado"}, {value: "tercero", label: "Tercero"}])}
+            {renderDialogField("¿Es de Piso?", "piso", "checkbox", "", "new", undefined, true)}
+            {renderDialogField("¿Llegó en Grúa?", "grua", "checkbox", "", "new", undefined, true)}
+            {renderDialogField("Fecha Promesa", "fechaPromesa", "date", "", "new")}
+            {renderDialogField("ID Valuador", "idValuador", "number", "ID del Valuador", "new")}
+            {renderDialogField("ID Asesor", "idAsesor", "number", `ID Asesor (def: ${userIdEmpleado})`, "new")}
+            {renderDialogField("ID Hojalatero", "idHojalatero", "number", "ID del Hojalatero", "new")}
+            {renderDialogField("ID Pintor", "idPintor", "number", "ID del Pintor", "new")}
+            {/* idPresupuesto se genera/asigna usualmente después */}
           </div>
           <DialogFooter>
             <DialogClose asChild>
@@ -488,57 +595,41 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Order Dialog - VERY SIMPLIFIED, NEEDS FULL UPDATE */}
+      {/* Edit Order Dialog */}
       <Dialog open={isEditOrderDialogOpen} onOpenChange={(open) => { setIsEditOrderDialogOpen(open); if (!open) setCurrentOrder(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Orden (OT-{String(currentOrder?.idOrder || '').padStart(4, '0')})</DialogTitle>
             <DialogDescription>Actualice los detalles de la orden.</DialogDescription>
           </DialogHeader>
           {currentOrder && (
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit_placas" className="text-right">Placas</Label>
-                <Input id="edit_placas" name="placas" value={editOrderData.placas || ''} onChange={handleInputChange} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit_vin" className="text-right">VIN</Label>
-                <Input id="edit_vin" name="vin" value={editOrderData.vin || ''} onChange={handleInputChange} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit_issueDescription" className="text-right">Siniestro/Problema</Label>
-                <Textarea id="edit_issueDescription" name="issueDescription" value={editOrderData.issueDescription || ''} onChange={handleInputChange} className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit_proceso" className="text-right">Proceso</Label>
-                <Select name="proceso" value={editOrderData.proceso || ''} onValueChange={(value) => handleSelectChange('proceso' as any, value)}>
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Seleccione un proceso" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="valuacion">Valuación</SelectItem>
-                    <SelectItem value="espera_refacciones">Espera Refacciones</SelectItem>
-                    <SelectItem value="refacciones_listas">Refacciones Listas</SelectItem>
-                    <SelectItem value="hojalateria">Hojalatería</SelectItem>
-                    <SelectItem value="preparacion_pintura">Preparación Pintura</SelectItem>
-                    <SelectItem value="pintura">Pintura</SelectItem>
-                    <SelectItem value="mecanica">Mecánica</SelectItem>
-                    <SelectItem value="armado">Armado</SelectItem>
-                    <SelectItem value="detallado_lavado">Detallado y Lavado</SelectItem>
-                    <SelectItem value="control_calidad">Control de Calidad</SelectItem>
-                    <SelectItem value="listo_entrega">Listo para Entrega</SelectItem>
-                    <SelectItem value="entregado">Entregado</SelectItem>
-                    <SelectItem value="facturado">Facturado</SelectItem>
-                    <SelectItem value="garantia">Garantía</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit_estimatedCompletionDate" className="text-right">Fecha Promesa</Label>
-                <Input id="edit_estimatedCompletionDate" name="estimatedCompletionDate" type="date" value={editOrderData.estimatedCompletionDate || ''} onChange={handleInputChange} className="col-span-3"/>
-              </div>
+              {renderDialogField("ID Cliente", "idCliente", "number", "Ej: 101", "edit")}
+              {renderDialogField("VIN", "vin", "text", "Número de Identificación Vehicular", "edit")}
+              {renderDialogField("ID Marca", "idMarca", "number", "Ej: 1 (Toyota)", "edit")}
+              {renderDialogField("ID Modelo", "idModelo", "number", "Ej: 5 (Corolla)", "edit")}
+              {renderDialogField("Año", "año", "number", "Ej: 2022", "edit")}
+              {renderDialogField("Placas", "placas", "text", "ABC-123", "edit")}
+              {renderDialogField("Color", "color", "text", "Ej: Rojo", "edit")}
+              {renderDialogField("Kilometraje", "kilometraje", "text", "Ej: 55000", "edit")}
+              {renderDialogField("ID Aseguradora", "idAseguradora", "number", "Ej: 1 (GNP)", "edit")}
+              {renderDialogField("Siniestro / Problema", "siniestro", "text", "Describa el problema", "edit", undefined, false, true)}
+              {renderDialogField("Póliza", "poliza", "text", "Número de Póliza", "edit")}
+              {renderDialogField("Folio", "folio", "text", "Folio de Aseguradora", "edit")}
+              {renderDialogField("Deducible", "deducible", "number", "Monto del deducible", "edit")}
+              {renderDialogField("Asegurado/Tercero", "aseguradoTercero", "select", "Seleccione tipo", "edit", [{value: "asegurado", label: "Asegurado"}, {value: "tercero", label: "Tercero"}])}
+              {renderDialogField("¿Es de Piso?", "piso", "checkbox", "", "edit", undefined, true)}
+              {renderDialogField("¿Llegó en Grúa?", "grua", "checkbox", "", "edit", undefined, true)}
+              {renderDialogField("Proceso", "proceso", "select", "Seleccione proceso", "edit", procesoOptions.map(p => ({value: p, label: p.charAt(0).toUpperCase() + p.slice(1).replace(/_/g, ' ')})))}
+              {renderDialogField("Fecha Valuación", "fechaValuacion", "date", "", "edit")}
+              {renderDialogField("Fecha Reingreso", "fechaRengreso", "date", "", "edit")}
+              {renderDialogField("Fecha Entrega", "fechaEntrega", "date", "", "edit")}
+              {renderDialogField("Fecha Promesa", "fechaPromesa", "date", "", "edit")}
+              {renderDialogField("ID Valuador", "idValuador", "number", "ID del Valuador", "edit")}
+              {renderDialogField("ID Asesor", "idAsesor", "number", "ID del Asesor", "edit")}
+              {renderDialogField("ID Hojalatero", "idHojalatero", "number", "ID del Hojalatero", "edit")}
+              {renderDialogField("ID Pintor", "idPintor", "number", "ID del Pintor", "edit")}
+              {renderDialogField("ID Presupuesto", "idPresupuesto", "number", "ID del Presupuesto", "edit")}
             </div>
           )}
           <DialogFooter>
@@ -550,32 +641,64 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* View Order Dialog - NEEDS FULL UPDATE FOR NEW 'Order' STRUCTURE */}
+      {/* View Order Dialog */}
       <Dialog open={isViewOrderDialogOpen} onOpenChange={(open) => { setIsViewOrderDialogOpen(open); if (!open) setCurrentOrder(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalles de Orden (OT-{String(currentOrder?.idOrder || '').padStart(4, '0')})</DialogTitle>
           </DialogHeader>
           {currentOrder && (
             <div className="grid gap-3 py-4 text-sm">
+              <h3 className="font-semibold text-base mb-2 col-span-2">Información General y Vehículo</h3>
               <div className="flex justify-between"><span className="font-medium text-muted-foreground">ID Cliente:</span> <span>{currentOrder.idCliente || 'N/A'}</span></div>
-              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Vehículo (Placas):</span> <span>{currentOrder.placas || 'N/A'}</span></div>
               <div className="flex justify-between"><span className="font-medium text-muted-foreground">VIN:</span> <span>{currentOrder.vin || 'N/A'}</span></div>
-              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Fecha Registro:</span> <span>{formatDate(currentOrder.fechaRegistro)}</span></div>
-              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Proceso:</span> <Badge variant={getProcesoVariant(currentOrder.proceso) as any}>{currentOrder.proceso}</Badge></div>
-              <div className="flex flex-col space-y-1 mt-2">
-                <span className="font-medium text-muted-foreground">Siniestro/Problema:</span>
-                <p className="p-2 bg-muted/50 rounded-md">{currentOrder.siniestro || 'No especificado'}</p>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Placas:</span> <span>{currentOrder.placas || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Marca (ID):</span> <span>{currentOrder.idMarca || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Modelo (ID):</span> <span>{currentOrder.idModelo || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Año:</span> <span>{currentOrder.año || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Color:</span> <span>{currentOrder.color || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Kilometraje:</span> <span>{currentOrder.kilometraje || 'N/A'}</span></div>
+              
+              <h3 className="font-semibold text-base mt-3 mb-2 col-span-2">Información de Aseguradora</h3>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">ID Aseguradora:</span> <span>{currentOrder.idAseguradora || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Ajustador (ID):</span> <span>{currentOrder.ajustador || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Póliza:</span> <span>{currentOrder.poliza || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Folio:</span> <span>{currentOrder.folio || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Deducible:</span> <span>{currentOrder.deducible !== undefined ? `$${currentOrder.deducible}` : 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Tipo:</span> <span className="capitalize">{currentOrder.aseguradoTercero || 'N/A'}</span></div>
+
+              <h3 className="font-semibold text-base mt-3 mb-2 col-span-2">Detalles del Taller</h3>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Proceso Actual:</span> <Badge variant={getProcesoVariant(currentOrder.proceso) as any}>{currentOrder.proceso}</Badge></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">De Piso:</span> <span>{currentOrder.piso ? 'Sí' : 'No'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Llegó en Grúa:</span> <span>{currentOrder.grua ? 'Sí' : 'No'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">URL Archivos:</span> <span>{currentOrder.urlArchivos || 'N/A'}</span></div>
+              
+              <h3 className="font-semibold text-base mt-3 mb-2 col-span-2">Fechas Clave</h3>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Registro:</span> <span>{formatDate(currentOrder.fechaRegistro)}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Valuación:</span> <span>{formatDate(currentOrder.fechaValuacion)}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Reingreso:</span> <span>{formatDate(currentOrder.fechaRengreso)}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Entrega Estimada:</span> <span>{formatDate(currentOrder.fechaPromesa)}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Entrega Real:</span> <span>{formatDate(currentOrder.fechaEntrega)}</span></div>
+
+              <h3 className="font-semibold text-base mt-3 mb-2 col-span-2">Personal Asignado (IDs)</h3>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Asesor:</span> <span>{currentOrder.idAsesor || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Valuador:</span> <span>{currentOrder.idValuador || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Hojalatero:</span> <span>{currentOrder.idHojalatero || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">Pintor:</span> <span>{currentOrder.idPintor || 'N/A'}</span></div>
+              <div className="flex justify-between"><span className="font-medium text-muted-foreground">ID Presupuesto:</span> <span>{currentOrder.idPresupuesto || 'N/A'}</span></div>
+
+              <div className="flex flex-col space-y-1 mt-2 col-span-2">
+                <span className="font-medium text-muted-foreground">Siniestro/Problema Detallado:</span>
+                <p className="p-2 bg-muted/50 rounded-md whitespace-pre-wrap">{currentOrder.siniestro || 'No especificado'}</p>
               </div>
-              {currentOrder.fechaPromesa && <div className="flex justify-between"><span className="font-medium text-muted-foreground">Fecha Promesa:</span> <span>{formatDate(currentOrder.fechaPromesa)}</span></div>}
-              {currentOrder.idAsesor && <div className="flex justify-between"><span className="font-medium text-muted-foreground">ID Asesor:</span> <span>{currentOrder.idAsesor}</span></div>}
+              
               {currentOrder.log && currentOrder.log.length > 0 && (
-                <div className="mt-3">
-                  <h4 className="font-medium text-muted-foreground mb-1">Historial:</h4>
-                  <ul className="list-disc list-inside text-xs space-y-1 max-h-32 overflow-y-auto bg-muted/30 p-2 rounded-md">
+                <div className="mt-3 col-span-2">
+                  <h4 className="font-medium text-muted-foreground mb-1">Historial de Cambios:</h4>
+                  <ul className="list-disc list-inside text-xs space-y-1 max-h-40 overflow-y-auto bg-muted/30 p-2 rounded-md">
                     {currentOrder.log.map((entry, index) => (
                       <li key={index}>
-                        {formatDate(entry.timestamp)} por {entry.userId || 'Sistema'}: {entry.action}{entry.details ? ` (${entry.details})` : ''}
+                        {formatDateTime(entry.timestamp)} por {entry.userId || 'Sistema'}: {entry.action}{entry.details ? ` (${entry.details})` : ''}
                       </li>
                     ))}
                   </ul>
