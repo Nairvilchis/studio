@@ -1,17 +1,18 @@
 
 "use client";
 
-import type { Metadata } from 'next';
 import { useEffect, useState } from 'react';
+import type { NextRouter } from 'next/router'; // Corrected import for NextRouter
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { LogOut } from 'lucide-react';
 
-export const metadata: Metadata = {
-  title: 'Dashboard - LoginEase',
-  description: 'Tu panel de control personalizado en LoginEase.',
-};
+// Removed metadata export as it's not allowed in "use client" components.
+// export const metadata: Metadata = {
+// title: 'Dashboard - LoginEase',
+// description: 'Tu panel de control personalizado en LoginEase.',
+// };
 
 export default function DashboardPage() {
   const router = useRouter();
