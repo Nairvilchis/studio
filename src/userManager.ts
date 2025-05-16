@@ -6,7 +6,7 @@ import { connectDB } from './db'; // Importamos la función de conexión
 export interface User {
   _id?: ObjectId; // El ID generado por MongoDB
   username: string; // Changed from 'user' to 'username' for consistency
-  password?: string; // La contraseña se puede hacer opcional
+  password: string; // La contraseña se puede hacer opcional
   workstation?: string; // Workstation is now optional
   permissions?: string[]; // Permissions are now optional
 }
