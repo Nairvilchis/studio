@@ -1,62 +1,119 @@
 
-import { Collection, ObjectId, InsertOneResult } from 'mongodb';
+import type { Collection, ObjectId, InsertOneResult } from 'mongodb';
 import { connectDB } from './db'; // Importamos la función de conexión
 
-// Definimos la interfaz para la estructura de un usuario
+// Definimos los roles de usuario
+export enum UserRole {
+  ADMIN = "admin",
+  VALUADOR = "valuador",
+  ASESOR = "asesor",
+  ALMACENISTA = "almacenista",
+  HOJALATERO = "hojalatero",
+  PINTOR = "pintor",
+  // Añadir otros roles según sea necesario
+}
+
+// Definimos la interfaz para los permisos de usuario
+export interface UserPermissions {
+  verOrdenes?: boolean;
+  crearOrdenes?: boolean;
+  editarOrdenes?: boolean;
+  eliminarOrdenes?: boolean;
+  verPresupuestos?: boolean;
+  crearPresupuestos?: boolean;
+  editarPresupuestos?: boolean;
+  eliminarPresupuestos?: boolean;
+  verRefacciones?: boolean;
+  crearRefacciones?: boolean;
+  editarRefacciones?: boolean;
+  eliminarRefacciones?: boolean;
+  // Añadir más permisos según sea necesario
+  [key: string]: boolean | undefined; // Para permitir claves de permiso dinámicas
+}
+
+// Interfaz para la estructura de un usuario, actualizada según el nuevo esquema
 export interface User {
   _id?: ObjectId; // El ID generado por MongoDB
-  username: string; // Changed from 'user' to 'username' for consistency
-  password: string; // La contraseña se puede hacer opcional
-  workstation?: string; // Workstation is now optional
-  permissions?: string[]; // Permissions are now optional
+  idEmpleado: number; // ID personalizado del empleado
+  usuario: string; // Nombre de usuario para login
+  contraseña?: string; // Contraseña (debería ser hasheada en producción)
+  rol: UserRole; // Rol del empleado
+  permisos?: UserPermissions; // Permisos específicos del rol o usuario
+  // Campos que estaban en la estructura anterior y podrían pertenecer a 'empleados'
+  workstation?: string; 
 }
+
+// Interfaz para la tabla empleados (separada de users para datos personales/HR)
+// Podría ir en su propio manager 'employeeManager.ts' en el futuro
+export interface Empleado {
+  _id?: ObjectId;
+  idUser: number; // Referencia a User.idEmpleado
+  nombre: string;
+  telefono?: string;
+  correo?: string;
+  tipo?: string; // ej. "Interno", "Externo"
+  puesto?: string; // ej. "Mecánico Jefe", "Valuador Principal"
+  sueldo?: number;
+  comision?: number;
+  fechaRegistro?: Date;
+  fechaBaja?: Date;
+}
+
 
 class UserManager {
   private collectionPromise: Promise<Collection<User>>;
 
   constructor() {
     this.collectionPromise = connectDB().then(db => {
+      // Consider creating an index on 'usuario' and 'idEmpleado' for faster lookups
+      // db.collection<User>('users').createIndex({ usuario: 1 }, { unique: true });
+      // db.collection<User>('users').createIndex({ idEmpleado: 1 }, { unique: true });
       return db.collection<User>('users');
     }).catch(err => {
       console.error('Error al obtener la colección de usuarios:', err);
-      throw err; // Rethrow or handle as appropriate for your application
+      throw err; 
     });
   }
 
   private async getCollection(): Promise<Collection<User>> {
-    // Ensures the promise is resolved and returns the collection
     return this.collectionPromise;
   }
 
   // CREATE: Método para crear un nuevo usuario
-  async createUser(userData: Partial<User>): Promise<ObjectId | null> {
+  async createUser(userData: Pick<User, 'idEmpleado' | 'usuario' | 'contraseña' | 'rol'> & Partial<Pick<User, 'permisos' | 'workstation'>>): Promise<ObjectId | null> {
     const collection = await this.getCollection();
 
-    // It's caller's responsibility to ensure username and password exist,
-    // as per the existing pages/api/create-user.ts logic.
-    if (!userData.username || !userData.password) {
-      console.error('Username and password are required for createUser.');
-      // Or throw new Error('Username and password are required.');
-      return null; // Or handle error appropriately
+    if (!userData.idEmpleado || !userData.usuario || !userData.contraseña || !userData.rol) {
+      console.error('idEmpleado, usuario, contraseña y rol son requeridos para crear un usuario.');
+      return null;
     }
 
-    const fullUserData: User = {
-      username: userData.username,
-      password: userData.password, // Consider hashing passwords in a real app
+    // Aplicar permisos por defecto basados en rol si no se especifican
+    let defaultPermissions: UserPermissions = {};
+    if (userData.rol === UserRole.ADMIN) {
+        defaultPermissions = { verOrdenes: true, crearOrdenes: true, editarOrdenes: true, eliminarOrdenes: true, /* ...todos los permisos */ };
+    } else if (userData.rol === UserRole.ASESOR) {
+        defaultPermissions = { verOrdenes: true, crearOrdenes: true, editarOrdenes: true };
+    }
+    // Añadir más lógicas de permisos por defecto para otros roles
+
+    const newUser: Omit<User, '_id'> = {
+      idEmpleado: userData.idEmpleado,
+      usuario: userData.usuario,
+      contraseña: userData.contraseña, // IMPORTANTE: Hashear en una aplicación real
+      rol: userData.rol,
+      permisos: { ...defaultPermissions, ...userData.permisos },
       workstation: userData.workstation || 'DefaultWorkstation',
-      permissions: userData.permissions || ['basic_user'],
     };
 
     try {
-      // Ensure the object passed to insertOne matches the collection's generic type,
-      // excluding _id if it's auto-generated.
-      // MongoDB Node.js driver expects OptionalId<TSchema> for insertOne.
-      // Our User interface has _id optional, so fullUserData is fine.
-      const result: InsertOneResult<User> = await collection.insertOne(fullUserData as Omit<User, '_id'>);
+      const result: InsertOneResult<User> = await collection.insertOne(newUser as User);
       console.log('Usuario creado con ID:', result.insertedId);
       return result.insertedId;
     } catch (error) {
       console.error('Error al crear usuario:', error);
+      // Chequear si el error es por duplicidad de 'usuario' o 'idEmpleado' si tienen índices únicos
+      // if (error.code === 11000) { ... }
       throw error;
     }
   }
@@ -73,7 +130,7 @@ class UserManager {
     }
   }
 
-  // READ: Método para obtener un usuario por su ID
+  // READ: Método para obtener un usuario por su _id de MongoDB
   async getUserById(id: string): Promise<User | null> {
     const collection = await this.getCollection();
     try {
@@ -88,12 +145,25 @@ class UserManager {
       throw error;
     }
   }
+  
+  // READ: Método para obtener un usuario por su idEmpleado
+  async getUserByIdEmpleado(idEmpleado: number): Promise<User | null> {
+    const collection = await this.getCollection();
+    try {
+      const user = await collection.findOne({ idEmpleado: idEmpleado });
+      return user;
+    } catch (error) {
+      console.error('Error al obtener usuario por idEmpleado:', error);
+      throw error;
+    }
+  }
 
-  // READ: Método para obtener un usuario por su nombre de usuario
+
+  // READ: Método para obtener un usuario por su nombre de usuario ('usuario')
   async getUserByUsername(username: string): Promise<User | null> {
     const collection = await this.getCollection();
     try {
-      const user = await collection.findOne({ username: username });
+      const user = await collection.findOne({ usuario: username }); // Campo cambiado a 'usuario'
       return user;
     } catch (error) {
       console.error('Error al obtener usuario por nombre de usuario:', error);
@@ -101,21 +171,21 @@ class UserManager {
     }
   }
 
-  // UPDATE: Método para actualizar un usuario por su ID
-  async updateUser(id: string, updateData: Partial<User>): Promise<boolean> {
+  // UPDATE: Método para actualizar un usuario por su _id de MongoDB
+  async updateUser(id: string, updateData: Partial<Omit<User, '_id' | 'idEmpleado' | 'usuario'>>): Promise<boolean> {
     const collection = await this.getCollection();
     try {
       if (!ObjectId.isValid(id)) {
         console.error('Invalid ObjectId format for updateUser:', id);
         return false;
       }
-      // Ensure $set operator is used for updates unless replacing the whole document.
-      // Remove _id and username from updateData if they are present, as they shouldn't be changed this way.
-      const { _id, username, ...dataToUpdate } = updateData;
+      // Los campos idEmpleado y usuario no deberían cambiarse con este método general.
+      // Para cambiar contraseña o rol, se deben pasar explícitamente.
+      const { idEmpleado, usuario, ...dataToUpdate } = updateData;
 
       if (Object.keys(dataToUpdate).length === 0) {
         console.log('No fields to update for user ID:', id);
-        return false;
+        return false; 
       }
 
       const result = await collection.updateOne(
@@ -130,7 +200,7 @@ class UserManager {
     }
   }
 
-  // DELETE: Método para eliminar un usuario por su ID
+  // DELETE: Método para eliminar un usuario por su _id de MongoDB
   async deleteUser(id: string): Promise<boolean> {
     const collection = await this.getCollection();
     try {
