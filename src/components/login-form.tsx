@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { User, KeyRound, Eye, EyeOff } from "lucide-react";
 import React from "react";
-import { useRouter } from 'next/navigation'; // Import useRouter
+import { useRouter } from 'next/navigation'; 
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { loginUser } from '@/app/auth/actions'; // Import the server action
 
 const formSchema = z.object({
   username: z.string().min(3, { message: "El usuario debe tener al menos 3 caracteres." }),
@@ -30,13 +31,9 @@ const formSchema = z.object({
 
 type LoginFormValues = z.infer<typeof formSchema>;
 
-// Credenciales hardcodeadas para demostración
-const VALID_USERNAME = "admin";
-const VALID_PASSWORD = "password123";
-
 export function LoginForm() {
   const { toast } = useToast();
-  const router = useRouter(); // Initialize router
+  const router = useRouter(); 
   const [showPassword, setShowPassword] = React.useState(false);
 
   const form = useForm<LoginFormValues>({
@@ -48,28 +45,26 @@ export function LoginForm() {
     },
   });
 
-  function onSubmit(values: LoginFormValues) {
-    if (values.username === VALID_USERNAME && values.password === VALID_PASSWORD) {
-      // Simular login exitoso
+  async function onSubmit(values: LoginFormValues) {
+    const result = await loginUser({ username: values.username, password: values.password });
+
+    if (result.success && result.user) {
       localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('username', values.username);
+      localStorage.setItem('username', result.user.username);
 
       toast({
         title: "Inicio de sesión exitoso",
-        description: `Bienvenido de nuevo, ${values.username}. Redirigiendo...`,
+        description: `Bienvenido de nuevo, ${result.user.username}. Redirigiendo...`,
         variant: "default",
       });
-      router.push('/dashboard'); // Redirigir al dashboard
+      router.push('/dashboard'); 
     } else {
-      // Simular login fallido
       toast({
         title: "Error de inicio de sesión",
-        description: "Usuario o contraseña incorrectos. Por favor, inténtalo de nuevo.",
+        description: result.message || "Usuario o contraseña incorrectos. Por favor, inténtalo de nuevo.",
         variant: "destructive",
       });
     }
-    // No resetear el formulario en caso de error para que el usuario pueda corregir
-    // form.reset(); 
   }
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);

@@ -89,6 +89,18 @@ class UserManager {
     }
   }
 
+  // READ: Método para obtener un usuario por su nombre de usuario
+  async getUserByUsername(username: string): Promise<User | null> {
+    const collection = await this.getCollection();
+    try {
+      const user = await collection.findOne({ username: username });
+      return user;
+    } catch (error) {
+      console.error('Error al obtener usuario por nombre de usuario:', error);
+      throw error;
+    }
+  }
+
   // UPDATE: Método para actualizar un usuario por su ID
   async updateUser(id: string, updateData: Partial<User>): Promise<boolean> {
     const collection = await this.getCollection();
