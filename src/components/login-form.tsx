@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { User, KeyRound, Eye, EyeOff } from "lucide-react";
 import React from "react";
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,8 +24,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { loginUser } from '@/app/auth/actions'; // Import the server action
 
 const formSchema = z.object({
-  username: z.string().min(3, { message: "El usuario debe tener al menos 3 caracteres." }),
-  password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
+  usuario: z.string().min(3, { message: "El usuario debe tener al menos 3 caracteres." }), // Cambiado de username a usuario
+  contraseña: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }), // Cambiado de password a contraseña
   rememberMe: z.boolean().optional(),
 });
 
@@ -33,31 +33,34 @@ type LoginFormValues = z.infer<typeof formSchema>;
 
 export function LoginForm() {
   const { toast } = useToast();
-  const router = useRouter(); 
+  const router = useRouter();
   const [showPassword, setShowPassword] = React.useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      username: "",
-      password: "",
+      usuario: "",
+      contraseña: "",
       rememberMe: false,
     },
   });
 
   async function onSubmit(values: LoginFormValues) {
-    const result = await loginUser({ username: values.username, password: values.password });
+    // Usar 'usuario' y 'contraseña' al llamar a loginUser
+    const result = await loginUser({ usuario: values.usuario, contraseña: values.contraseña });
 
     if (result.success && result.user) {
       localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('username', result.user.username);
+      localStorage.setItem('username', result.user.usuario);
+      localStorage.setItem('idEmpleado', result.user.idEmpleado.toString());
+      localStorage.setItem('userRole', result.user.rol); // Guardar el rol del usuario
 
       toast({
         title: "Inicio de sesión exitoso",
-        description: `Bienvenido de nuevo, ${result.user.username}. Redirigiendo...`,
+        description: `Bienvenido de nuevo, ${result.user.usuario}. Redirigiendo...`,
         variant: "default",
       });
-      router.push('/dashboard'); 
+      router.push('/dashboard');
     } else {
       toast({
         title: "Error de inicio de sesión",
@@ -82,17 +85,17 @@ export function LoginForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="username"
+              name="usuario" // Cambiado de username a usuario
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-muted-foreground">Usuario</FormLabel>
                   <FormControl>
                     <div className="relative">
                       <User className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground/70" />
-                      <Input 
+                      <Input
                         placeholder="tu_usuario"
-                        {...field} 
-                        className="pl-11 h-12 text-base transition-shadow duration-300 focus:shadow-lg focus:shadow-primary/20" 
+                        {...field}
+                        className="pl-11 h-12 text-base transition-shadow duration-300 focus:shadow-lg focus:shadow-primary/20"
                         autoComplete="username"
                       />
                     </div>
@@ -103,7 +106,7 @@ export function LoginForm() {
             />
             <FormField
               control={form.control}
-              name="password"
+              name="contraseña" // Cambiado de password a contraseña
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-muted-foreground">Contraseña</FormLabel>
