@@ -2,12 +2,12 @@
 'use server';
 
 import UserManager from '@/userManager';
-import type { User, UserRole } from '@/userManager'; // Import User type
+import type { User, UserRole } from '@/lib/types'; // Import from new types file
 
 interface LoginResult {
   success: boolean;
   message?: string;
-  user?: { usuario: string, idEmpleado: number, rol: UserRole }; // Devolver rol
+  user?: { usuario: string, idEmpleado: number, rol: UserRole }; 
 }
 
 export async function loginUser(credentials: {usuario: string, contraseña: string}): Promise<LoginResult> {
@@ -15,13 +15,16 @@ export async function loginUser(credentials: {usuario: string, contraseña: stri
   try {
     const user = await userManager.getUserByUsername(credentials.usuario);
 
-    if (user && user.contraseña === credentials.contraseña) { // ¡IMPORTANTE: Comparación en texto plano!
+    if (user && user.contraseña === credentials.contraseña) { 
+      // En una aplicación real, aquí se verificaría una contraseña hasheada.
+      // Por ejemplo: const passwordMatch = await bcrypt.compare(credentials.contraseña, user.contraseña);
+      // if (user && passwordMatch) { ... }
       return {
         success: true,
         user: {
           usuario: user.usuario,
           idEmpleado: user.idEmpleado,
-          rol: user.rol
+          rol: user.rol 
         }
       };
     } else {

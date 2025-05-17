@@ -1,9 +1,9 @@
 
 'use server';
 
-import UserManager, { type User, type UserRole } from '@/userManager'; // Adjusted import to include UserRole
-import type { ObjectId } // Added ObjectId for type checking
-from 'mongodb';
+import UserManager from '@/userManager';
+import type { User, UserRole } from '@/lib/types'; // Import from new types file
+// No longer need to import ObjectId from mongodb here if types are string-based for client
 
 interface ActionResult<T> {
   success: boolean;
@@ -12,31 +12,40 @@ interface ActionResult<T> {
   message?: string;
 }
 
-// Helper to serialize ObjectId to string and handle potential undefined _id
-function serializeUser(user: User): User {
+// Helper to serialize _id to string if it was an ObjectId from DB
+// The User type from lib/types already expects _id as string | undefined
+function serializeUser(userFromDb: any): User { // userFromDb is the raw doc from Mongo
+  const { contraseña, ...userWithoutPassword } = userFromDb;
   return {
-    ...user,
-    _id: user._id ? (user._id as ObjectId).toHexString() as any : undefined,
-    // Ensure contraseña is not sent to client unless explicitly needed and handled
-    // For list views, it's better to omit it. For edit forms, it might be needed if changing.
-  };
+    ...userWithoutPassword,
+    _id: userFromDb._id ? userFromDb._id.toHexString() : undefined,
+  } as User;
 }
 
-function serializeUsers(users: User[]): User[] {
-  return users.map(serializeUser);
+function serializeUsers(usersFromDb: any[]): User[] {
+  return usersFromDb.map(u => {
+    const { contraseña, ...userWithoutPassword } = u;
+    return {
+        ...userWithoutPassword,
+        _id: u._id ? u._id.toHexString() : undefined,
+    } as User;
+  });
 }
 
 
 export async function getAllUsersAction(): Promise<ActionResult<User[]>> {
   const manager = new UserManager();
   try {
-    const dataFromDB = await manager.getAllUsers();
-    // Exclude password from the list sent to the client
-    const users = serializeUsers(dataFromDB.map(u => {
-      const { contraseña, ...userWithoutPassword } = u;
-      return userWithoutPassword as User;
-    }));
-    return { success: true, data: users };
+    const dataFromDB = await manager.getAllUsers(); // This returns User[] with ObjectId from DB
+    // Strip password before sending to client
+    const usersForClient = dataFromDB.map(u => {
+        const { contraseña, ...userWithoutPassword } = u;
+        return {
+            ...userWithoutPassword,
+            _id: u._id ? u._id.toHexString() : undefined, // Ensure _id is string
+        };
+    });
+    return { success: true, data: usersForClient as User[] };
   } catch (error) {
     console.error("Server action getAllUsersAction error:", error);
     return { success: false, error: error instanceof Error ? error.message : "Error desconocido al obtener usuarios." };
@@ -46,15 +55,15 @@ export async function getAllUsersAction(): Promise<ActionResult<User[]>> {
 export async function createUserAction(userData: Pick<User, 'idEmpleado' | 'usuario' | 'contraseña' | 'rol'>): Promise<ActionResult<{ userId: string | null }>> {
   const manager = new UserManager();
   try {
-    const newMongoId = await manager.createUser(userData);
-    if (newMongoId) {
+    const newMongoIdObject = await manager.createUser(userData); // Returns ObjectId
+    if (newMongoIdObject) {
       return {
         success: true,
         message: 'Usuario creado exitosamente.',
-        data: { userId: newMongoId.toHexString() }
+        data: { userId: newMongoIdObject.toHexString() } // Convert to string for client
       };
     } else {
-      return { success: false, error: 'No se pudo crear el usuario.' };
+      return { success: false, error: 'No se pudo crear el usuario (createUser retornó null).' };
     }
   } catch (error) {
     console.error("Server action createUserAction error:", error);
@@ -65,12 +74,16 @@ export async function createUserAction(userData: Pick<User, 'idEmpleado' | 'usua
 export async function getUserByIdAction(id: string): Promise<ActionResult<User | null>> {
   const manager = new UserManager();
   try {
-    const dataFromDB = await manager.getUserById(id);
+    const dataFromDB = await manager.getUserById(id); // `id` is string, manager converts to ObjectId
     if (dataFromDB) {
-      // For editing, we might send the user object as is, or omit password depending on edit logic
-      // For now, sending without password to avoid accidental exposure
-      const { contraseña, ...userWithoutPassword } = serializeUser(dataFromDB);
-      return { success: true, data: userWithoutPassword as User };
+      const { contraseña, ...userWithoutPassword } = dataFromDB;
+      return { 
+        success: true, 
+        data: {
+            ...userWithoutPassword,
+            _id: dataFromDB._id ? dataFromDB._id.toHexString() : undefined,
+        } as User
+      };
     }
     return { success: true, data: null, message: "Usuario no encontrado." };
   } catch (error) {
@@ -82,20 +95,19 @@ export async function getUserByIdAction(id: string): Promise<ActionResult<User |
 export async function updateUserAction(id: string, updateData: Partial<Pick<User, 'usuario' | 'contraseña' | 'rol' | 'permisos' | 'workstation'>>): Promise<ActionResult<null>> {
   const manager = new UserManager();
   try {
-    // Ensure idEmpleado and main 'usuario' (username) are not part of the general update here if they are meant to be immutable or have special update logic.
-    // Password should only be updated if a new one is provided.
     const dataToUpdate = { ...updateData };
     if (dataToUpdate.contraseña === '' || dataToUpdate.contraseña === undefined) {
-      delete dataToUpdate.contraseña; // Don't update password if it's empty
+      delete dataToUpdate.contraseña;
     }
 
+    // `id` is string, manager.updateUser expects string and handles ObjectId conversion
     const success = await manager.updateUser(id, dataToUpdate);
     if (success) {
       return { success: true, message: 'Usuario actualizado exitosamente.' };
     } else {
       const exists = await manager.getUserById(id);
       if (!exists) return { success: false, error: 'No se pudo actualizar: Usuario no encontrado.'};
-      return { success: true, message: 'Ningún cambio detectado en el usuario.' };
+      return { success: true, message: 'Ningún cambio detectado en el usuario.' }; // Or specific message if needed
     }
   } catch (error) {
     console.error("Server action updateUserAction error:", error);
@@ -106,6 +118,7 @@ export async function updateUserAction(id: string, updateData: Partial<Pick<User
 export async function deleteUserAction(id: string): Promise<ActionResult<null>> {
   const manager = new UserManager();
   try {
+    // `id` is string, manager.deleteUser expects string and handles ObjectId conversion
     const success = await manager.deleteUser(id);
     if (success) {
       return { success: true, message: 'Usuario eliminado exitosamente.' };

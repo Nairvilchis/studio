@@ -6,26 +6,8 @@
 
 import type { Collection, ObjectId, InsertOneResult, UpdateResult, DeleteResult, Filter } from 'mongodb';
 import { connectDB } from './db';
+import type { Aseguradora, Ajustador, NewAseguradoraData, UpdateAseguradoraData } from '@/lib/types'; // Import from new types file
 
-// Interface for an adjuster, typically a sub-document of Aseguradora
-export interface Ajustador {
-  idAjustador: number; // Custom numeric ID for the adjuster (unique within the Aseguradora)
-  nombre: string;
-  telefono?: string;
-  correo?: string;
-}
-
-// Interface for an insurance company
-export interface Aseguradora {
-  _id?: ObjectId;       // MongoDB's unique ID
-  idAseguradora: number; // Custom sequential numeric ID for the insurance company
-  nombre: string;
-  telefono?: string;
-  ajustadores?: Ajustador[]; // Array of adjusters associated with this company
-}
-
-export type NewAseguradoraData = Omit<Aseguradora, '_id' | 'idAseguradora'>;
-export type UpdateAseguradoraData = Partial<Omit<Aseguradora, '_id' | 'idAseguradora'>>;
 
 class AseguradoraManager {
   private collectionPromise: Promise<Collection<Aseguradora>>;
@@ -36,10 +18,11 @@ class AseguradoraManager {
       const countersCollection = db.collection<{ _id: string; sequence_value: number }>('counters');
       countersCollection.updateOne(
         { _id: 'aseguradoraIdSequence' },
-        { $setOnInsert: { sequence_value: 1 } }, // Start from 1
+        { $setOnInsert: { sequence_value: 1 } }, 
         { upsert: true }
-      );
-      aseguradorasCollection.createIndex({ nombre: 1 }, { unique: true }); // Ensure company names are unique
+      ).catch(console.warn);
+      aseguradorasCollection.createIndex({ nombre: 1 }, { unique: true }).catch(console.warn);
+      aseguradorasCollection.createIndex({ idAseguradora: 1 }, { unique: true }).catch(console.warn);
       return aseguradorasCollection;
     }).catch(err => {
       console.error('Error al obtener la colección de aseguradoras:', err);
@@ -95,10 +78,11 @@ class AseguradoraManager {
     try {
       const result: InsertOneResult<Aseguradora> = await collection.insertOne(newDocument as Aseguradora);
       return result.insertedId;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al crear aseguradora:', error);
-      if ((error as any).code === 11000) {
-        throw new Error(`La aseguradora "${newDocument.nombre}" ya existe.`);
+      if (error.code === 11000) {
+        if (error.message.includes('nombre_1')) throw new Error(`La aseguradora "${newDocument.nombre}" ya existe.`);
+        if (error.message.includes('idAseguradora_1')) throw new Error(`El idAseguradora "${nextIdAseguradora}" ya existe.`);
       }
       throw error;
     }
@@ -118,7 +102,10 @@ class AseguradoraManager {
   async getAseguradoraById(id: string): Promise<Aseguradora | null> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(id)) return null;
+      if (!ObjectId.isValid(id)) {
+        console.warn('Invalid ObjectId format for getAseguradoraById:', id);
+        return null;
+      }
       return await collection.findOne({ _id: new ObjectId(id) });
     } catch (error) {
       console.error('Error al obtener aseguradora por ID:', error);
@@ -129,7 +116,10 @@ class AseguradoraManager {
   async updateAseguradora(id: string, updateData: UpdateAseguradoraData): Promise<boolean> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(id)) return false;
+      if (!ObjectId.isValid(id)) {
+        console.warn('Invalid ObjectId format for updateAseguradora:', id);
+        return false;
+      }
       if (Object.keys(updateData).length === 0) return true;
       const { idAseguradora, ...dataToUpdate } = updateData as any;
 
@@ -138,9 +128,9 @@ class AseguradoraManager {
         { $set: dataToUpdate }
       );
       return result.modifiedCount > 0;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al actualizar aseguradora:', error);
-      if ((error as any).code === 11000 && updateData.nombre) {
+      if (error.code === 11000 && updateData.nombre) {
         throw new Error(`El nombre de aseguradora "${updateData.nombre}" ya está en uso.`);
       }
       throw error;
@@ -150,7 +140,10 @@ class AseguradoraManager {
   async deleteAseguradora(id: string): Promise<boolean> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(id)) return false;
+      if (!ObjectId.isValid(id)) {
+        console.warn('Invalid ObjectId format for deleteAseguradora:', id);
+        return false;
+      }
       const result: DeleteResult = await collection.deleteOne({ _id: new ObjectId(id) });
       return result.deletedCount > 0;
     } catch (error) {
@@ -163,7 +156,10 @@ class AseguradoraManager {
   async addAjustadorToAseguradora(aseguradoraId: string, ajustadorData: Omit<Ajustador, 'idAjustador'>): Promise<Ajustador | null> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(aseguradoraId)) return null;
+      if (!ObjectId.isValid(aseguradoraId)) {
+        console.warn('Invalid ObjectId for addAjustadorToAseguradora (aseguradoraId):', aseguradoraId);
+        return null;
+      }
       const mongoAseguradoraId = new ObjectId(aseguradoraId);
       const nextIdAjustador = await this.getNextAjustadorId(mongoAseguradoraId);
       
@@ -191,7 +187,10 @@ class AseguradoraManager {
   async updateAjustadorInAseguradora(aseguradoraId: string, idAjustador: number, ajustadorUpdateData: Partial<Omit<Ajustador, 'idAjustador'>>): Promise<boolean> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(aseguradoraId)) return false;
+      if (!ObjectId.isValid(aseguradoraId)) {
+         console.warn('Invalid ObjectId for updateAjustadorInAseguradora (aseguradoraId):', aseguradoraId);
+        return false;
+      }
       if (Object.keys(ajustadorUpdateData).length === 0) return true;
 
       const setUpdate: Record<string, any> = {};
@@ -215,7 +214,10 @@ class AseguradoraManager {
   async removeAjustadorFromAseguradora(aseguradoraId: string, idAjustador: number): Promise<boolean> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(aseguradoraId)) return false;
+      if (!ObjectId.isValid(aseguradoraId)) {
+        console.warn('Invalid ObjectId for removeAjustadorFromAseguradora (aseguradoraId):', aseguradoraId);
+        return false;
+      }
       const result: UpdateResult = await collection.updateOne(
         { _id: new ObjectId(aseguradoraId) },
         { $pull: { ajustadores: { idAjustador: idAjustador } } }
@@ -229,5 +231,3 @@ class AseguradoraManager {
 }
 
 export default AseguradoraManager;
-
-    

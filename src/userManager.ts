@@ -1,47 +1,11 @@
 
+'use server';
+
 import type { Collection, ObjectId, InsertOneResult } from 'mongodb';
-import { connectDB } from './db'; // Importamos la función de conexión
+import { connectDB } from './db';
+import type { User, UserPermissions } from '@/lib/types'; // Import from new types file
+import { UserRole } from '@/lib/types'; // Import from new types file
 
-// Definimos los roles de usuario
-export enum UserRole {
-  ADMIN = "admin",
-  VALUADOR = "valuador",
-  ASESOR = "asesor",
-  ALMACENISTA = "almacenista",
-  HOJALATERO = "hojalatero",
-  PINTOR = "pintor",
-  // Añadir otros roles según sea necesario
-}
-
-// Definimos la interfaz para los permisos de usuario
-export interface UserPermissions {
-  verOrdenes?: boolean;
-  crearOrdenes?: boolean;
-  editarOrdenes?: boolean;
-  eliminarOrdenes?: boolean;
-  verPresupuestos?: boolean;
-  crearPresupuestos?: boolean;
-  editarPresupuestos?: boolean;
-  eliminarPresupuestos?: boolean;
-  verRefacciones?: boolean;
-  crearRefacciones?: boolean;
-  editarRefacciones?: boolean;
-  eliminarRefacciones?: boolean;
-  // Añadir más permisos según sea necesario
-  [key: string]: boolean | undefined; // Para permitir claves de permiso dinámicas
-}
-
-// Interfaz para la estructura de un usuario, actualizada según el nuevo esquema
-export interface User {
-  _id?: ObjectId; // El ID generado por MongoDB
-  idEmpleado: number; // ID personalizado del empleado
-  usuario: string; // Nombre de usuario para login
-  contraseña?: string; // Contraseña (debería ser hasheada en producción)
-  rol: UserRole; // Rol del empleado
-  permisos?: UserPermissions; // Permisos específicos del rol o usuario
-  // Campos que estaban en la estructura anterior y podrían pertenecer a 'empleados'
-  workstation?: string; 
-}
 
 // Interfaz para la tabla empleados (separada de users para datos personales/HR)
 // Podría ir en su propio manager 'employeeManager.ts' en el futuro
@@ -65,10 +29,10 @@ class UserManager {
 
   constructor() {
     this.collectionPromise = connectDB().then(db => {
-      // Consider creating an index on 'usuario' and 'idEmpleado' for faster lookups
-      // db.collection<User>('users').createIndex({ usuario: 1 }, { unique: true });
-      // db.collection<User>('users').createIndex({ idEmpleado: 1 }, { unique: true });
-      return db.collection<User>('users');
+      const usersCollection = db.collection<User>('users');
+      usersCollection.createIndex({ usuario: 1 }, { unique: true }).catch(console.warn);
+      usersCollection.createIndex({ idEmpleado: 1 }, { unique: true }).catch(console.warn);
+      return usersCollection;
     }).catch(err => {
       console.error('Error al obtener la colección de usuarios:', err);
       throw err; 
@@ -85,15 +49,17 @@ class UserManager {
 
     if (!userData.idEmpleado || !userData.usuario || !userData.contraseña || !userData.rol) {
       console.error('idEmpleado, usuario, contraseña y rol son requeridos para crear un usuario.');
-      return null;
+      throw new Error('idEmpleado, usuario, contraseña y rol son requeridos para crear un usuario.');
     }
 
     // Aplicar permisos por defecto basados en rol si no se especifican
     let defaultPermissions: UserPermissions = {};
     if (userData.rol === UserRole.ADMIN) {
-        defaultPermissions = { verOrdenes: true, crearOrdenes: true, editarOrdenes: true, eliminarOrdenes: true, /* ...todos los permisos */ };
+        defaultPermissions = { verOrdenes: true, crearOrdenes: true, editarOrdenes: true, eliminarOrdenes: true, verPresupuestos: true, crearPresupuestos: true, editarPresupuestos: true, eliminarPresupuestos: true, verRefacciones: true, crearRefacciones: true, editarRefacciones: true, eliminarRefacciones: true };
     } else if (userData.rol === UserRole.ASESOR) {
-        defaultPermissions = { verOrdenes: true, crearOrdenes: true, editarOrdenes: true };
+        defaultPermissions = { verOrdenes: true, crearOrdenes: true, editarOrdenes: true, verPresupuestos: true, crearPresupuestos: true, editarPresupuestos: true };
+    } else if (userData.rol === UserRole.VALUADOR) {
+        defaultPermissions = { verOrdenes: true, crearPresupuestos: true, editarPresupuestos: true };
     }
     // Añadir más lógicas de permisos por defecto para otros roles
 
@@ -110,10 +76,15 @@ class UserManager {
       const result: InsertOneResult<User> = await collection.insertOne(newUser as User);
       console.log('Usuario creado con ID:', result.insertedId);
       return result.insertedId;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al crear usuario:', error);
-      // Chequear si el error es por duplicidad de 'usuario' o 'idEmpleado' si tienen índices únicos
-      // if (error.code === 11000) { ... }
+      if (error.code === 11000) { // Duplicate key error
+        if (error.message.includes('usuario_1')) {
+          throw new Error(`El nombre de usuario "${newUser.usuario}" ya existe.`);
+        } else if (error.message.includes('idEmpleado_1')) {
+          throw new Error(`El ID de empleado "${newUser.idEmpleado}" ya está en uso.`);
+        }
+      }
       throw error;
     }
   }
@@ -135,7 +106,7 @@ class UserManager {
     const collection = await this.getCollection();
     try {
       if (!ObjectId.isValid(id)) {
-        console.error('Invalid ObjectId format for getUserById:', id);
+        console.warn('Invalid ObjectId format for getUserById:', id);
         return null;
       }
       const user = await collection.findOne({ _id: new ObjectId(id) });
@@ -163,7 +134,7 @@ class UserManager {
   async getUserByUsername(username: string): Promise<User | null> {
     const collection = await this.getCollection();
     try {
-      const user = await collection.findOne({ usuario: username }); // Campo cambiado a 'usuario'
+      const user = await collection.findOne({ usuario: username });
       return user;
     } catch (error) {
       console.error('Error al obtener usuario por nombre de usuario:', error);
@@ -172,21 +143,23 @@ class UserManager {
   }
 
   // UPDATE: Método para actualizar un usuario por su _id de MongoDB
-  async updateUser(id: string, updateData: Partial<Omit<User, '_id' | 'idEmpleado' | 'usuario'>>): Promise<boolean> {
+  async updateUser(id: string, updateData: Partial<Omit<User, '_id' | 'idEmpleado'>>): Promise<boolean> {
     const collection = await this.getCollection();
     try {
       if (!ObjectId.isValid(id)) {
-        console.error('Invalid ObjectId format for updateUser:', id);
+        console.warn('Invalid ObjectId format for updateUser:', id);
         return false;
       }
-      // Los campos idEmpleado y usuario no deberían cambiarse con este método general.
-      // Para cambiar contraseña o rol, se deben pasar explícitamente.
-      const { idEmpleado, usuario, ...dataToUpdate } = updateData;
+      
+      const { idEmpleado, ...dataToUpdate } = updateData; // idEmpleado no se debe modificar aquí
 
       if (Object.keys(dataToUpdate).length === 0) {
         console.log('No fields to update for user ID:', id);
-        return false; 
+        return true; 
       }
+
+      // Si se intenta actualizar 'usuario' y ya existe, MongoDB lanzará un error 11000
+      // que se manejará en la capa de actions.
 
       const result = await collection.updateOne(
         { _id: new ObjectId(id) },
@@ -194,8 +167,11 @@ class UserManager {
       );
       console.log('Usuario actualizado:', result.modifiedCount);
       return result.modifiedCount > 0;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al actualizar usuario:', error);
+      if (error.code === 11000 && updateData.usuario) {
+         throw new Error(`El nombre de usuario "${updateData.usuario}" ya está en uso.`);
+      }
       throw error;
     }
   }
@@ -205,7 +181,7 @@ class UserManager {
     const collection = await this.getCollection();
     try {
       if (!ObjectId.isValid(id)) {
-        console.error('Invalid ObjectId format for deleteUser:', id);
+        console.warn('Invalid ObjectId format for deleteUser:', id);
         return false;
       }
       const result = await collection.deleteOne({ _id: new ObjectId(id) });

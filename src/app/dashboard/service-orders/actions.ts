@@ -1,10 +1,9 @@
 
 'use server';
 
-// Renamed ServiceOrderManager to OrderManager conceptually, but class name might be the same
-// Using OrderManager and Order type, assuming serviceOrderManager.ts has been updated.
-import OrderManager, { type Order, type NewOrderData, type UpdateOrderData } from '@/serviceOrderManager';
-import type { Filter } from 'mongodb';
+import OrderManager from '@/serviceOrderManager';
+import type { Order, NewOrderData, UpdateOrderData } from '@/lib/types';
+import type { Filter, ObjectId } from 'mongodb'; // Keep ObjectId for internal DB use
 
 interface ActionResult<T> {
   success: boolean;
@@ -13,31 +12,35 @@ interface ActionResult<T> {
   message?: string;
 }
 
-// Helper function to serialize ObjectId to string for Order
-function serializeOrder(order: Order): Order {
+// Helper function to serialize _id to string and ensure dates are client-friendly
+// The Order type from lib/types already expects _id as string | undefined
+function serializeOrder(orderFromDb: any): Order { // orderFromDb is raw doc from Mongo
   return {
-    ...order,
-    _id: order._id?.toHexString() as any, // Cast to any because ObjectId will be stringified
-    // Ensure Date objects are preserved or converted to ISO strings if needed by client
-    fechaRegistro: order.fechaRegistro, // Keep as Date object or convert: new Date(order.fechaRegistro).toISOString(),
-    fechaValuacion: order.fechaValuacion ? order.fechaValuacion : undefined,
-    fechaRengreso: order.fechaRengreso ? order.fechaRengreso : undefined,
-    fechaEntrega: order.fechaEntrega ? order.fechaEntrega : undefined,
-    fechaPromesa: order.fechaPromesa ? order.fechaPromesa : undefined,
-  };
+    ...orderFromDb,
+    _id: orderFromDb._id ? orderFromDb._id.toHexString() : undefined,
+    // Ensure dates are consistently handled, client might expect ISO strings or Date objects
+    // For now, assume client handles Date objects if they are passed as such.
+    // If client strictly needs ISO strings, convert them here.
+    fechaRegistro: orderFromDb.fechaRegistro, // Keep as Date, or .toISOString()
+    fechaValuacion: orderFromDb.fechaValuacion ? orderFromDb.fechaValuacion : undefined,
+    fechaRengreso: orderFromDb.fechaRengreso ? orderFromDb.fechaRengreso : undefined,
+    fechaEntrega: orderFromDb.fechaEntrega ? orderFromDb.fechaEntrega : undefined,
+    fechaPromesa: orderFromDb.fechaPromesa ? orderFromDb.fechaPromesa : undefined,
+    log: orderFromDb.log?.map((entry: any) => ({ ...entry, timestamp: entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp) }))
+  } as Order;
 }
 
-function serializeOrders(orders: Order[]): Order[] {
-  return orders.map(serializeOrder);
+function serializeOrders(ordersFromDb: any[]): Order[] {
+  return ordersFromDb.map(serializeOrder);
 }
 
 
-export async function getAllOrdersAction(filter?: Filter<Order>): Promise<ActionResult<Order[]>> {
+export async function getAllOrdersAction(filter?: Filter<Omit<Order, '_id'> & { _id?: ObjectId }>): Promise<ActionResult<Order[]>> {
   const orderManager = new OrderManager();
   try {
-    const ordersFromDB = await orderManager.getAllOrders(filter);
-    const orders = serializeOrders(ordersFromDB);
-    return { success: true, data: orders };
+    const ordersFromDBRaw = await orderManager.getAllOrders(filter as any); // Manager returns docs with ObjectId
+    const ordersForClient = serializeOrders(ordersFromDBRaw);
+    return { success: true, data: ordersForClient };
   } catch (error) {
     console.error("Server action getAllOrdersAction error:", error);
     const errorMessage = error instanceof Error ? error.message : "Error desconocido al obtener órdenes.";
@@ -46,21 +49,29 @@ export async function getAllOrdersAction(filter?: Filter<Order>): Promise<Action
 }
 
 export async function createOrderAction(
-  orderData: NewOrderData, // Use the new type for creating orders
-  userId?: number // Optional userId for logging who created the order
+  orderData: NewOrderData,
+  userId?: number
 ): Promise<ActionResult<{ orderId: string | null, customOrderId?: number }>> {
   const orderManager = new OrderManager();
   try {
-    const newMongoId = await orderManager.createOrder(orderData, userId);
-    if (newMongoId) {
-      const createdOrder = await orderManager.getOrderById(newMongoId.toHexString());
-      return { 
-        success: true, 
-        message: 'Orden creada exitosamente.', 
-        data: { 
-          orderId: newMongoId.toHexString(), // MongoDB _id
-          customOrderId: createdOrder?.idOrder // Custom human-readable idOrder
-        } 
+    const dataWithDates: NewOrderData = { // Ensure dates are Date objects for manager
+      ...orderData,
+      fechaValuacion: orderData.fechaValuacion ? new Date(orderData.fechaValuacion) : undefined,
+      fechaRengreso: orderData.fechaRengreso ? new Date(orderData.fechaRengreso) : undefined,
+      fechaEntrega: orderData.fechaEntrega ? new Date(orderData.fechaEntrega) : undefined,
+      fechaPromesa: orderData.fechaPromesa ? new Date(orderData.fechaPromesa) : undefined,
+    };
+
+    const newMongoIdObject = await orderManager.createOrder(dataWithDates, userId); // Returns ObjectId
+    if (newMongoIdObject) {
+      const createdOrderRaw = await orderManager.getOrderById(newMongoIdObject.toHexString()); // Fetch by string _id
+      return {
+        success: true,
+        message: 'Orden creada exitosamente.',
+        data: {
+          orderId: newMongoIdObject.toHexString(), // String for client
+          customOrderId: createdOrderRaw?.idOrder
+        }
       };
     } else {
       return { success: false, error: 'No se pudo crear la orden.' };
@@ -72,12 +83,12 @@ export async function createOrderAction(
   }
 }
 
-export async function getOrderByIdAction(id: string): Promise<ActionResult<Order | null>> { // Gets by MongoDB _id
+export async function getOrderByIdAction(id: string): Promise<ActionResult<Order | null>> {
   const orderManager = new OrderManager();
   try {
-    const orderFromDB = await orderManager.getOrderById(id);
-    if (orderFromDB) {
-      return { success: true, data: serializeOrder(orderFromDB) };
+    const orderFromDBRaw = await orderManager.getOrderById(id); // `id` is string, manager handles ObjectId
+    if (orderFromDBRaw) {
+      return { success: true, data: serializeOrder(orderFromDBRaw) };
     }
     return { success: true, data: null, message: "Orden no encontrada." };
   } catch (error) {
@@ -90,11 +101,14 @@ export async function getOrderByIdAction(id: string): Promise<ActionResult<Order
 export async function updateOrderProcesoAction(id: string, proceso: Order['proceso'], userId?: number): Promise<ActionResult<null>> {
     const orderManager = new OrderManager();
     try {
+        // `id` is string, manager.updateOrderProceso expects string
         const success = await orderManager.updateOrderProceso(id, proceso, userId);
         if (success) {
             return { success: true, message: 'Proceso de la orden actualizado.' };
         } else {
-            return { success: false, error: 'No se pudo actualizar el proceso de la orden o no se encontró.' };
+            const exists = await orderManager.getOrderById(id);
+            if (!exists) return { success: false, error: 'No se pudo actualizar: Orden no encontrada.'};
+            return { success: true, message: 'Ningún cambio detectado en el proceso de la orden.' };
         }
     } catch (error) {
         console.error("Server action updateOrderProcesoAction error:", error);
@@ -104,17 +118,27 @@ export async function updateOrderProcesoAction(id: string, proceso: Order['proce
 }
 
 export async function updateOrderAction(
-  id: string, // MongoDB _id
-  updateData: UpdateOrderData, // Use the new type for updating orders
-  userId?: number // Optional userId for logging who updated
+  id: string,
+  updateData: UpdateOrderData,
+  userId?: number
 ): Promise<ActionResult<null>> {
   const orderManager = new OrderManager();
   try {
-    const success = await orderManager.updateOrder(id, updateData, userId);
+    const dataWithDates: UpdateOrderData = { // Ensure dates are Date objects for manager
+      ...updateData,
+      fechaValuacion: updateData.fechaValuacion ? new Date(updateData.fechaValuacion) : undefined,
+      fechaRengreso: updateData.fechaRengreso ? new Date(updateData.fechaRengreso) : undefined,
+      fechaEntrega: updateData.fechaEntrega ? new Date(updateData.fechaEntrega) : undefined,
+      fechaPromesa: updateData.fechaPromesa ? new Date(updateData.fechaPromesa) : undefined,
+    };
+    // `id` is string, manager.updateOrder expects string
+    const success = await orderManager.updateOrder(id, dataWithDates, userId);
     if (success) {
       return { success: true, message: 'Orden actualizada exitosamente.' };
     } else {
-      return { success: false, error: 'No se pudo actualizar la orden o no se encontró.' };
+      const exists = await orderManager.getOrderById(id);
+      if (!exists) return { success: false, error: 'No se pudo actualizar: Orden no encontrada.'};
+      return { success: true, message: 'Ningún cambio detectado en la orden.' };
     }
   } catch (error) {
     console.error("Server action updateOrderAction error:", error);
@@ -123,9 +147,10 @@ export async function updateOrderAction(
   }
 }
 
-export async function deleteOrderAction(id: string): Promise<ActionResult<null>> { // Deletes by MongoDB _id
+export async function deleteOrderAction(id: string): Promise<ActionResult<null>> {
     const orderManager = new OrderManager();
     try {
+        // `id` is string, manager.deleteOrder expects string
         const success = await orderManager.deleteOrder(id);
         if (success) {
             return { success: true, message: 'Orden eliminada exitosamente.' };

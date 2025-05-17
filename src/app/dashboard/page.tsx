@@ -17,7 +17,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
-import { UserRole, type User } from '@/userManager'; // Changed import type for UserRole
+import { 
+  UserRole, 
+  type User,
+  type Order,
+  type NewOrderData,
+  type UpdateOrderData,
+  type MarcaVehiculo,
+  type NewMarcaData as NewMarcaType,
+  type ModeloVehiculo,
+  type Aseguradora,
+  type NewAseguradoraData as NewAseguradoraType,
+  type Ajustador
+} from '@/lib/types';
+
 
 import {
   getAllOrdersAction,
@@ -26,7 +39,6 @@ import {
   deleteOrderAction,
   getOrderByIdAction,
 } from './service-orders/actions';
-import type { Order, NewOrderData, UpdateOrderData } from '@/serviceOrderManager';
 
 import {
   getAllMarcasAction,
@@ -37,7 +49,6 @@ import {
   updateModeloInMarcaAction,
   removeModeloFromMarcaAction,
 } from './admin/marcas/actions';
-import type { MarcaVehiculo, NewMarcaData as NewMarcaType, ModeloVehiculo } from '@/marcaManager';
 
 import {
   getAllAseguradorasAction,
@@ -48,14 +59,13 @@ import {
   updateAjustadorInAseguradoraAction,
   removeAjustadorFromAseguradoraAction,
 } from './admin/aseguradoras/actions';
-import type { Aseguradora, NewAseguradoraData as NewAseguradoraType, Ajustador } from '@/aseguradoraManager';
 
 import {
   getAllUsersAction,
   createUserAction,
-  getUserByIdAction as getUserForEditAction, // Renamed to avoid conflict with local function
+  getUserByIdAction as getUserForEditAction, 
   updateUserAction,
-  deleteUserAction as deleteUserAdminAction, // Renamed to avoid conflict
+  deleteUserAction as deleteUserAdminAction, 
 } from './admin/users/actions';
 
 
@@ -211,7 +221,7 @@ export default function DashboardPage() {
     let processedValue: any = value;
     if (type === 'number') processedValue = value === '' ? undefined : parseFloat(value);
     if (type === 'checkbox') processedValue = (e.target as HTMLInputElement).checked;
-    if (type === 'date') processedValue = value ? new Date(value) : undefined; // Keep as Date
+    if (type === 'date') processedValue = value ? new Date(value) : undefined; 
     setState((prev: any) => ({ ...prev, [name]: processedValue }));
   };
 
@@ -500,7 +510,7 @@ export default function DashboardPage() {
       setEditUserData({
         usuario: result.data.usuario,
         rol: result.data.rol,
-        contraseña: '' // Dejar vacío para no cambiarla por defecto
+        contraseña: '' 
       });
       setIsEditUserDialogOpen(true);
     } else {
@@ -552,9 +562,19 @@ export default function DashboardPage() {
 
   const formatDate = (dateInput?: Date | string): string => {
     if (!dateInput) return 'N/A';
-    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    if (isNaN(date.getTime())) return 'Fecha Inválida';
-    // Force interpretation as local time if it's a 'yyyy-mm-dd' string
+    let date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    // Check if date is valid
+    if (isNaN(date.getTime())) { 
+      // Try to parse if it's a common invalid string from server (like a simple date string without time)
+      const parts = String(dateInput).split('-');
+      if (parts.length === 3) {
+         date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      } else {
+        return 'Fecha Inválida';
+      }
+    }
+    if (isNaN(date.getTime())) return 'Fecha Inválida'; // Double check after attempting parse
+    
     const timezoneOffset = date.getTimezoneOffset() * 60000;
     const localDate = new Date(date.valueOf() + timezoneOffset);
     return localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -647,7 +667,7 @@ export default function DashboardPage() {
           value={type === 'date' && value instanceof Date ? value.toISOString().split('T')[0] : (value || '')}
           onChange={(e) => handler(e, currentFormType)}
           className="col-span-3" placeholder={placeholder}
-          disabled={formType === 'editUser' && name === 'idEmpleado'}
+          disabled={(formType === 'editUser' || formType === 'newUser') && name === 'idEmpleado' && formType === 'editUser' }
         />
       </div>
     );
@@ -1135,7 +1155,7 @@ export default function DashboardPage() {
       </Dialog>
       <Dialog open={isDeleteUserDialogOpen} onOpenChange={(open) => { setIsDeleteUserDialogOpen(open); if(!open) setUserToDeleteId(null); }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Confirmar Eliminación</DialogTitle><DialogDescription>¿Seguro que deseas eliminar al usuario {usersList.find(u => u._id === userToDeleteId)?.usuario} (ID: {usersList.find(u => u._id === userToDeleteId)?.idEmpleado})? Esta acción no se puede deshacer.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Confirmar Eliminación</DialogTitle><DialogDescription>¿Seguro que deseas eliminar al usuario {usersList.find(u => u._id?.toString() === userToDeleteId)?.usuario} (ID: {usersList.find(u => u._id?.toString() === userToDeleteId)?.idEmpleado})? Esta acción no se puede deshacer.</DialogDescription></DialogHeader>
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button variant="destructive" onClick={handleDeleteUser}>Eliminar Usuario</Button></DialogFooter>
         </DialogContent>
       </Dialog>
