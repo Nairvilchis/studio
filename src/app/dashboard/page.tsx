@@ -24,10 +24,10 @@ import {
   type NewOrderData,
   type UpdateOrderData,
   type MarcaVehiculo,
-  type NewMarcaData as NewMarcaType,
+  type NewMarcaData as NewMarcaType, // Renamed to avoid conflict if NewMarcaData is used elsewhere
   type ModeloVehiculo,
   type Aseguradora,
-  type NewAseguradoraData as NewAseguradoraType,
+  type NewAseguradoraData as NewAseguradoraType, // Renamed
   type Ajustador
 } from '@/lib/types';
 
@@ -94,7 +94,7 @@ export default function DashboardPage() {
   const [isDeleteOrderDialogOpen, setIsDeleteOrderDialogOpen] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [orderToDeleteId, setOrderToDeleteId] = useState<string | null>(null);
-  const initialNewOrderData: OrderFormDataType = { /* values will be filled by the form or defaults */ };
+  const initialNewOrderData: OrderFormDataType = { proceso: 'pendiente' };
   const [newOrderData, setNewOrderData] = useState<OrderFormDataType>(initialNewOrderData);
   const [editOrderData, setEditOrderData] = useState<OrderFormDataType>({});
 
@@ -290,6 +290,7 @@ export default function DashboardPage() {
       setCurrentOrder(order);
       setEditOrderData({
         ...order,
+        // Ensure dates from server (which might be strings) are converted to Date objects for the form
         fechaValuacion: order.fechaValuacion ? new Date(order.fechaValuacion) : undefined,
         fechaRengreso: order.fechaRengreso ? new Date(order.fechaRengreso) : undefined,
         fechaEntrega: order.fechaEntrega ? new Date(order.fechaEntrega) : undefined,
@@ -309,10 +310,18 @@ export default function DashboardPage() {
         if (dataToUpdate[k] !== undefined && dataToUpdate[k] !== null && dataToUpdate[k] !== '') {
           (dataToUpdate as any)[k] = Number(dataToUpdate[k]);
         } else {
-           (dataToUpdate as any)[k] = undefined;
+           (dataToUpdate as any)[k] = undefined; // Ensure empty strings become undefined for numeric fields
         }
       }
-      if (dataToUpdate[k] === undefined) delete dataToUpdate[k];
+       // Ensure Date objects are passed for date fields, or undefined
+      if (['fechaValuacion', 'fechaRengreso', 'fechaEntrega', 'fechaPromesa'].includes(k)) {
+        if (dataToUpdate[k]) {
+          (dataToUpdate as any)[k] = new Date(dataToUpdate[k] as string | Date);
+        } else {
+          (dataToUpdate as any)[k] = undefined;
+        }
+      }
+      if (dataToUpdate[k] === undefined) delete dataToUpdate[k]; // Clean up undefined fields
     });
 
     const result = await updateOrderAction(currentOrder._id.toString(), dataToUpdate, userIdEmpleado || undefined);
@@ -559,32 +568,37 @@ export default function DashboardPage() {
     setUserToDeleteId(null);
   };
 
-
   const formatDate = (dateInput?: Date | string): string => {
     if (!dateInput) return 'N/A';
-    let date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    // Check if date is valid
-    if (isNaN(date.getTime())) { 
-      // Try to parse if it's a common invalid string from server (like a simple date string without time)
-      const parts = String(dateInput).split('-');
-      if (parts.length === 3) {
-         date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    let date: Date;
+    if (typeof dateInput === 'string') {
+      // Handle "YYYY-MM-DD" specifically to avoid UTC interpretation issues for date-only strings
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+        const parts = dateInput.split('-');
+        // Create date as local midnight
+        date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       } else {
-        return 'Fecha Inválida';
+        date = new Date(dateInput); // For ISO strings or other parsable date strings
       }
+    } else {
+      date = dateInput; // Assumed to be a Date object
     }
-    if (isNaN(date.getTime())) return 'Fecha Inválida'; // Double check after attempting parse
-    
-    const timezoneOffset = date.getTimezoneOffset() * 60000;
-    const localDate = new Date(date.valueOf() + timezoneOffset);
-    return localDate.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+    if (isNaN(date.getTime())) {
+      return 'Fecha Inválida';
+    }
+    // Use toLocaleDateString directly. It will use the browser's local timezone.
+    return date.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
   };
+
   const formatDateTime = (dateInput?: Date | string): string => {
     if (!dateInput) return 'N/A';
     const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
     if (isNaN(date.getTime())) return 'Fecha Inválida';
+    // Using resolvedOptions().timeZone ensures it uses the browser's actual timezone for display
     return date.toLocaleString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
   };
+  
   const getProcesoVariant = (proceso?: Order['proceso']): "default" | "secondary" | "outline" | "destructive" => {
     switch (proceso) {
       case 'entregado': case 'facturado': return 'default';
@@ -667,7 +681,7 @@ export default function DashboardPage() {
           value={type === 'date' && value instanceof Date ? value.toISOString().split('T')[0] : (value || '')}
           onChange={(e) => handler(e, currentFormType)}
           className="col-span-3" placeholder={placeholder}
-          disabled={(formType === 'editUser' || formType === 'newUser') && name === 'idEmpleado' && formType === 'editUser' }
+          disabled={formType === 'editUser' && name === 'idEmpleado' }
         />
       </div>
     );
