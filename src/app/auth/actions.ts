@@ -11,14 +11,15 @@ interface LoginResult {
 }
 
 export async function loginUser(credentials: {usuario: string, contraseña: string}): Promise<LoginResult> {
+  console.log("Server Action: loginUser - Intentando iniciar sesión con:", credentials.usuario);
   const userManager = new UserManager();
   try {
     const user = await userManager.getUserByUsername(credentials.usuario);
+    console.log("Server Action: loginUser - Usuario encontrado en DB:", user ? `{ usuario: '${user.usuario}', idEmpleado: ${user.idEmpleado}, rol: '${user.rol}' }` : 'No encontrado');
 
     if (user && user.contraseña === credentials.contraseña) { 
+      console.log("Server Action: loginUser - Contraseña coincide para:", user.usuario);
       // En una aplicación real, aquí se verificaría una contraseña hasheada.
-      // Por ejemplo: const passwordMatch = await bcrypt.compare(credentials.contraseña, user.contraseña);
-      // if (user && passwordMatch) { ... }
       return {
         success: true,
         user: {
@@ -28,6 +29,7 @@ export async function loginUser(credentials: {usuario: string, contraseña: stri
         }
       };
     } else {
+      console.log("Server Action: loginUser - Usuario no encontrado o contraseña incorrecta para:", credentials.usuario);
       return { success: false, message: "Usuario o contraseña incorrectos." };
     }
   } catch (error) {

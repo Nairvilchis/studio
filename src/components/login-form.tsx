@@ -46,14 +46,16 @@ export function LoginForm() {
   });
 
   async function onSubmit(values: LoginFormValues) {
-    // Usar 'usuario' y 'contraseña' al llamar a loginUser
+    console.log("LoginForm: Intentando iniciar sesión con:", values.usuario);
     const result = await loginUser({ usuario: values.usuario, contraseña: values.contraseña });
+    console.log("LoginForm: Resultado de loginUser:", result);
 
     if (result.success && result.user) {
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('username', result.user.usuario);
-      localStorage.setItem('idEmpleado', result.user.idEmpleado.toString());
-      localStorage.setItem('userRole', result.user.rol); // Guardar el rol del usuario
+      // Asegurarse de que idEmpleado se guarda como string
+      localStorage.setItem('idEmpleado', String(result.user.idEmpleado));
+      localStorage.setItem('userRole', result.user.rol); 
 
       toast({
         title: "Inicio de sesión exitoso",
@@ -85,7 +87,7 @@ export function LoginForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="usuario" // Cambiado de username a usuario
+              name="usuario" 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-muted-foreground">Usuario</FormLabel>
@@ -106,7 +108,7 @@ export function LoginForm() {
             />
             <FormField
               control={form.control}
-              name="contraseña" // Cambiado de password a contraseña
+              name="contraseña" 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-muted-foreground">Contraseña</FormLabel>
