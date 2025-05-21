@@ -25,100 +25,100 @@ export interface UserPermissions {
   [key: string]: boolean | undefined;
 }
 
-export interface EmployeeUser {
-  contraseña?: string;
-  usuario: string;
-  rol: UserRole;
-  permisos?: UserPermissions;
-}
-
+// This interface represents the document in the 'users' collection
 export interface User {
-  _id?: ObjectId;
+  _id?: string; // MongoDB ObjectId as string
+  idEmpleado: number; // Custom numeric ID for the employee
   usuario: string;
-  contraseña?: string;
+  contraseña?: string; // Should be hashed in a real app
   rol: UserRole;
-  permisos?: UserPermissions;
-  workstation?: string;
-  // Fields from Empleado interface
-  nombre: string;
+  nombre: string; // Full name of the employee/user
+  puesto?: string; // Job title, e.g., "Hojalatero", "Pintor"
   telefono?: string;
   correo?: string;
-  tipo?: string;
-  puesto?: string;
+  tipo?: string; // Could be 'interno', 'externo'
   sueldo?: number;
   comision?: number;
   fechaRegistro?: Date;
   fechaBaja?: Date;
-  user: EmployeeUser;
+  permisos?: UserPermissions;
+  workstation?: string;
 }
+
 
 // --- Order Types ---
 export interface LogEntry {
-  timestamp: Date; // Will be stringified by actions for client, or keep as Date if client handles it
-  userId?: string; // Assuming userId is also ObjectId string
+  timestamp: Date;
+  userId?: number; // User's custom idEmpleado
   action: string;
   details?: string;
 }
 
 export interface Order {
-  _id?: string; // Changed from ObjectId
+  _id?: string;
   idOrder: number;
-  idCliente?: number;
+  idCliente?: string; // References Cliente._id
   vin?: string;
-  idMarca?: string; // Changed from number to string based on MarcaVehiculo _id
-  idModelo?: number;
+  idMarca?: string; // References MarcaVehiculo._id
+  idModelo?: number; // Numeric ID of the modelo within the marca
   año?: number;
   placas?: string;
   color?: string;
-  kilometraje?: string;
-  idAseguradora?: string; // Changed from number to string
-  ajustador?: number; // Assuming this is the idAjustador
-  siniestro?: string; // Changed from number to string based on Aseguradora _id
-  poliza?: string; // Changed from number to string
+  kilometraje?: string; // Kept as string as per user schema
+  idAseguradora?: string; // References Aseguradora._id
+  ajustador?: number; // Numeric ID of the ajustador within the aseguradora
+  siniestro?: string;
+  poliza?: string;
   folio?: string;
   deducible?: number;
   aseguradoTercero?: 'asegurado' | 'tercero';
   piso?: boolean;
   grua?: boolean;
-  fechaRegistro: Date; // Will be stringified by actions for client
-  fechaValuacion?: Date; // Will be stringified
-  fechaRengreso?: Date; // Will be stringified
-  fechaEntrega?: Date; // Will be stringified
-  fechaPromesa?: Date; // Will be stringified
-  idValuador?: string; // Changed from number to string
-  idAsesor?: string; // Changed from number to string
-  idHojalatero?: string; // Changed from number to string
-  idPintor?: string; // Changed from number to string
-  idPresupuesto?: number;
+  fechaRegistro: Date;
+  fechaValuacion?: Date;
+  fechaRengreso?: Date;
+  fechaEntrega?: Date;
+  fechaPromesa?: Date;
+  idValuador?: string; // References User._id (for valuador role)
+  idAsesor?: string; // References User._id (for asesor role)
+  idHojalatero?: string; // References User._id (for hojalatero role)
+  idPintor?: string; // References User._id (for pintor role)
+  idPresupuesto?: string; // Reference to a Presupuesto._id
   proceso: 'pendiente' | 'valuacion' | 'espera_refacciones' | 'refacciones_listas' | 'hojalateria' | 'preparacion_pintura' | 'pintura' | 'mecanica' | 'armado' | 'detallado_lavado' | 'control_calidad' | 'listo_entrega' | 'entregado' | 'facturado' | 'garantia' | 'cancelado';
   urlArchivos?: string;
   log?: LogEntry[];
 }
 
-// For data sent to create/update actions, _id might not be present or relevant if it's a string from client
-export type NewOrderData = Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log' | 'proceso' | 'idMarca' | 'idAseguradora' | 'siniestro' | 'idValuador' | 'idAsesor' | 'idHojalatero' | 'idPintor'> & { proceso?: Order['proceso'], idMarca?: string, idAseguradora?: string, siniestro?: string, idValuador?: string, idAsesor?: string, idHojalatero?: string, idPintor?: string };
+export type NewOrderData = Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log'>;
 export type UpdateOrderData = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro'>>;
 
 
 // --- Marca Types ---
 export interface ModeloVehiculo {
-  idModelo: number;
+  idModelo: number; // Custom numeric ID, unique within the Marca
   modelo: string;
 }
 
 export interface MarcaVehiculo {
-  _id?: string; // Changed from ObjectId
-  idMarca?: string; // Changed from number to string based on rule, made optional if not always present
+  _id?: string; // MongoDB ObjectId as string
+  idMarca: number; // Custom numeric ID
   marca: string;
   modelos?: ModeloVehiculo[];
 }
 export type NewMarcaData = Omit<MarcaVehiculo, '_id' | 'idMarca'>;
 export type UpdateMarcaData = Partial<Omit<MarcaVehiculo, '_id' | 'idMarca'>>;
 
+// --- Aseguradora Types ---
+export interface Ajustador {
+  idAjustador: number; // Custom numeric ID, unique within the Aseguradora
+  nombre: string;
+  telefono?: string;
+  correo?: string;
+}
 
 export interface Aseguradora {
-  _id?: string; // Changed from ObjectId
-  idAseguradora: string; // Changed from number to string
+  _id?: string; // MongoDB ObjectId as string
+  idAseguradora: number; // Custom numeric ID
   nombre: string;
   telefono?: string;
   ajustadores?: Ajustador[];
@@ -126,17 +126,22 @@ export interface Aseguradora {
 export type NewAseguradoraData = Omit<Aseguradora, '_id' | 'idAseguradora'>;
 export type UpdateAseguradoraData = Partial<Omit<Aseguradora, '_id' | 'idAseguradora'>>;
 
-// Placeholder for other types if needed in the future
+// --- Cliente Types ---
 export interface Cliente {
-  _id?: string; // Changed from ObjectId
-  idCliente?: string; // Changed from number to string based on rule, made optional
-  nombre: string;
+  _id?: string; // MongoDB ObjectId as string
+  idCliente: number; // Custom numeric ID
+  nombre?: string; // For individual clients
+  razonSocial?: string; // For business clients
+  rfc?: string;
   telefono?: string;
   correo?: string;
   // ordenes?: { idOrden: number }[]; // Example if embedding order IDs
 }
+export type NewClienteData = Omit<Cliente, '_id' | 'idCliente'>;
+export type UpdateClienteData = Partial<Omit<Cliente, '_id' | 'idCliente'>>;
 
 
+// --- Presupuesto Types ---
 export interface ConceptoPresupuesto {
   concepto: string;
   cantidad: number;
@@ -147,21 +152,22 @@ export interface ConceptoPresupuesto {
 }
 
 export interface Presupuesto {
-  _id?: string; // Changed from ObjectId
-  idPresupuesto?: string; // Changed from number to string based on rule, made optional
-  idOrder: number;
+  _id?: string; // MongoDB ObjectId as string
+  idPresupuesto: number; // Custom numeric ID
+  idOrder: number; // References Order.idOrder
   conceptos: ConceptoPresupuesto[];
   // other fields like total, fecha, etc.
 }
 
+// --- Refaccion Types ---
 export interface Refaccion {
-  _id?: ObjectId; // Changed from ObjectId
-  idRefaccion: string; // or number
-  idOrder?: number;
+  _id?: string; // MongoDB ObjectId as string
+  idRefaccion: number; // Custom numeric ID, or could be string from supplier
+  idOrder: number; // References Order.idOrder
   refaccion: string;
   cantidad: number;
-  idMarca?: number;
-  idModelo?: number;
+  idMarca?: string; // References MarcaVehiculo._id (if for a specific brand of part)
+  idModelo?: number; // References ModeloVehiculo.idModelo
   año?: number;
   proveedor?: string;
   precio?: number;

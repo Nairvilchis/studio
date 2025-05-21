@@ -2,8 +2,9 @@
 'use server';
 
 import OrderManager from '@/serviceOrderManager';
-import type { Order, NewOrderData, UpdateOrderData } from '@/lib/types';
-import type { Filter, ObjectId } from 'mongodb'; // Keep ObjectId for internal manager types if needed
+import type { Order, NewOrderData, UpdateOrderData, User } from '@/lib/types';
+import { UserRole } from '@/lib/types';
+import type { Filter } from 'mongodb';
 import UserManager from '@/userManager';
 
 
@@ -14,32 +15,18 @@ interface ActionResult<T> {
   message?: string;
 }
 
-interface Advisor {
-  _id: string;
-  usuario: string; // Or whatever field is used for the user's name/identifier
-}
-
 interface EmployeeOption {
-  _id: string;
-  nombre: string; // Using 'nombre' from the unified User interface
+  _id: string; // User._id (MongoDB ObjectId as string)
+  nombre: string; // User.nombre
 }
 
-
-interface Valuador {
- _id: string;
-  usuario: string; // Or whatever field is used for the advisor's name
-}
 
 // Helper function to serialize _id to string and ensure dates are client-friendly
-// The Order type from lib/types already expects _id as string | undefined
-function serializeOrder(orderFromDb: any): Order { // orderFromDb is raw doc from Mongo
+function serializeOrder(orderFromDb: any): Order {
   return {
     ...orderFromDb,
     _id: orderFromDb._id ? orderFromDb._id.toHexString() : undefined,
-    // Ensure dates are consistently handled, client might expect ISO strings or Date objects
-    // For now, assume client handles Date objects if they are passed as such.
-    // If client strictly needs ISO strings, convert them here.
-    fechaRegistro: orderFromDb.fechaRegistro, // Keep as Date, or .toISOString()
+    fechaRegistro: orderFromDb.fechaRegistro,
     fechaValuacion: orderFromDb.fechaValuacion ? orderFromDb.fechaValuacion : undefined,
     fechaRengreso: orderFromDb.fechaRengreso ? orderFromDb.fechaRengreso : undefined,
     fechaEntrega: orderFromDb.fechaEntrega ? orderFromDb.fechaEntrega : undefined,
@@ -52,14 +39,7 @@ function serializeOrders(ordersFromDb: any[]): Order[] {
   return ordersFromDb.map(serializeOrder);
 }
 
-function serializeAdvisor(advisorFromDb: any): Advisor {
-  return {
- _id: advisorFromDb._id.toHexString(),
- usuario: advisorFromDb.usuario // Assuming 'usuario' is the name field
-  };
-}
-
-function serializeEmployeeOption(userFromDb: any): EmployeeOption {
+function serializeUserToEmployeeOption(userFromDb: any): EmployeeOption {
  return {
     _id: userFromDb._id.toHexString(),
     nombre: userFromDb.nombre // Using 'nombre' as per the unified User interface
@@ -67,10 +47,10 @@ function serializeEmployeeOption(userFromDb: any): EmployeeOption {
 }
 
 
-export async function getAllOrdersAction(filter?: Filter<Omit<Order, '_id'> & { _id?: ObjectId }>): Promise<ActionResult<Order[]>> {
+export async function getAllOrdersAction(filter?: Filter<Order>): Promise<ActionResult<Order[]>> {
   const orderManager = new OrderManager();
   try {
-    const ordersFromDBRaw = await orderManager.getAllOrders(filter as any); // Manager returns docs with ObjectId
+    const ordersFromDBRaw = await orderManager.getAllOrders(filter);
     const ordersForClient = serializeOrders(ordersFromDBRaw);
     return { success: true, data: ordersForClient };
   } catch (error) {
@@ -82,11 +62,12 @@ export async function getAllOrdersAction(filter?: Filter<Omit<Order, '_id'> & { 
 
 export async function createOrderAction(
   orderData: NewOrderData,
-  userId?: number
+  userId?: number // This is idEmpleado for logging
 ): Promise<ActionResult<{ orderId: string | null, customOrderId?: number }>> {
   const orderManager = new OrderManager();
   try {
-    const dataWithDates: NewOrderData = { // Ensure dates are Date objects for manager
+    // Ensure dates are Date objects for manager, if they are passed as strings
+    const dataWithDates: NewOrderData = {
       ...orderData,
       fechaValuacion: orderData.fechaValuacion ? new Date(orderData.fechaValuacion) : undefined,
       fechaRengreso: orderData.fechaRengreso ? new Date(orderData.fechaRengreso) : undefined,
@@ -94,14 +75,14 @@ export async function createOrderAction(
       fechaPromesa: orderData.fechaPromesa ? new Date(orderData.fechaPromesa) : undefined,
     };
 
-    const newMongoIdObject = await orderManager.createOrder(dataWithDates, userId); // Returns ObjectId
+    const newMongoIdObject = await orderManager.createOrder(dataWithDates, userId);
     if (newMongoIdObject) {
-      const createdOrderRaw = await orderManager.getOrderById(newMongoIdObject.toHexString()); // Fetch by string _id
+      const createdOrderRaw = await orderManager.getOrderById(newMongoIdObject.toHexString());
       return {
         success: true,
         message: 'Orden creada exitosamente.',
         data: {
-          orderId: newMongoIdObject.toHexString(), // String for client
+          orderId: newMongoIdObject.toHexString(),
           customOrderId: createdOrderRaw?.idOrder
         }
       };
@@ -118,7 +99,7 @@ export async function createOrderAction(
 export async function getOrderByIdAction(id: string): Promise<ActionResult<Order | null>> {
   const orderManager = new OrderManager();
   try {
-    const orderFromDBRaw = await orderManager.getOrderById(id); // `id` is string, manager handles ObjectId
+    const orderFromDBRaw = await orderManager.getOrderById(id);
     if (orderFromDBRaw) {
       return { success: true, data: serializeOrder(orderFromDBRaw) };
     }
@@ -133,7 +114,6 @@ export async function getOrderByIdAction(id: string): Promise<ActionResult<Order
 export async function updateOrderProcesoAction(id: string, proceso: Order['proceso'], userId?: number): Promise<ActionResult<null>> {
     const orderManager = new OrderManager();
     try {
-        // `id` is string, manager.updateOrderProceso expects string
         const success = await orderManager.updateOrderProceso(id, proceso, userId);
         if (success) {
             return { success: true, message: 'Proceso de la orden actualizado.' };
@@ -149,11 +129,13 @@ export async function updateOrderProcesoAction(id: string, proceso: Order['proce
     }
 }
 
-export async function getValuadores(): Promise<ActionResult<Valuador[]>> {
+export async function getValuadores(): Promise<ActionResult<EmployeeOption[]>> {
   const userManager = new UserManager();
   try {
-    const users = await userManager.getAllUsers();
-    const valuadores = users.filter(user => user.rol === UserRole.VALUADOR).map(serializeAdvisor);
+    const users = await userManager.getAllUsers(); // Fetches all users
+    const valuadores = users
+      .filter(user => user.rol === UserRole.VALUADOR)
+      .map(serializeUserToEmployeeOption);
     return { success: true, data: valuadores };
   } catch (error) {
     console.error("Server action getValuadores error:", error);
@@ -162,13 +144,14 @@ export async function getValuadores(): Promise<ActionResult<Valuador[]>> {
   }
 }
 
-import { UserRole } from '@/lib/types';
 
-export async function getAsesores(): Promise<ActionResult<Advisor[]>> {
+export async function getAsesores(): Promise<ActionResult<EmployeeOption[]>> {
   const userManager = new UserManager();
   try {
     const users = await userManager.getAllUsers();
-    const asesores = users.filter(user => user.rol === UserRole.ASESOR).map(serializeAdvisor);
+    const asesores = users
+        .filter(user => user.rol === UserRole.ASESOR)
+        .map(serializeUserToEmployeeOption);
     return { success: true, data: asesores };
   } catch (error) {
     console.error("Server action getAsesores error:", error);
@@ -180,34 +163,31 @@ export async function getAsesores(): Promise<ActionResult<Advisor[]>> {
 export async function getEmployeesByPosition(position: string): Promise<ActionResult<EmployeeOption[]>> {
   const userManager = new UserManager();
   try {
-    // Fetch from the 'users' collection and filter by the 'puesto' field
-    const usersWithPosition = await userManager.getAllUsers(); // Assuming getAllUsers fetches all fields
+    const usersWithPosition = await userManager.getAllUsers();
     const filteredEmployees = usersWithPosition.filter(user => user.puesto === position);
-    const employeeOptions = filteredEmployees.map(serializeEmployeeOption);
- return { success: true, data: employeeOptions };
+    const employeeOptions = filteredEmployees.map(serializeUserToEmployeeOption);
+    return { success: true, data: employeeOptions };
   } catch (error) {
     console.error(`Server action getEmployeesByPosition (${position}) error:`, error);
-    // Correctly return the error message
     const errorMessage = error instanceof Error ? error.message : `Error desconocido al obtener empleados con puesto ${position}.`;
- return { success: false, error: errorMessage };
-}}
+    return { success: false, error: errorMessage };
+  }
+}
 
 export async function updateOrderAction(
   id: string,
   updateData: UpdateOrderData,
-  // This userId parameter seems unused based on the manager call, review its purpose.
-  userId?: number
+  userId?: number // This is idEmpleado for logging
 ): Promise<ActionResult<null>> {
   const orderManager = new OrderManager();
   try {
-    const dataWithDates: UpdateOrderData = { // Ensure dates are Date objects for manager
+    const dataWithDates: UpdateOrderData = {
       ...updateData,
       fechaValuacion: updateData.fechaValuacion ? new Date(updateData.fechaValuacion) : undefined,
       fechaRengreso: updateData.fechaRengreso ? new Date(updateData.fechaRengreso) : undefined,
       fechaEntrega: updateData.fechaEntrega ? new Date(updateData.fechaEntrega) : undefined,
       fechaPromesa: updateData.fechaPromesa ? new Date(updateData.fechaPromesa) : undefined,
     };
-    // `id` is string, manager.updateOrder expects string
     const success = await orderManager.updateOrder(id, dataWithDates, userId);
     if (success) {
       return { success: true, message: 'Orden actualizada exitosamente.' };
@@ -226,7 +206,6 @@ export async function updateOrderAction(
 export async function deleteOrderAction(id: string): Promise<ActionResult<null>> {
     const orderManager = new OrderManager();
     try {
-        // `id` is string, manager.deleteOrder expects string
         const success = await orderManager.deleteOrder(id);
         if (success) {
             return { success: true, message: 'Orden eliminada exitosamente.' };
@@ -239,3 +218,4 @@ export async function deleteOrderAction(id: string): Promise<ActionResult<null>>
         return { success: false, error: errorMessage };
     }
   }
+
