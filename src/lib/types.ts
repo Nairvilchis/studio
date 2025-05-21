@@ -1,6 +1,4 @@
-
-// Removed: import type { ObjectId } from 'mongodb';
-
+import { ObjectId } from "mongodb";
 // --- User Types ---
 export enum UserRole {
   ADMIN = "admin",
@@ -27,20 +25,37 @@ export interface UserPermissions {
   [key: string]: boolean | undefined;
 }
 
+export interface EmployeeUser {
+  contraseña?: string;
+  usuario: string;
+  rol: UserRole;
+  permisos?: UserPermissions;
+}
+
 export interface User {
-  _id?: string; // Changed from ObjectId
-  idEmpleado: number;
+  _id?: ObjectId;
   usuario: string;
   contraseña?: string;
   rol: UserRole;
   permisos?: UserPermissions;
   workstation?: string;
+  // Fields from Empleado interface
+  nombre: string;
+  telefono?: string;
+  correo?: string;
+  tipo?: string;
+  puesto?: string;
+  sueldo?: number;
+  comision?: number;
+  fechaRegistro?: Date;
+  fechaBaja?: Date;
+  user: EmployeeUser;
 }
 
 // --- Order Types ---
 export interface LogEntry {
   timestamp: Date; // Will be stringified by actions for client, or keep as Date if client handles it
-  userId?: number;
+  userId?: string; // Assuming userId is also ObjectId string
   action: string;
   details?: string;
 }
@@ -50,16 +65,16 @@ export interface Order {
   idOrder: number;
   idCliente?: number;
   vin?: string;
-  idMarca?: number;
+  idMarca?: string; // Changed from number to string based on MarcaVehiculo _id
   idModelo?: number;
   año?: number;
   placas?: string;
   color?: string;
   kilometraje?: string;
-  idAseguradora?: number;
+  idAseguradora?: string; // Changed from number to string
   ajustador?: number; // Assuming this is the idAjustador
-  siniestro?: string;
-  poliza?: string;
+  siniestro?: string; // Changed from number to string based on Aseguradora _id
+  poliza?: string; // Changed from number to string
   folio?: string;
   deducible?: number;
   aseguradoTercero?: 'asegurado' | 'tercero';
@@ -70,10 +85,10 @@ export interface Order {
   fechaRengreso?: Date; // Will be stringified
   fechaEntrega?: Date; // Will be stringified
   fechaPromesa?: Date; // Will be stringified
-  idValuador?: number;
-  idAsesor?: number;
-  idHojalatero?: number;
-  idPintor?: number;
+  idValuador?: string; // Changed from number to string
+  idAsesor?: string; // Changed from number to string
+  idHojalatero?: string; // Changed from number to string
+  idPintor?: string; // Changed from number to string
   idPresupuesto?: number;
   proceso: 'pendiente' | 'valuacion' | 'espera_refacciones' | 'refacciones_listas' | 'hojalateria' | 'preparacion_pintura' | 'pintura' | 'mecanica' | 'armado' | 'detallado_lavado' | 'control_calidad' | 'listo_entrega' | 'entregado' | 'facturado' | 'garantia' | 'cancelado';
   urlArchivos?: string;
@@ -81,7 +96,7 @@ export interface Order {
 }
 
 // For data sent to create/update actions, _id might not be present or relevant if it's a string from client
-export type NewOrderData = Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log' | 'proceso'> & { proceso?: Order['proceso'] };
+export type NewOrderData = Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log' | 'proceso' | 'idMarca' | 'idAseguradora' | 'siniestro' | 'idValuador' | 'idAsesor' | 'idHojalatero' | 'idPintor'> & { proceso?: Order['proceso'], idMarca?: string, idAseguradora?: string, siniestro?: string, idValuador?: string, idAsesor?: string, idHojalatero?: string, idPintor?: string };
 export type UpdateOrderData = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro'>>;
 
 
@@ -93,7 +108,7 @@ export interface ModeloVehiculo {
 
 export interface MarcaVehiculo {
   _id?: string; // Changed from ObjectId
-  idMarca: number;
+  idMarca?: string; // Changed from number to string based on rule, made optional if not always present
   marca: string;
   modelos?: ModeloVehiculo[];
 }
@@ -101,17 +116,9 @@ export type NewMarcaData = Omit<MarcaVehiculo, '_id' | 'idMarca'>;
 export type UpdateMarcaData = Partial<Omit<MarcaVehiculo, '_id' | 'idMarca'>>;
 
 
-// --- Aseguradora Types ---
-export interface Ajustador {
-  idAjustador: number;
-  nombre: string;
-  telefono?: string;
-  correo?: string;
-}
-
 export interface Aseguradora {
   _id?: string; // Changed from ObjectId
-  idAseguradora: number;
+  idAseguradora: string; // Changed from number to string
   nombre: string;
   telefono?: string;
   ajustadores?: Ajustador[];
@@ -122,26 +129,13 @@ export type UpdateAseguradoraData = Partial<Omit<Aseguradora, '_id' | 'idAsegura
 // Placeholder for other types if needed in the future
 export interface Cliente {
   _id?: string; // Changed from ObjectId
-  idCliente: number;
+  idCliente?: string; // Changed from number to string based on rule, made optional
   nombre: string;
   telefono?: string;
   correo?: string;
   // ordenes?: { idOrden: number }[]; // Example if embedding order IDs
 }
 
-export interface Empleado {
-  _id?: string; // Changed from ObjectId
-  idUser: number; // Corresponds to User.idEmpleado
-  nombre: string;
-  telefono?: string;
-  correo?: string;
-  tipo?: string;
-  puesto?: string;
-  sueldo?: number;
-  comision?: number;
-  fechaRegistro?: Date;
-  fechaBaja?: Date;
-}
 
 export interface ConceptoPresupuesto {
   concepto: string;
@@ -154,14 +148,14 @@ export interface ConceptoPresupuesto {
 
 export interface Presupuesto {
   _id?: string; // Changed from ObjectId
-  idPresupuesto: number;
+  idPresupuesto?: string; // Changed from number to string based on rule, made optional
   idOrder: number;
   conceptos: ConceptoPresupuesto[];
   // other fields like total, fecha, etc.
 }
 
 export interface Refaccion {
-  _id?: string; // Changed from ObjectId
+  _id?: ObjectId; // Changed from ObjectId
   idRefaccion: string; // or number
   idOrder?: number;
   refaccion: string;

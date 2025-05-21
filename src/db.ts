@@ -1,4 +1,4 @@
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient, Db, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 
 // Cargar variables de entorno desde .env
@@ -53,4 +53,4 @@ async function closeDB(): Promise<void> {
 }
 
 // Exportar las funciones connectDB y closeDB para ser usadas en otros módulos
-export { connectDB, closeDB };
+export { connectDB, closeDB, ObjectId };

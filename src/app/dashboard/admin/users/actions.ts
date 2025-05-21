@@ -1,8 +1,10 @@
 
+
 'use server';
 
 import UserManager from '@/userManager';
-import type { User, UserRole } from '@/lib/types'; // Import from new types file
+import { ObjectId } from 'mongodb'; // Import ObjectId
+import type { User } from '@/lib/types'; // Import User type
 // No longer need to import ObjectId from mongodb here if types are string-based for client
 
 interface ActionResult<T> {
@@ -32,16 +34,16 @@ function serializeUsers(usersFromDb: any[]): User[] {
   });
 }
 
-
 export async function getAllUsersAction(): Promise<ActionResult<User[]>> {
   const manager = new UserManager();
   try {
     const dataFromDB = await manager.getAllUsers(); // This returns User[] with ObjectId from DB
     // Strip password before sending to client
+    // Also ensure _id is string for the client-side User type
     const usersForClient = dataFromDB.map(u => {
         const { contraseña, ...userWithoutPassword } = u;
         return {
-            ...userWithoutPassword,
+            ...userWithoutPassword, // Includes all merged Empleado fields now
             _id: u._id ? u._id.toHexString() : undefined, // Ensure _id is string
         };
     });
@@ -52,9 +54,10 @@ export async function getAllUsersAction(): Promise<ActionResult<User[]>> {
   }
 }
 
-export async function createUserAction(userData: Pick<User, 'idEmpleado' | 'usuario' | 'contraseña' | 'rol'>): Promise<ActionResult<{ userId: string | null }>> {
+export async function createUserAction(userData: Omit<User, '_id' | 'permisos'> & Partial<Pick<User, 'permisos'>>): Promise<ActionResult<{ userId: string | null }>> {
   const manager = new UserManager();
   try {
+    // UserManager.createUser now expects the unified User data shape
     const newMongoIdObject = await manager.createUser(userData); // Returns ObjectId
     if (newMongoIdObject) {
       return {
@@ -81,6 +84,7 @@ export async function getUserByIdAction(id: string): Promise<ActionResult<User |
         success: true, 
         data: {
             ...userWithoutPassword,
+            // All merged Empleado fields are included in userWithoutPassword
             _id: dataFromDB._id ? dataFromDB._id.toHexString() : undefined,
         } as User
       };
@@ -92,7 +96,7 @@ export async function getUserByIdAction(id: string): Promise<ActionResult<User |
   }
 }
 
-export async function updateUserAction(id: string, updateData: Partial<Pick<User, 'usuario' | 'contraseña' | 'rol' | 'permisos' | 'workstation'>>): Promise<ActionResult<null>> {
+export async function updateUserAction(id: string, updateData: Partial<Omit<User, '_id'>>): Promise<ActionResult<null>> {
   const manager = new UserManager();
   try {
     const dataToUpdate = { ...updateData };
@@ -100,7 +104,7 @@ export async function updateUserAction(id: string, updateData: Partial<Pick<User
       delete dataToUpdate.contraseña;
     }
 
-    // `id` is string, manager.updateUser expects string and handles ObjectId conversion
+    // `manager.updateUser` is expected to handle all fields in updateData
     const success = await manager.updateUser(id, dataToUpdate);
     if (success) {
       return { success: true, message: 'Usuario actualizado exitosamente.' };

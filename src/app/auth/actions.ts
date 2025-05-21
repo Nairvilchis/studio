@@ -7,7 +7,7 @@ import type { User, UserRole } from '@/lib/types'; // Import from new types file
 interface LoginResult {
   success: boolean;
   message?: string;
-  user?: { usuario: string, idEmpleado: number, rol: UserRole }; 
+  user?: { usuario: string, idEmpleado: string, rol: UserRole };
 }
 
 export async function loginUser(credentials: {usuario: string, contraseña: string}): Promise<LoginResult> {

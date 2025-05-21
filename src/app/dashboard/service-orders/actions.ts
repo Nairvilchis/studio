@@ -3,13 +3,31 @@
 
 import OrderManager from '@/serviceOrderManager';
 import type { Order, NewOrderData, UpdateOrderData } from '@/lib/types';
-import type { Filter, ObjectId } from 'mongodb'; // Keep ObjectId for internal DB use
+import type { Filter, ObjectId } from 'mongodb'; // Keep ObjectId for internal manager types if needed
+import UserManager from '@/userManager';
+
 
 interface ActionResult<T> {
   success: boolean;
   data?: T;
   error?: string;
   message?: string;
+}
+
+interface Advisor {
+  _id: string;
+  usuario: string; // Or whatever field is used for the user's name/identifier
+}
+
+interface EmployeeOption {
+  _id: string;
+  nombre: string; // Using 'nombre' from the unified User interface
+}
+
+
+interface Valuador {
+ _id: string;
+  usuario: string; // Or whatever field is used for the advisor's name
 }
 
 // Helper function to serialize _id to string and ensure dates are client-friendly
@@ -32,6 +50,20 @@ function serializeOrder(orderFromDb: any): Order { // orderFromDb is raw doc fro
 
 function serializeOrders(ordersFromDb: any[]): Order[] {
   return ordersFromDb.map(serializeOrder);
+}
+
+function serializeAdvisor(advisorFromDb: any): Advisor {
+  return {
+ _id: advisorFromDb._id.toHexString(),
+ usuario: advisorFromDb.usuario // Assuming 'usuario' is the name field
+  };
+}
+
+function serializeEmployeeOption(userFromDb: any): EmployeeOption {
+ return {
+    _id: userFromDb._id.toHexString(),
+    nombre: userFromDb.nombre // Using 'nombre' as per the unified User interface
+ };
 }
 
 
@@ -117,9 +149,53 @@ export async function updateOrderProcesoAction(id: string, proceso: Order['proce
     }
 }
 
+export async function getValuadores(): Promise<ActionResult<Valuador[]>> {
+  const userManager = new UserManager();
+  try {
+    const users = await userManager.getAllUsers();
+    const valuadores = users.filter(user => user.rol === UserRole.VALUADOR).map(serializeAdvisor);
+    return { success: true, data: valuadores };
+  } catch (error) {
+    console.error("Server action getValuadores error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido al obtener valuadores.";
+    return { success: false, error: errorMessage };
+  }
+}
+
+import { UserRole } from '@/lib/types';
+
+export async function getAsesores(): Promise<ActionResult<Advisor[]>> {
+  const userManager = new UserManager();
+  try {
+    const users = await userManager.getAllUsers();
+    const asesores = users.filter(user => user.rol === UserRole.ASESOR).map(serializeAdvisor);
+    return { success: true, data: asesores };
+  } catch (error) {
+    console.error("Server action getAsesores error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido al obtener asesores.";
+    return { success: false, error: errorMessage };
+  }
+}
+
+export async function getEmployeesByPosition(position: string): Promise<ActionResult<EmployeeOption[]>> {
+  const userManager = new UserManager();
+  try {
+    // Fetch from the 'users' collection and filter by the 'puesto' field
+    const usersWithPosition = await userManager.getAllUsers(); // Assuming getAllUsers fetches all fields
+    const filteredEmployees = usersWithPosition.filter(user => user.puesto === position);
+    const employeeOptions = filteredEmployees.map(serializeEmployeeOption);
+ return { success: true, data: employeeOptions };
+  } catch (error) {
+    console.error(`Server action getEmployeesByPosition (${position}) error:`, error);
+    // Correctly return the error message
+    const errorMessage = error instanceof Error ? error.message : `Error desconocido al obtener empleados con puesto ${position}.`;
+ return { success: false, error: errorMessage };
+}}
+
 export async function updateOrderAction(
   id: string,
   updateData: UpdateOrderData,
+  // This userId parameter seems unused based on the manager call, review its purpose.
   userId?: number
 ): Promise<ActionResult<null>> {
   const orderManager = new OrderManager();
@@ -162,4 +238,4 @@ export async function deleteOrderAction(id: string): Promise<ActionResult<null>>
         const errorMessage = error instanceof Error ? error.message : "Error desconocido al eliminar la orden.";
         return { success: false, error: errorMessage };
     }
-}
+  }

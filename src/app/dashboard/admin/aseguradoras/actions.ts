@@ -164,3 +164,21 @@ export async function removeAjustadorFromAseguradoraAction(aseguradoraId: string
         return { success: false, error: error instanceof Error ? error.message : "Error desconocido al eliminar ajustador."};
     }
 }
+
+export async function getAjustadoresByAseguradora(aseguradoraId: string): Promise<ActionResult<Partial<Ajustador>[]>> {
+ const manager = new AseguradoraManager();
+ try {
+ if (!aseguradoraId) {
+ return { success: false, error: "Se requiere el ID de la aseguradora." };
+ }
+ // `aseguradoraId` is string
+ const aseguradora = await manager.getAseguradoraById(aseguradoraId);
+ if (aseguradora && aseguradora.ajustadores) {
+ return { success: true, data: aseguradora.ajustadores.map(adj => ({ idAjustador: adj.idAjustador, nombre: adj.nombre })) };
+ }
+ return { success: true, data: [], message: "Aseguradora no encontrada o sin ajustadores." };
+ } catch (error) {
+ console.error("Server action getAjustadoresByAseguradora error:", error);
+ return { success: false, error: error instanceof Error ? error.message : "Error desconocido al obtener ajustadores." };
+ }
+}

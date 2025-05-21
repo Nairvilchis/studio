@@ -1,28 +1,10 @@
 
 'use server';
 
-import type { Collection, ObjectId, InsertOneResult } from 'mongodb';
+import { ObjectId, type Collection, type InsertOneResult } from 'mongodb';
 import { connectDB } from './db';
 import type { User, UserPermissions } from '@/lib/types'; // Import from new types file
 import { UserRole } from '@/lib/types'; // Import from new types file
-
-
-// Interfaz para la tabla empleados (separada de users para datos personales/HR)
-// Podría ir en su propio manager 'employeeManager.ts' en el futuro
-export interface Empleado {
-  _id?: ObjectId;
-  idUser: number; // Referencia a User.idEmpleado
-  nombre: string;
-  telefono?: string;
-  correo?: string;
-  tipo?: string; // ej. "Interno", "Externo"
-  puesto?: string; // ej. "Mecánico Jefe", "Valuador Principal"
-  sueldo?: number;
-  comision?: number;
-  fechaRegistro?: Date;
-  fechaBaja?: Date;
-}
-
 
 class UserManager {
   private collectionPromise: Promise<Collection<User>>;
@@ -31,7 +13,6 @@ class UserManager {
     this.collectionPromise = connectDB().then(db => {
       const usersCollection = db.collection<User>('users');
       usersCollection.createIndex({ usuario: 1 }, { unique: true }).catch(console.warn);
-      usersCollection.createIndex({ idEmpleado: 1 }, { unique: true }).catch(console.warn);
       return usersCollection;
     }).catch(err => {
       console.error('Error al obtener la colección de usuarios:', err);
@@ -44,11 +25,11 @@ class UserManager {
   }
 
   // CREATE: Método para crear un nuevo usuario
-  async createUser(userData: Pick<User, 'idEmpleado' | 'usuario' | 'contraseña' | 'rol'> & Partial<Pick<User, 'permisos' | 'workstation'>>): Promise<ObjectId | null> {
+  async createUser(userData: Pick<User, 'usuario' | 'contraseña' | 'rol' | 'nombre'> & Partial<Omit<User, '_id' | 'usuario' | 'contraseña' | 'rol' | 'idEmpleado'>>): Promise<ObjectId | null> {
     const collection = await this.getCollection();
 
-    if (!userData.idEmpleado || !userData.usuario || !userData.contraseña || !userData.rol) {
-      console.error('idEmpleado, usuario, contraseña y rol son requeridos para crear un usuario.');
+    if (!userData.usuario || !userData.contraseña || !userData.rol || !userData.nombre) {
+      console.error('usuario, contraseña, rol y nombre son requeridos para crear un usuario.');
       throw new Error('idEmpleado, usuario, contraseña y rol son requeridos para crear un usuario.');
     }
 
@@ -64,10 +45,16 @@ class UserManager {
     // Añadir más lógicas de permisos por defecto para otros roles
 
     const newUser: Omit<User, '_id'> = {
-      idEmpleado: userData.idEmpleado,
+      // Fields from original User
       usuario: userData.usuario,
       contraseña: userData.contraseña, // IMPORTANTE: Hashear en una aplicación real
       rol: userData.rol,
+      // Fields from original Empleado
+      nombre: userData.nombre,
+      telefono: userData.telefono,
+      correo: userData.correo,
+      tipo: userData.tipo,
+      puesto: userData.puesto,
       permisos: { ...defaultPermissions, ...userData.permisos },
       workstation: userData.workstation || 'DefaultWorkstation',
     };
@@ -80,8 +67,6 @@ class UserManager {
       console.error('Error al crear usuario:', error);
       if (error.code === 11000) { // Duplicate key error
         if (error.message.includes('usuario_1')) {
-          throw new Error(`El nombre de usuario "${newUser.usuario}" ya existe.`);
-        } else if (error.message.includes('idEmpleado_1')) {
           throw new Error(`El ID de empleado "${newUser.idEmpleado}" ya está en uso.`);
         }
       }
@@ -117,18 +102,6 @@ class UserManager {
     }
   }
   
-  // READ: Método para obtener un usuario por su idEmpleado
-  async getUserByIdEmpleado(idEmpleado: number): Promise<User | null> {
-    const collection = await this.getCollection();
-    try {
-      const user = await collection.findOne({ idEmpleado: idEmpleado });
-      return user;
-    } catch (error) {
-      console.error('Error al obtener usuario por idEmpleado:', error);
-      throw error;
-    }
-  }
-
 
   // READ: Método para obtener un usuario por su nombre de usuario ('usuario')
   async getUserByUsername(username: string): Promise<User | null> {
@@ -151,7 +124,7 @@ class UserManager {
         return false;
       }
       
-      const { idEmpleado, ...dataToUpdate } = updateData; // idEmpleado no se debe modificar aquí
+      const {  ...dataToUpdate } = updateData; // idEmpleado no se debe modificar aquí
 
       if (Object.keys(dataToUpdate).length === 0) {
         console.log('No fields to update for user ID:', id);
