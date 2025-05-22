@@ -1,7 +1,6 @@
 
 "use client"; // Necesario para useState, useForm, etc.
 
-import type { Metadata } from 'next';
 import React, { useState } from 'react';
 import { AuthLayout } from "@/components/auth-layout";
 import { LoginForm } from "@/components/login-form";
@@ -14,14 +13,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { createEmpleadoAction } from '@/app/dashboard/admin/empleados/actions';
 import { UserRole, type Empleado, type SystemUserCredentials } from '@/lib/types';
-
-// Metadata no puede estar en un "use client" component.
-// Se puede mover a un layout si es necesario o eliminar si la página es puramente cliente.
-// Por ahora, lo comentaré para evitar errores.
-// export const metadata: Metadata = {
-//   title: 'Login - LoginEase',
-//   description: 'Sign in to access your LoginEase account securely and easily.',
-// };
 
 type NewAdminFormDataType = Omit<Empleado, '_id' | 'fechaRegistro' | 'user'> & {
   createSystemUser: boolean;
@@ -118,20 +109,20 @@ export default function LoginPage() {
       <Dialog open={isCreateAdminDialogOpen} onOpenChange={setIsCreateAdminDialogOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Crear Administrador Inicial</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="space-y-4 py-4">
             {/* Nombre */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="admin_nombre" className="text-right">Nombre Completo*</Label>
-              <Input id="admin_nombre" name="nombre" value={newAdminData.nombre} onChange={handleAdminInputChange} className="col-span-3" />
+            <div>
+              <Label htmlFor="admin_nombre">Nombre Completo*</Label>
+              <Input id="admin_nombre" name="nombre" value={newAdminData.nombre} onChange={handleAdminInputChange} className="mt-1 w-full" />
             </div>
             {/* Puesto */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="admin_puesto" className="text-right">Puesto</Label>
-              <Input id="admin_puesto" name="puesto" value={newAdminData.puesto} onChange={handleAdminInputChange} className="col-span-3" />
+            <div>
+              <Label htmlFor="admin_puesto">Puesto</Label>
+              <Input id="admin_puesto" name="puesto" value={newAdminData.puesto} onChange={handleAdminInputChange} className="mt-1 w-full" />
             </div>
 
             {/* System User Details - Forzado para admin temporal */}
-            <div className="col-span-4 my-2 border-t pt-4">
+            <div className="my-2 border-t pt-4">
               <div className="flex items-center space-x-2 mb-4">
                 <Checkbox id="admin_createSystemUser" name="createSystemUser" checked={newAdminData.createSystemUser} disabled className="opacity-50"/>
                 <Label htmlFor="admin_createSystemUser" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
@@ -141,30 +132,30 @@ export default function LoginPage() {
             </div>
 
             {/* Usuario */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="admin_systemUserUsuario" className="text-right">Nombre de Usuario*</Label>
-              <Input id="admin_systemUserUsuario" name="systemUserUsuario" value={newAdminData.systemUserUsuario} onChange={handleAdminInputChange} className="col-span-3" />
+            <div>
+              <Label htmlFor="admin_systemUserUsuario">Nombre de Usuario*</Label>
+              <Input id="admin_systemUserUsuario" name="systemUserUsuario" value={newAdminData.systemUserUsuario ?? ''} onChange={handleAdminInputChange} className="mt-1 w-full" />
             </div>
             {/* Contraseña */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="admin_systemUserContraseña" className="text-right">Contraseña*</Label>
-              <Input id="admin_systemUserContraseña" name="systemUserContraseña" type="password" value={newAdminData.systemUserContraseña} onChange={handleAdminInputChange} className="col-span-3" />
+            <div>
+              <Label htmlFor="admin_systemUserContraseña">Contraseña*</Label>
+              <Input id="admin_systemUserContraseña" name="systemUserContraseña" type="password" value={newAdminData.systemUserContraseña ?? ''} onChange={handleAdminInputChange} className="mt-1 w-full" />
             </div>
             {/* Confirmar Contraseña */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="admin_systemUserConfirmContraseña" className="text-right">Confirmar Contraseña*</Label>
-              <Input id="admin_systemUserConfirmContraseña" name="systemUserConfirmContraseña" type="password" value={newAdminData.systemUserConfirmContraseña} onChange={handleAdminInputChange} className="col-span-3" />
+            <div>
+              <Label htmlFor="admin_systemUserConfirmContraseña">Confirmar Contraseña*</Label>
+              <Input id="admin_systemUserConfirmContraseña" name="systemUserConfirmContraseña" type="password" value={newAdminData.systemUserConfirmContraseña ?? ''} onChange={handleAdminInputChange} className="mt-1 w-full" />
             </div>
             {/* Rol */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="admin_systemUserRol" className="text-right">Rol en Sistema*</Label>
-              <Select 
-                name="systemUserRol" 
-                value={newAdminData.systemUserRol} 
+            <div>
+              <Label htmlFor="admin_systemUserRol">Rol en Sistema*</Label>
+              <Select
+                name="systemUserRol"
+                value={newAdminData.systemUserRol}
                 onValueChange={(val) => handleAdminSelectChange("systemUserRol", val as UserRole)}
                 disabled
               >
-                <SelectTrigger className="col-span-3 opacity-50">
+                <SelectTrigger className="mt-1 w-full opacity-50">
                   <SelectValue placeholder="Seleccionar rol..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -184,5 +175,3 @@ export default function LoginPage() {
     </AuthLayout>
   );
 }
-
-    
