@@ -2,11 +2,11 @@
 'use server';
 
 import OrderManager from '@/serviceOrderManager';
-import type { Order, NewOrderData, UpdateOrderData, Empleado } from '@/lib/types'; // Changed User to Empleado
+import type { Order, NewOrderData, UpdateOrderData, Empleado, Ajustador } from '@/lib/types'; 
 import { UserRole } from '@/lib/types';
 import type { Filter } from 'mongodb';
-import EmpleadoManager from '@/empleadoManager'; // Import EmpleadoManager
-
+import EmpleadoManager from '@/empleadoManager'; 
+import AseguradoraManager from '@/aseguradoraManager'; // For fetching ajustadores
 
 interface ActionResult<T> {
   success: boolean;
@@ -16,17 +16,17 @@ interface ActionResult<T> {
 }
 
 interface EmployeeOption {
-  _id: string; // Empleado._id (MongoDB ObjectId as string)
-  nombre: string; // Empleado.nombre
+  _id: string; 
+  nombre: string; 
 }
 
 
 // Helper function to serialize _id to string and ensure dates are client-friendly
 function serializeOrder(orderFromDb: any): Order {
-  const serialized = { // Ensure this matches Order type structure from lib/types.ts
+  const serialized = { 
     ...orderFromDb,
     _id: orderFromDb._id ? orderFromDb._id.toHexString() : undefined,
-    fechaRegistro: orderFromDb.fechaRegistro, // Keep as Date object or convert to ISO string
+    fechaRegistro: orderFromDb.fechaRegistro, 
     fechaValuacion: orderFromDb.fechaValuacion ? orderFromDb.fechaValuacion : undefined,
     fechaRengreso: orderFromDb.fechaRengreso ? orderFromDb.fechaRengreso : undefined,
     fechaEntrega: orderFromDb.fechaEntrega ? orderFromDb.fechaEntrega : undefined,
@@ -34,10 +34,9 @@ function serializeOrder(orderFromDb: any): Order {
     log: orderFromDb.log?.map((entry: any) => ({ 
         ...entry, 
         timestamp: entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp),
-        userId: entry.userId?.toString() // Ensure userId is string
+        userId: entry.userId?.toString() 
     }))
   };
-  // Remove any fields not in Order type or handle them if necessary
   return serialized as Order;
 }
 
@@ -49,7 +48,7 @@ function serializeOrders(ordersFromDb: any[]): Order[] {
 // Serializer for Empleado to EmployeeOption
 function serializeEmpleadoToEmployeeOption(empleado: Empleado): EmployeeOption {
  return {
-    _id: empleado._id!, // Assumes _id is present and stringified by EmpleadoManager already or serialize it here
+    _id: empleado._id!, 
     nombre: empleado.nombre
  };
 }
@@ -70,10 +69,11 @@ export async function getAllOrdersAction(filter?: Filter<Order>): Promise<Action
 
 export async function createOrderAction(
   orderData: NewOrderData,
-  empleadoLogId?: string // This is Empleado._id for logging
+  empleadoLogId?: string 
 ): Promise<ActionResult<{ orderId: string | null, customOrderId?: number }>> {
   const orderManager = new OrderManager();
   try {
+    // Ensure dates are Date objects if provided as strings
     const dataWithDates: NewOrderData = {
       ...orderData,
       fechaValuacion: orderData.fechaValuacion ? new Date(orderData.fechaValuacion) : undefined,
@@ -137,7 +137,7 @@ export async function updateOrderProcesoAction(id: string, proceso: Order['proce
 }
 
 export async function getValuadores(): Promise<ActionResult<EmployeeOption[]>> {
-  const empleadoManager = new EmpleadoManager(); // Changed to EmpleadoManager
+  const empleadoManager = new EmpleadoManager(); 
   try {
     const empleados = await empleadoManager.getAllEmpleados(); 
     const valuadores = empleados
@@ -153,7 +153,7 @@ export async function getValuadores(): Promise<ActionResult<EmployeeOption[]>> {
 
 
 export async function getAsesores(): Promise<ActionResult<EmployeeOption[]>> {
-  const empleadoManager = new EmpleadoManager(); // Changed to EmpleadoManager
+  const empleadoManager = new EmpleadoManager(); 
   try {
     const empleados = await empleadoManager.getAllEmpleados();
     const asesores = empleados
@@ -168,10 +168,10 @@ export async function getAsesores(): Promise<ActionResult<EmployeeOption[]>> {
 }
 
 export async function getEmployeesByPosition(position: string): Promise<ActionResult<EmployeeOption[]>> {
-  const empleadoManager = new EmpleadoManager(); // Changed to EmpleadoManager
+  const empleadoManager = new EmpleadoManager(); 
   try {
     const empleados = await empleadoManager.getAllEmpleados();
-    const filteredEmployees = empleados.filter(emp => emp.puesto === position); // Compare with Empleado.puesto
+    const filteredEmployees = empleados.filter(emp => emp.puesto === position); 
     const employeeOptions = filteredEmployees.map(serializeEmpleadoToEmployeeOption);
     return { success: true, data: employeeOptions };
   } catch (error) {
@@ -184,10 +184,11 @@ export async function getEmployeesByPosition(position: string): Promise<ActionRe
 export async function updateOrderAction(
   id: string,
   updateData: UpdateOrderData,
-  empleadoLogId?: string // This is Empleado._id for logging
+  empleadoLogId?: string 
 ): Promise<ActionResult<null>> {
   const orderManager = new OrderManager();
   try {
+    // Ensure dates are Date objects if provided as strings
     const dataWithDates: UpdateOrderData = {
       ...updateData,
       fechaValuacion: updateData.fechaValuacion ? new Date(updateData.fechaValuacion) : undefined,
@@ -224,4 +225,21 @@ export async function deleteOrderAction(id: string): Promise<ActionResult<null>>
         const errorMessage = error instanceof Error ? error.message : "Error desconocido al eliminar la orden.";
         return { success: false, error: errorMessage };
     }
+}
+
+export async function getAjustadoresForSelectByAseguradoraAction(aseguradoraId: string): Promise<ActionResult<{idAjustador: string, nombre: string}[]>> {
+  const aseguradoraManager = new AseguradoraManager();
+  try {
+    if (!aseguradoraId) {
+      return { success: false, error: "ID de Aseguradora es requerido." };
+    }
+    const aseguradora = await aseguradoraManager.getAseguradoraById(aseguradoraId);
+    if (aseguradora && aseguradora.ajustadores) {
+      return { success: true, data: aseguradora.ajustadores.map(aj => ({ idAjustador: aj.idAjustador, nombre: aj.nombre })) };
+    }
+    return { success: true, data: [] }; // No ajustadores or aseguradora not found
+  } catch (error) {
+    console.error("Server action getAjustadoresForSelectByAseguradoraAction error:", error);
+    return { success: false, error: "Error al obtener ajustadores." };
   }
+}

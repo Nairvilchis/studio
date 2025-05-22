@@ -47,6 +47,7 @@ import {
   getAsesores,
   getValuadores,
   getEmployeesByPosition,
+  getAjustadoresForSelectByAseguradoraAction, // For dependent select
 } from './service-orders/actions';
 
 import {
@@ -100,7 +101,7 @@ type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro'
   idPintor?: string; 
   idPresupuesto?: string; 
   idModelo?: number | string; // Puede ser string del input, se convierte a number para DB.
-  ajustador?: number | string; // Similar a idModelo.
+  ajustador?: string; // ID del ajustador (ObjectId string)
   año?: number | string;
   deducible?: number | string;
   kilometraje?: string; // Se mantiene como string ya que puede incluir "km".
@@ -110,10 +111,11 @@ type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro'
 type MarcaFormDataType = Partial<Omit<MarcaVehiculo, '_id' | 'idMarca' | 'modelos'>>;
 /** Tipo de datos para el formulario de creación/edición de Modelos de Vehículos. */
 type ModeloFormDataType = Partial<ModeloVehiculo>;
+
 /** Tipo de datos para el formulario de creación/edición de Aseguradoras. */
-type AseguradoraFormDataType = Partial<Omit<Aseguradora, '_id' | 'idAseguradora' | 'ajustadores'>>;
+type AseguradoraFormDataType = Partial<Omit<Aseguradora, '_id' | 'ajustadores'>>; // _id es string, no se incluye idAseguradora
 /** Tipo de datos para el formulario de creación/edición de Ajustadores. */
-type AjustadorFormDataType = Partial<Ajustador>;
+type AjustadorFormDataType = Partial<Omit<Ajustador, 'idAjustador'>>; // idAjustador es string (ObjectId) y se genera en backend
 
 /** Tipo de datos para el formulario de creación de Empleados. */
 type EmpleadoFormDataType = Omit<Empleado, '_id' | 'fechaRegistro' | 'user'> & {
@@ -157,6 +159,8 @@ export default function DashboardPage() {
   const [isDeleteOrderDialogOpen, setIsDeleteOrderDialogOpen] = useState(false); // Controla la visibilidad del diálogo de eliminación de orden.
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null); // Orden actualmente seleccionada para ver/editar.
   const [orderToDeleteId, setOrderToDeleteId] = useState<string | null>(null); // ID de la orden a eliminar.
+  const [availableAjustadoresForOrder, setAvailableAjustadoresForOrder] = useState<{idAjustador: string, nombre: string}[]>([]);
+
 
   // Datos iniciales para el formulario de nueva orden.
   const initialNewOrderData: OrderFormDataType = {
@@ -202,7 +206,7 @@ export default function DashboardPage() {
   const [isEditAseguradoraDialogOpen, setIsEditAseguradoraDialogOpen] = useState(false);
   const [isDeleteAseguradoraDialogOpen, setIsDeleteAseguradoraDialogOpen] = useState(false);
   const [currentAseguradora, setCurrentAseguradora] = useState<Aseguradora | null>(null); // Aseguradora para editar o gestionar ajustadores.
-  const [aseguradoraToDeleteId, setAseguradoraToDeleteId] = useState<string | null>(null);
+  const [aseguradoraToDeleteId, setAseguradoraToDeleteId] = useState<string | null>(null); // This will be _id (string)
   const [newAseguradoraData, setNewAseguradoraData] = useState<AseguradoraFormDataType>({ nombre: '', telefono: '' });
   const [editAseguradoraData, setEditAseguradoraData] = useState<AseguradoraFormDataType>({});
   
@@ -210,7 +214,7 @@ export default function DashboardPage() {
   const [isManageAjustadoresDialogOpen, setIsManageAjustadoresDialogOpen] = useState(false);
   const [isCreateAjustadorDialogOpen, setIsCreateAjustadorDialogOpen] = useState(false);
   const [isEditAjustadorDialogOpen, setIsEditAjustadorDialogOpen] = useState(false);
-  const [currentAjustador, setCurrentAjustador] = useState<Ajustador | null>(null);
+  const [currentAjustador, setCurrentAjustador] = useState<Ajustador | null>(null); // currentAjustador.idAjustador is string (ObjectId)
   const [newAjustadorData, setNewAjustadorData] = useState<AjustadorFormDataType>({ nombre: '', telefono: '', correo: '' });
   const [editAjustadorData, setEditAjustadorData] = useState<AjustadorFormDataType>({});
 
@@ -240,7 +244,7 @@ export default function DashboardPage() {
     console.log("Dashboard useEffect: Verificando sesión...");
     const loggedIn = localStorage.getItem('isLoggedIn');
     const storedUserName = localStorage.getItem('username');
-    const storedEmpleadoId = localStorage.getItem('empleadoId'); // Este es el _id del Empleado.
+    const storedEmpleadoId = localStorage.getItem('empleadoId'); 
     const storedUserRole = localStorage.getItem('userRole') as UserRoleType | null;
 
     console.log("Dashboard useEffect: Valores RAW de localStorage:", {
@@ -249,8 +253,7 @@ export default function DashboardPage() {
       storedEmpleadoId,
       storedUserRole
     });
-
-    // Validaciones más estrictas para los datos de sesión.
+    
     const isEmpleadoIdValid = storedEmpleadoId && storedEmpleadoId !== 'null' && storedEmpleadoId !== 'undefined' && storedEmpleadoId.trim() !== '';
     const isUserRoleValid = storedUserRole && storedUserRole !== 'null' && storedUserRole !== 'undefined' && Object.values(UserRole).includes(storedUserRole as UserRole);
 
@@ -264,12 +267,11 @@ export default function DashboardPage() {
     if (loggedIn === 'true' && storedUserName && isEmpleadoIdValid && isUserRoleValid) {
       console.log("Dashboard useEffect: Usuario logueado y datos válidos. Configurando estado y cargando datos iniciales.");
       setUserName(storedUserName);
-      setEmpleadoId(storedEmpleadoId); // Guardamos el _id del Empleado.
+      setEmpleadoId(storedEmpleadoId); 
       setUserRole(storedUserRole as UserRoleType);
 
       if (storedUserRole === UserRole.ASESOR) {
         console.log("Dashboard useEffect: Es ASESOR. Pre-llenando idAsesor en newOrderData con Empleado._id:", storedEmpleadoId);
-        // Pre-llenar idAsesor si el usuario es un asesor.
         setNewOrderData(prev => ({ ...prev, idAsesor: storedEmpleadoId }));
       }
       console.log("Dashboard useEffect: Llamando a fetchInitialData...");
@@ -277,9 +279,9 @@ export default function DashboardPage() {
       console.log("Dashboard useEffect: fetchInitialData llamado.");
     } else {
       console.log("Dashboard useEffect: Sesión inválida o datos faltantes. Redirigiendo a /. Detalles:", { loggedIn, storedUserName, storedEmpleadoId, storedUserRole });
-      router.replace('/'); // Redirige si la sesión no es válida.
+      router.replace('/'); 
     }
-  }, [router]); // router como dependencia para evitar warnings, aunque no cambia a menudo aquí.
+  }, [router]); 
 
   /**
    * Carga todos los datos iniciales necesarios para el dashboard.
@@ -289,22 +291,19 @@ export default function DashboardPage() {
   const fetchInitialData = async (role: UserRoleType | null, currentEmpleadoLogId: string | null) => {
     console.log("fetchInitialData: Iniciando carga de datos...", { role, currentEmpleadoId: currentEmpleadoLogId });
     
-    // Resetea newOrderData a sus valores iniciales y pre-llena idAsesor si es un asesor.
     setNewOrderData(prev => ({ 
         ...initialNewOrderData, 
         idAsesor: role === UserRole.ASESOR && currentEmpleadoLogId ? currentEmpleadoLogId : undefined,
     }));
 
-    // Inicia todos los indicadores de carga.
     setIsLoadingOrders(true);
     setIsLoadingMarcas(true);
     setIsLoadingAseguradoras(true);
     setIsLoadingClients(true);
     setIsLoadingAsesores(true); 
-    if (role === UserRole.ADMIN) setIsLoadingEmpleadosList(true); // Carga empleados solo si es admin.
+    if (role === UserRole.ADMIN) setIsLoadingEmpleadosList(true); 
 
     try {
-      // Ejecuta todas las cargas de datos en paralelo para eficiencia.
       await Promise.all([
         fetchOrders(),
         fetchMarcas(),
@@ -314,7 +313,7 @@ export default function DashboardPage() {
         fetchValuadores(),
         fetchHojalateros(),
         fetchPintores(),
-        role === UserRole.ADMIN ? fetchEmpleados() : Promise.resolve(), // Condicionalmente carga empleados.
+        role === UserRole.ADMIN ? fetchEmpleados() : Promise.resolve(), 
       ]);
       console.log("fetchInitialData: Todos los datos cargados.");
     } catch (error) {
@@ -324,8 +323,6 @@ export default function DashboardPage() {
   };
 
   // --- Funciones de Carga de Datos Específicas (fetchers) ---
-  // Cada función fetcher se encarga de llamar a una acción del servidor,
-  // manejar la respuesta (éxito o error con toast), y actualizar el estado de carga.
 
   const fetchValuadores = async () => {
     console.log("fetchValuadores: Iniciando...");
@@ -375,7 +372,7 @@ export default function DashboardPage() {
         setClients(result.data);
       } else {
         toast({ title: "Error Clientes", description: result.error || "No se pudo cargar clientes.", variant: "destructive" });
-        setClients([]); // Asegura que el estado sea un array vacío en caso de error.
+        setClients([]); 
       }
     } catch (error) {
       console.error("fetchClients: Error en la acción o al procesar:", error);
@@ -486,11 +483,8 @@ export default function DashboardPage() {
     let processedValue: any;
   
     if (type === 'checkbox') {
-      // Para checkboxes, `value` ya es el estado booleano del checkbox (pasado desde renderDialogField).
       processedValue = value; 
     } else if (type === 'number') {
-      // Para inputs numéricos, almacenamos el valor como string o undefined si está vacío.
-      // La conversión a Number se hace en la sumisión del formulario.
       processedValue = value === '' ? undefined : value; 
     } else {
       processedValue = value;
@@ -518,8 +512,26 @@ export default function DashboardPage() {
     handleInputChangeGeneric(e, formType === 'new' ? setNewOrderData : setEditOrderData);
   };
   /** Manejador de cambio para Selects en formularios de orden. */
-  const handleOrderSelectChange = (name: keyof OrderFormDataType, value: string | undefined, formType: 'new' | 'edit') => {
-    handleSelectChangeGeneric(name as string, value, formType === 'new' ? setNewOrderData : setEditOrderData);
+  const handleOrderSelectChange = async (name: keyof OrderFormDataType, value: string | undefined, formType: 'new' | 'edit') => {
+    const setState = formType === 'new' ? setNewOrderData : setEditOrderData;
+    setState((prev: any) => ({ ...prev, [name]: value }));
+
+    // If Aseguradora changes, fetch its ajustadores
+    if (name === 'idAseguradora' && value) {
+        const result = await getAjustadoresForSelectByAseguradoraAction(value);
+        if (result.success && result.data) {
+            setAvailableAjustadoresForOrder(result.data);
+        } else {
+            setAvailableAjustadoresForOrder([]);
+            toast({ title: "Error", description: "No se pudieron cargar los ajustadores para la aseguradora seleccionada.", variant: "destructive"});
+        }
+        // Reset ajustador if aseguradora changes
+        setState((prev: any) => ({ ...prev, ajustador: undefined }));
+    } else if (name === 'idAseguradora' && !value) {
+        // Clear ajustadores if no aseguradora is selected
+        setAvailableAjustadoresForOrder([]);
+        setState((prev: any) => ({ ...prev, ajustador: undefined }));
+    }
   };
 
   /**
@@ -532,16 +544,13 @@ export default function DashboardPage() {
       return;
     }
 
-    // El ID del empleado que realiza la acción, para el log.
     const currentEmpleadoLogId = empleadoId; 
     if (!currentEmpleadoLogId) {
         toast({ title: "Error de Autenticación", description: "No se pudo identificar al usuario para el registro de log.", variant: "destructive" });
         return;
     }
 
-    // Construye el objeto de datos para la nueva orden, convirtiendo tipos según sea necesario.
     const orderToCreate: NewOrderData = {
-      // IDs de Selects (ya son strings o undefined).
       idCliente: newOrderData.idCliente,
       idMarca: newOrderData.idMarca,
       idAseguradora: newOrderData.idAseguradora,
@@ -550,14 +559,10 @@ export default function DashboardPage() {
       idHojalatero: newOrderData.idHojalatero,
       idPintor: newOrderData.idPintor,
       idPresupuesto: newOrderData.idPresupuesto,
-
-      // Campos numéricos de inputs de texto (convertir o pasar undefined).
       idModelo: newOrderData.idModelo ? Number(newOrderData.idModelo) : undefined,
       año: newOrderData.año ? Number(newOrderData.año) : undefined,
-      ajustador: newOrderData.ajustador ? Number(newOrderData.ajustador) : undefined,
+      ajustador: newOrderData.ajustador, // This is now a string ObjectId
       deducible: newOrderData.deducible ? Number(newOrderData.deducible) : undefined,
-      
-      // Campos de texto.
       vin: newOrderData.vin,
       placas: newOrderData.placas,
       color: newOrderData.color,
@@ -566,14 +571,10 @@ export default function DashboardPage() {
       poliza: newOrderData.poliza,
       folio: newOrderData.folio,
       urlArchivos: newOrderData.urlArchivos,
-
-      // Campos Enum/Boolean.
       aseguradoTercero: newOrderData.aseguradoTercero as Order['aseguradoTercero'],
       piso: !!newOrderData.piso,
       grua: !!newOrderData.grua,
       proceso: newOrderData.proceso as Order['proceso'] || 'pendiente',
-
-      // Campos de fecha (convertir de string 'YYYY-MM-DD' o pasar undefined).
       fechaValuacion: newOrderData.fechaValuacion ? new Date(newOrderData.fechaValuacion as string) : undefined,
       fechaRengreso: newOrderData.fechaRengreso ? new Date(newOrderData.fechaRengreso as string) : undefined,
       fechaEntrega: newOrderData.fechaEntrega ? new Date(newOrderData.fechaEntrega as string) : undefined,
@@ -584,12 +585,12 @@ export default function DashboardPage() {
     if (result.success && result.data) {
       toast({ title: "Éxito", description: `Orden OT-${String(result.data.customOrderId || '').padStart(4, '0')} creada.` });
       setIsCreateOrderDialogOpen(false); 
-      fetchOrders(); // Recarga la lista de órdenes.
-      // Resetea el formulario, manteniendo el asesor si aplica.
+      fetchOrders(); 
       setNewOrderData({ 
         ...initialNewOrderData, 
         idAsesor: userRole === UserRole.ASESOR && empleadoId ? empleadoId : undefined,
       });
+      setAvailableAjustadoresForOrder([]); // Reset ajustadores for next form
     } else {
       toast({ title: "Error al Crear", description: result.error || "No se pudo crear la orden.", variant: "destructive" });
     }
@@ -604,9 +605,8 @@ export default function DashboardPage() {
     const result = await getOrderByIdAction(orderId);
     if (result.success && result.data) {
       const order = result.data;
-      setCurrentOrder(order); // Guarda la orden actual.
+      setCurrentOrder(order); 
 
-      // Función auxiliar para formatear fechas a 'YYYY-MM-DD' para inputs de tipo date.
       const formatDateForInput = (date?: Date | string): string | undefined => {
         if (!date) return undefined;
         const d = new Date(date);
@@ -617,10 +617,8 @@ export default function DashboardPage() {
         return `${year}-${month}-${day}`;
       }
 
-      // Pre-llena el estado del formulario de edición con los datos de la orden.
       setEditOrderData({
         ...order,
-        // Asegura que los IDs sean strings para los Selects o inputs.
         idCliente: order.idCliente?.toString(),
         idMarca: order.idMarca?.toString(),
         idAseguradora: order.idAseguradora?.toString(),
@@ -629,19 +627,28 @@ export default function DashboardPage() {
         idHojalatero: order.idHojalatero?.toString(),
         idPintor: order.idPintor?.toString(),
         idPresupuesto: order.idPresupuesto?.toString(),
-
-        // Campos numéricos que vienen de inputs, mantener como strings para el form.
         idModelo: order.idModelo?.toString(),
         año: order.año?.toString(),
-        ajustador: order.ajustador?.toString(),
+        ajustador: order.ajustador, // ObjectId string
         deducible: order.deducible?.toString(),
-        
-        // Formatea fechas para inputs de tipo date.
         fechaValuacion: formatDateForInput(order.fechaValuacion),
         fechaRengreso: formatDateForInput(order.fechaRengreso),
         fechaEntrega: formatDateForInput(order.fechaEntrega),
         fechaPromesa: formatDateForInput(order.fechaPromesa),
       } as OrderFormDataType);
+
+      // Fetch ajustadores for the selected aseguradora if it exists
+      if (order.idAseguradora) {
+        const ajustadoresResult = await getAjustadoresForSelectByAseguradoraAction(order.idAseguradora);
+        if (ajustadoresResult.success && ajustadoresResult.data) {
+            setAvailableAjustadoresForOrder(ajustadoresResult.data);
+        } else {
+            setAvailableAjustadoresForOrder([]);
+        }
+      } else {
+        setAvailableAjustadoresForOrder([]);
+      }
+
       setIsEditOrderDialogOpen(true);
     } else {
       toast({ title: "Error", description: "No se pudo cargar la orden para editar.", variant: "destructive" });
@@ -653,7 +660,7 @@ export default function DashboardPage() {
    * Construye el objeto `UpdateOrderData` y llama a la acción del servidor.
    */
   const handleUpdateOrder = async () => {
-    if (!currentOrder || !currentOrder._id) return; // Verifica que haya una orden actual.
+    if (!currentOrder || !currentOrder._id) return; 
 
     const currentEmpleadoLogId = empleadoId; 
     if (!currentEmpleadoLogId) {
@@ -661,7 +668,6 @@ export default function DashboardPage() {
         return;
     }
 
-    // Construye el objeto de datos para actualizar, similar a la creación.
     const dataToUpdate: UpdateOrderData = {
         idCliente: editOrderData.idCliente,
         idMarca: editOrderData.idMarca,
@@ -673,7 +679,7 @@ export default function DashboardPage() {
         idPresupuesto: editOrderData.idPresupuesto,
         idModelo: editOrderData.idModelo ? Number(editOrderData.idModelo) : undefined,
         año: editOrderData.año ? Number(editOrderData.año) : undefined,
-        ajustador: editOrderData.ajustador ? Number(editOrderData.ajustador) : undefined,
+        ajustador: editOrderData.ajustador, // ObjectId string
         deducible: editOrderData.deducible ? Number(editOrderData.deducible) : undefined,
         vin: editOrderData.vin,
         placas: editOrderData.placas,
@@ -693,15 +699,13 @@ export default function DashboardPage() {
         fechaPromesa: editOrderData.fechaPromesa ? new Date(editOrderData.fechaPromesa as string) : undefined,
     };
     
-    // Limpia IDs opcionales que podrían ser strings vacíos si el Select se limpia.
-    const optionalStringIdKeys: (keyof UpdateOrderData)[] = ['idCliente', 'idMarca', 'idAseguradora', 'idValuador', 'idAsesor', 'idHojalatero', 'idPintor', 'idPresupuesto'];
+    const optionalStringIdKeys: (keyof UpdateOrderData)[] = ['idCliente', 'idMarca', 'idAseguradora', 'idValuador', 'idAsesor', 'idHojalatero', 'idPintor', 'idPresupuesto', 'ajustador'];
     optionalStringIdKeys.forEach(key => {
-      if (dataToUpdate[key] === '' || dataToUpdate[key] === 'null_value_placeholder') { // 'null_value_placeholder' es de nuestro helper Select.
+      if (dataToUpdate[key] === '' || dataToUpdate[key] === 'null_value_placeholder') { 
         (dataToUpdate as any)[key] = undefined; 
       }
     });
 
-    // Elimina propiedades undefined para no enviarlas en el $set a MongoDB.
     Object.keys(dataToUpdate).forEach(keyStr => {
         const key = keyStr as keyof UpdateOrderData;
         if ((dataToUpdate as any)[key] === undefined) {
@@ -712,7 +716,8 @@ export default function DashboardPage() {
     const result = await updateOrderAction(currentOrder._id.toString(), dataToUpdate, currentEmpleadoLogId);
     if (result.success) {
       toast({ title: "Éxito", description: result.message });
-      setIsEditOrderDialogOpen(false); fetchOrders(); setCurrentOrder(null); setEditOrderData({}); // Resetea estados.
+      setIsEditOrderDialogOpen(false); fetchOrders(); setCurrentOrder(null); setEditOrderData({}); 
+      setAvailableAjustadoresForOrder([]); // Reset ajustadores for next form
     } else {
       toast({ title: "Error al Actualizar", description: result.error || "No se pudo actualizar.", variant: "destructive" });
     }
@@ -734,11 +739,10 @@ export default function DashboardPage() {
     const result = await deleteOrderAction(orderToDeleteId);
     if (result.success) { toast({ title: "Éxito", description: result.message }); fetchOrders(); }
     else { toast({ title: "Error", description: result.error || "Error al eliminar", variant: "destructive" }); }
-    setIsDeleteOrderDialogOpen(false); setOrderToDeleteId(null); // Resetea estados.
+    setIsDeleteOrderDialogOpen(false); setOrderToDeleteId(null); 
   };
 
   // --- Funciones de Gestión de Marcas (Administración) ---
-  // Similar estructura CRUD: handleCreate, openEdit, handleUpdate, openDelete, handleDelete.
 
   const handleCreateMarca = async () => {
     if (!newMarcaData.marca?.trim()) {
@@ -783,10 +787,9 @@ export default function DashboardPage() {
     const result = await addModeloToMarcaAction(currentMarca._id.toString(), { ...newModeloData, idModelo: Number(newModeloData.idModelo) } as ModeloVehiculo);
     if (result.success) {
       toast({ title: "Éxito", description: "Modelo añadido." });
-      // Recarga los datos de la marca actual para reflejar el nuevo modelo.
       const marcaRes = await getMarcaForModelosAction(currentMarca._id.toString());
       if (marcaRes.success && marcaRes.data) setCurrentMarca(marcaRes.data);
-      else fetchMarcas(); // Fallback: recarga todas las marcas.
+      else fetchMarcas(); 
       setNewModeloData({ idModelo: undefined, modelo: '' });
       setIsCreateModeloDialogOpen(false);
     } else {
@@ -850,7 +853,7 @@ export default function DashboardPage() {
   };
   const openDeleteAseguradoraDialog = (aseguradoraId: string) => { setAseguradoraToDeleteId(aseguradoraId); setIsDeleteAseguradoraDialogOpen(true); };
   const handleDeleteAseguradora = async () => {
-    if (!aseguradoraToDeleteId) return;
+    if (!aseguradoraToDeleteId) return; // aseguradoraToDeleteId is _id (string)
     const result = await deleteAseguradoraAction(aseguradoraToDeleteId);
     if (result.success) { toast({ title: "Éxito", description: result.message }); fetchAseguradoras(); }
     else { toast({ title: "Error", description: result.error || "Error al eliminar", variant: "destructive" }); }
@@ -863,7 +866,6 @@ export default function DashboardPage() {
     if (!currentAseguradora?._id || !newAjustadorData.nombre?.trim()) {
       toast({ title: "Error", description: "Nombre del ajustador es requerido.", variant: "destructive" }); return;
     }
-    // Asegura que se pase un objeto con los campos esperados por la acción.
     const result = await addAjustadorToAseguradoraAction(currentAseguradora._id.toString(), { nombre: newAjustadorData.nombre!, telefono: newAjustadorData.telefono, correo: newAjustadorData.correo });
     if (result.success && result.data) {
       toast({ title: "Éxito", description: "Ajustador añadido." });
@@ -875,9 +877,9 @@ export default function DashboardPage() {
       toast({ title: "Error", description: result.error || "No se pudo crear el ajustador.", variant: "destructive" });
     }
   };
-  const openEditAjustadorDialog = (ajustador: Ajustador) => { setCurrentAjustador(ajustador); setEditAjustadorData(ajustador); setIsEditAjustadorDialogOpen(true); };
+  const openEditAjustadorDialog = (ajustador: Ajustador) => { setCurrentAjustador(ajustador); setEditAjustadorData(ajustador); setIsEditAjustadorDialogOpen(true); }; // ajustador.idAjustador is string
   const handleUpdateAjustador = async () => {
-    if (!currentAseguradora?._id || currentAjustador?.idAjustador == null || !editAjustadorData.nombre?.trim()) {
+    if (!currentAseguradora?._id || !currentAjustador?.idAjustador || !editAjustadorData.nombre?.trim()) {
       toast({ title: "Error", description: "Datos de ajustador inválidos.", variant: "destructive" }); return;
     }
     const result = await updateAjustadorInAseguradoraAction(currentAseguradora._id.toString(), currentAjustador.idAjustador, { nombre: editAjustadorData.nombre, telefono: editAjustadorData.telefono, correo: editAjustadorData.correo });
@@ -891,7 +893,7 @@ export default function DashboardPage() {
       toast({ title: "Error", description: result.error || "No se pudo actualizar el ajustador.", variant: "destructive" });
     }
   };
-  const handleDeleteAjustador = async (idAjustador: number) => {
+  const handleDeleteAjustador = async (idAjustador: string) => { // idAjustador is string
     if (!currentAseguradora?._id) return;
     const result = await removeAjustadorFromAseguradoraAction(currentAseguradora._id.toString(), idAjustador);
     if (result.success) {
@@ -906,14 +908,12 @@ export default function DashboardPage() {
 
   // --- Funciones de Gestión de Empleados (Administración) ---
   const handleCreateEmpleado = async () => {
-    // Validación de campos básicos del empleado.
     if (!newEmpleadoData.nombre?.trim() || !newEmpleadoData.puesto?.trim()) {
       toast({ title: "Error de Validación", description: "Nombre y Puesto son obligatorios.", variant: "destructive" });
       return;
     }
 
     let systemUserDetails: Omit<SystemUserCredentials, 'permisos' | '_id'> | undefined = undefined;
-    // Si se marca "Crear acceso al sistema", valida los campos de credenciales.
     if (newEmpleadoData.createSystemUser) {
       if (!newEmpleadoData.systemUserUsuario?.trim() || !newEmpleadoData.systemUserContraseña?.trim() || !newEmpleadoData.systemUserRol) {
         toast({ title: "Error de Validación de Usuario", description: "Usuario, Contraseña y Rol son obligatorios si se crea acceso al sistema.", variant: "destructive" });
@@ -930,7 +930,6 @@ export default function DashboardPage() {
       };
     }
 
-    // Construye el objeto del empleado para enviar a la acción.
     const empleadoToCreate: Omit<Empleado, '_id' | 'fechaRegistro' | 'user'> = {
       nombre: newEmpleadoData.nombre,
       puesto: newEmpleadoData.puesto,
@@ -943,7 +942,7 @@ export default function DashboardPage() {
     const result = await createEmpleadoAction(empleadoToCreate, systemUserDetails);
     if (result.success) {
       toast({ title: "Éxito", description: result.message });
-      setIsCreateEmpleadoDialogOpen(false); fetchEmpleados(); setNewEmpleadoData(initialNewEmpleadoData); // Resetea formulario.
+      setIsCreateEmpleadoDialogOpen(false); fetchEmpleados(); setNewEmpleadoData(initialNewEmpleadoData); 
     } else {
       toast({ title: "Error al Crear Empleado", description: result.error || "No se pudo crear el empleado", variant: "destructive" });
     }
@@ -955,7 +954,6 @@ export default function DashboardPage() {
     if (result.success && result.data) {
       const emp = result.data;
       setCurrentEmpleadoToEdit(emp);
-      // Pre-llena el formulario de edición.
       setEditEmpleadoData({
         nombre: emp.nombre,
         puesto: emp.puesto,
@@ -963,12 +961,11 @@ export default function DashboardPage() {
         correo: emp.correo,
         sueldo: emp.sueldo,
         comision: emp.comision,
-        // Datos del usuario del sistema, si existen.
         systemUserUsuario: emp.user?.usuario,
         systemUserRol: emp.user?.rol,
-        newSystemUserContraseña: '', // Contraseña se deja en blanco para no mostrarla y solo actualizar si se escribe.
+        newSystemUserContraseña: '', 
         newSystemUserConfirmContraseña: '',
-        createSystemUser: !!emp.user // Indica si se debe mostrar la opción de crear acceso (si no lo tiene) o modificarlo.
+        createSystemUser: !!emp.user 
       });
       setIsEditEmpleadoDialogOpen(true);
     } else {
@@ -983,7 +980,6 @@ export default function DashboardPage() {
        toast({ title: "Error de Validación", description: "Nombre y Puesto son obligatorios.", variant: "destructive" });
        return;
     }
-    // Detalles del empleado a actualizar.
     const empleadoDetailsToUpdate: Partial<Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>> = {
         nombre: editEmpleadoData.nombre,
         puesto: editEmpleadoData.puesto,
@@ -995,9 +991,7 @@ export default function DashboardPage() {
 
     let systemUserDetailsToUpdate: Partial<Omit<SystemUserCredentials, 'permisos' | '_id'>> | undefined = undefined;
 
-    // Lógica para crear o actualizar credenciales de sistema.
     if (editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user) { 
-        // Caso: Empleado no tiene acceso y se está creando uno nuevo.
         if (!editEmpleadoData.systemUserUsuario?.trim() || !editEmpleadoData.newSystemUserContraseña?.trim() || !editEmpleadoData.systemUserRol) {
             toast({ title: "Error de Validación de Usuario", description: "Usuario, Nueva Contraseña y Rol son obligatorios para crear acceso al sistema.", variant: "destructive" });
             return;
@@ -1008,12 +1002,11 @@ export default function DashboardPage() {
         }
         systemUserDetailsToUpdate = { 
             usuario: editEmpleadoData.systemUserUsuario,
-            contraseña: editEmpleadoData.newSystemUserContraseña, // En una app real, hashear aquí.
+            contraseña: editEmpleadoData.newSystemUserContraseña, 
             rol: editEmpleadoData.systemUserRol,
         };
     }
     else if (currentEmpleadoToEdit.user) { 
-        // Caso: Empleado ya tiene acceso, se pueden modificar sus credenciales.
         systemUserDetailsToUpdate = {};
         if (editEmpleadoData.systemUserUsuario && editEmpleadoData.systemUserUsuario !== currentEmpleadoToEdit.user.usuario) {
             systemUserDetailsToUpdate.usuario = editEmpleadoData.systemUserUsuario;
@@ -1021,14 +1014,13 @@ export default function DashboardPage() {
         if (editEmpleadoData.systemUserRol && editEmpleadoData.systemUserRol !== currentEmpleadoToEdit.user.rol) {
             systemUserDetailsToUpdate.rol = editEmpleadoData.systemUserRol;
         }
-        if (editEmpleadoData.newSystemUserContraseña?.trim()) { // Si se ingresó una nueva contraseña.
+        if (editEmpleadoData.newSystemUserContraseña?.trim()) { 
             if (editEmpleadoData.newSystemUserContraseña !== editEmpleadoData.newSystemUserConfirmContraseña) {
                 toast({ title: "Error de Contraseña", description: "Las nuevas contraseñas no coinciden.", variant: "destructive" });
                 return;
             }
-            systemUserDetailsToUpdate.contraseña = editEmpleadoData.newSystemUserContraseña; // En una app real, hashear.
+            systemUserDetailsToUpdate.contraseña = editEmpleadoData.newSystemUserContraseña; 
         }
-        // Si no hay cambios en los detalles del usuario del sistema, no se envía nada.
         if (Object.keys(systemUserDetailsToUpdate).length === 0) {
             systemUserDetailsToUpdate = undefined;
         }
@@ -1069,8 +1061,7 @@ export default function DashboardPage() {
     const result = await removeSystemUserFromEmpleadoAction(empleadoId);
     if (result.success) {
         toast({title: "Éxito", description: result.message});
-        fetchEmpleados(); // Recarga la lista para reflejar el cambio.
-        // Si el empleado actual editado es el afectado, actualiza su estado local.
+        fetchEmpleados(); 
         if (currentEmpleadoToEdit?._id === empleadoId) {
             setCurrentEmpleadoToEdit(prev => prev ? ({...prev, user: undefined}) : null);
             setEditEmpleadoData(prev => ({...prev, systemUserUsuario: undefined, systemUserRol: undefined, createSystemUser: false}));
@@ -1094,12 +1085,11 @@ export default function DashboardPage() {
     if (dateInput instanceof Date) {
         date = dateInput;
     } else if (typeof dateInput === 'string') {
-        // Si es un string 'YYYY-MM-DD', ajusta para crear la fecha en UTC para evitar problemas de timezone.
         const parts = dateInput.split('T')[0].split('-');
         if (parts.length === 3) {
             date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
         } else {
-            date = new Date(dateInput); // Fallback para otros formatos de string.
+            date = new Date(dateInput); 
         }
     } else if (typeof dateInput === 'number') {
       date = new Date(dateInput);
@@ -1110,7 +1100,6 @@ export default function DashboardPage() {
     if (isNaN(date.getTime())) {
       return 'Fecha Inválida';
     }
-    // Usa toLocaleDateString con 'UTC' para asegurar consistencia al mostrar fechas que fueron 'YYYY-MM-DD'.
     return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
   };
 
@@ -1125,24 +1114,21 @@ export default function DashboardPage() {
     if (dateInput instanceof Date) {
         date = dateInput;
     } else if (typeof dateInput === 'string' || typeof dateInput === 'number') {
-        date = new Date(dateInput); // El constructor Date maneja ISO strings y timestamps.
+        date = new Date(dateInput); 
     } else {
         return 'Tipo de Fecha/Hora Inválido';
     }
     if (isNaN(date.getTime())) return 'Fecha/Hora Inválida';
-    // Muestra en hora local (del navegador), asumiendo que el servidor guarda en UTC.
-    // 'UTC' en timeZone aquí es para si la fecha original fue almacenada como UTC y quieres mostrarla como tal.
-    // Si quieres mostrarla en la hora local del navegador, puedes omitir timeZone o usar la del navegador.
     return date.toLocaleString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   };
 
   /** Determina la variante de Badge según el proceso de la orden. */
   const getProcesoVariant = (proceso?: Order['proceso']): "default" | "secondary" | "outline" | "destructive" => {
     switch (proceso) {
-      case 'entregado': case 'facturado': case 'listo_entrega': return 'default'; // Verde/primario para completados.
-      case 'hojalateria': case 'pintura': /*...*/ return 'secondary'; // Secundario para procesos activos.
-      case 'espera_refacciones': case 'valuacion': case 'pendiente': return 'outline'; // Outline para pendientes/esperas.
-      case 'cancelado': return 'destructive'; // Destructivo para cancelados.
+      case 'entregado': case 'facturado': case 'listo_entrega': return 'default'; 
+      case 'hojalateria': case 'pintura': return 'secondary'; 
+      case 'espera_refacciones': case 'valuacion': case 'pendiente': return 'outline'; 
+      case 'cancelado': return 'destructive'; 
       default: return 'secondary';
     }
   };
@@ -1179,11 +1165,10 @@ export default function DashboardPage() {
       formType: 'newOrder' | 'editOrder' | 'newMarca' | 'editMarca' | 'newModelo' | 'editModelo' | 'newAseguradora' | 'editAseguradora' | 'newAjustador' | 'editAjustador' | 'newEmpleado' | 'editEmpleado' = 'newOrder',
       options?: { value: string | number; label: string }[], isCheckbox?: boolean, isTextarea?: boolean, isDisabled?: boolean, isRequired?: boolean
     ) => {
-    let data: any; // Estado del formulario actual.
-    let handler: any; // Manejador de cambio para inputs/textarea.
-    let selectHandler: any; // Manejador de cambio para Selects.
+    let data: any; 
+    let handler: any; 
+    let selectHandler: any; 
 
-    // Determina qué estado y manejadores usar según formType.
     switch (formType) {
         case 'newOrder': data = newOrderData; handler = (e:any) => handleOrderInputChange(e, 'new'); selectHandler = (n:any,v:any) => handleOrderSelectChange(n,v, 'new'); break;
         case 'editOrder': data = editOrderData; handler = (e:any) => handleOrderInputChange(e, 'edit'); selectHandler = (n:any,v:any) => handleOrderSelectChange(n,v, 'edit'); break;
@@ -1199,24 +1184,21 @@ export default function DashboardPage() {
         case 'editEmpleado': data = editEmpleadoData; handler = (e:any) => handleInputChangeGeneric(e, setEditEmpleadoData); selectHandler = (n:any,v:any) => handleSelectChangeGeneric(n,v, setEditEmpleadoData); break;
         default: data = {}; handler = () => {}; selectHandler = () => {};
     }
-    const value = data[name] as any; // Valor actual del campo.
+    const value = data[name] as any; 
 
-    // Renderiza Checkbox.
     if (isCheckbox) {
       return (
         <div className="flex items-center space-x-2 py-1">
           <Checkbox 
             id={`${formType}_${name}`} 
             name={name} 
-            checked={!!value} // Asegura que sea booleano.
-            // El handler recibe un evento sintético con el valor booleano en `value`.
+            checked={!!value} 
             onCheckedChange={(checked) => handler({ target: { name, value: checked, type: 'checkbox' } })} 
             disabled={isDisabled} />
           <Label htmlFor={`${formType}_${name}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}{isRequired && <span className="text-destructive">*</span>}</Label>
         </div>
       );
     }
-    // Renderiza Textarea.
     if (isTextarea) {
       return (
         <div className="space-y-1">
@@ -1225,20 +1207,17 @@ export default function DashboardPage() {
         </div>
       );
     }
-    // Renderiza Select.
     if (options) { 
       return (
         <div className="space-y-1">
           <Label htmlFor={`${formType}_${name}`}>{label}{isRequired && <span className="text-destructive">*</span>}</Label>
           <Select 
             name={name} 
-            value={String(value || '')} // El valor del Select debe ser string.
-            // Si el valor seleccionado es el placeholder, se interpreta como undefined.
+            value={String(value || '')} 
             onValueChange={(val) => selectHandler(name, val === 'null_value_placeholder' ? undefined : val )} 
             disabled={isDisabled}>
             <SelectTrigger className="w-full"><SelectValue placeholder={placeholder || "Seleccionar..."} /></SelectTrigger>
             <SelectContent>
-              {/* Opción para "deseleccionar" o indicar que no hay valor. */}
               <SelectItem value="null_value_placeholder" className="text-muted-foreground italic">-- {placeholder || "Seleccionar..."} --</SelectItem>
               {options.map(opt => <SelectItem key={String(opt.value)} value={String(opt.value)}>{opt.label}</SelectItem>)}
             </SelectContent>
@@ -1246,13 +1225,10 @@ export default function DashboardPage() {
         </div>
       );
     }
-    // Renderiza Input por defecto.
     return (
       <div className="space-y-1">
         <Label htmlFor={`${formType}_${name}`}>{label}{isRequired && <span className="text-destructive">*</span>}</Label>
         <Input id={`${formType}_${name}`} name={name} type={type}
-          // Para inputs de fecha, el valor debe ser 'yyyy-MM-dd' o string vacío.
-          // Para otros inputs, `value ?? ''` maneja null/undefined como string vacío.
           value={type === 'date' ? (value || '') : (value ?? '')} 
           onChange={handler}
           className="w-full" placeholder={placeholder}
@@ -1264,13 +1240,11 @@ export default function DashboardPage() {
   };
 
   // --- Lógica de Renderizado del Componente ---
-  // Si los datos del usuario aún no están cargados, muestra "Cargando...".
   if (!userName || !userRole || (userRole && !Object.values(UserRole).includes(userRole))) {
     console.log("DashboardPage: userName o userRole faltan o son inválidos. Mostrando 'Cargando...' Detalles:", { userName, userRole });
     return <div className="flex min-h-screen items-center justify-center bg-background"><p>Cargando...</p></div>;
   }
 
-  // Datos de ejemplo para pestañas no implementadas completamente.
   const dummyCitas = [
     { id: 'CITA-001', cliente: 'Ana Pérez', vehiculo: 'Toyota Corolla (ABC-123)', fecha: '2024-07-28 10:00', servicio: 'Mantenimiento General', estado: 'Confirmada' },
     { id: 'CITA-002', cliente: 'Luis Gómez', vehiculo: 'Honda CRV (XYZ-789)', fecha: '2024-07-28 14:00', servicio: 'Revisión Frenos', estado: 'Pendiente' },
@@ -1280,28 +1254,24 @@ export default function DashboardPage() {
     { id: 'INV-002', name: 'Balatas Delanteras', quantity: 30, category: 'Frenos', supplier: 'Proveedor B', price: 750.00 },
   ];
 
-  // Clases dinámicas para la lista de pestañas principal, ajustándose al número de pestañas visibles.
  const mainTabsListClassName = userRole === UserRole.ADMIN
-    ? "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" // 2x2 en pequeño, 4 en línea en grande
-    : "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted"; // Apilado en pequeño, 3 en línea en grande
+    ? "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" 
+    : "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted"; 
 
-  // JSX principal del componente.
   return (
     <div className="flex min-h-screen flex-col bg-muted/30 dark:bg-muted/10">
-      {/* Encabezado del Dashboard */}
       <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:px-6 shadow-sm">
         <div className="flex flex-1 items-center justify-between">
           <h1 className="text-2xl font-semibold text-foreground">Panel del Taller Automotriz</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:inline">
-              Bienvenido, <span className="font-medium text-foreground">{userName} (ID Emp: {empleadoId}, Rol: {userRole})</span>
+              Bienvenido, <span className="font-medium text-foreground">{userName} (ID Emp: {empleadoId?.substring(0,8)}, Rol: {userRole})</span>
             </span>
             <Button onClick={handleLogout} variant="outline" size="sm"><LogOut className="mr-2 h-4 w-4" />Cerrar Sesión</Button>
           </div>
         </div>
       </header>
 
-      {/* Contenido Principal del Dashboard con Pestañas */}
       <main className="flex-1 p-4 sm:p-6 space-y-6">
         <Tabs defaultValue="ordenes" className="w-full">
           <TabsList className={mainTabsListClassName}>
@@ -1314,7 +1284,6 @@ export default function DashboardPage() {
             <TabsTrigger value="almacen" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Package className="h-5 w-5" /> Almacén
             </TabsTrigger>
-            {/* Pestaña Admin: Visible solo para usuarios con rol 'admin'. */}
             {userRole === UserRole.ADMIN && (
               <TabsTrigger value="admin" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <Settings className="h-5 w-5" /> Admin
@@ -1322,7 +1291,6 @@ export default function DashboardPage() {
             )}
           </TabsList>
 
-          {/* Contenido de la Pestaña "Citas" */}
           <TabsContent value="citas">
             <Card className="shadow-lg border-border/50">
               <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -1330,11 +1298,9 @@ export default function DashboardPage() {
                 <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Nueva Cita</Button>
               </CardHeader>
               <CardContent>
-                {/* Placeholder para un calendario de citas. */}
                 <div className="mt-4 flex h-60 items-center justify-center rounded-lg border-2 border-dashed border-border bg-background/50">
                     <p className="text-muted-foreground">Calendario de citas (Próximamente).</p>
                 </div>
-                {/* Tabla de ejemplo para citas. */}
                  <Table>
                     <TableCaption>Listado de próximas citas.</TableCaption>
                     <TableHeader><TableRow><TableHead>ID Cita</TableHead><TableHead>Cliente</TableHead><TableHead>Vehículo</TableHead><TableHead>Fecha y Hora</TableHead><TableHead>Servicio</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
@@ -1360,28 +1326,25 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
-          {/* Contenido de la Pestaña "Órdenes de Servicio" */}
           <TabsContent value="ordenes">
              <Card className="shadow-lg border-border/50">
                 <CardHeader className="flex flex-row items-center justify-between pb-4">
                     <div><CardTitle className="text-xl">Órdenes de Servicio</CardTitle><CardDescription>Administra todas las órdenes de trabajo.</CardDescription></div>
                     <Button size="sm" onClick={() => { 
-                        // Resetea el formulario de nueva orden, pre-llenando el asesor si aplica.
                         setNewOrderData({
                             ...initialNewOrderData, 
                             idAsesor: userRole === UserRole.ASESOR && empleadoId ? empleadoId : undefined
                         }); 
+                        setAvailableAjustadoresForOrder([]); // Clear ajustadores for new form
                         setIsCreateOrderDialogOpen(true);
                     }}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Nueva Orden
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    {/* Muestra indicador de carga o mensaje si no hay órdenes. */}
                     {isLoadingOrders ? <p>Cargando órdenes...</p> : orders.length === 0 ?
                     <div className="mt-4 flex h-40 items-center justify-center rounded-lg border-2 border-dashed border-border bg-background/50"><p className="text-muted-foreground">No hay órdenes de servicio registradas.</p></div>
                     : (
-                    // Tabla de órdenes de servicio.
                     <Table>
                         <TableCaption>Listado de órdenes de servicio.</TableCaption>
                         <TableHeader><TableRow><TableHead>OT</TableHead><TableHead>Cliente</TableHead><TableHead>Placas</TableHead><TableHead>Proceso</TableHead><TableHead>Registro</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
@@ -1407,7 +1370,6 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
-          {/* Contenido de la Pestaña "Almacén" */}
           <TabsContent value="almacen">
              <Card className="shadow-lg border-border/50">
                 <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -1415,7 +1377,6 @@ export default function DashboardPage() {
                     <Button size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Nuevo Artículo</Button>
                 </CardHeader>
                 <CardContent>
-                    {/* Tabla de ejemplo para artículos del almacén. */}
                     <Table>
                         <TableCaption>Listado de artículos en almacén.</TableCaption>
                         <TableHeader><TableRow><TableHead>ID</TableHead><TableHead>Nombre</TableHead><TableHead>Categoría</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead>Proveedor</TableHead><TableHead className="text-right">Precio Unit.</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
@@ -1440,17 +1401,15 @@ export default function DashboardPage() {
             </Card>
           </TabsContent>
 
-          {/* Contenido de la Pestaña "Admin" (visible solo para administradores) */}
           {userRole === UserRole.ADMIN && (
             <TabsContent value="admin">
-              <Tabs defaultValue="empleados" className="w-full"> {/* Pestaña por defecto dentro de Admin */}
+              <Tabs defaultValue="empleados" className="w-full"> 
                 <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-4 rounded-md p-1 bg-muted/70">
                   <TabsTrigger value="marcas" className="data-[state=active]:bg-background data-[state=active]:shadow-sm"><Car className="mr-2 h-4 w-4" />Marcas/Modelos</TabsTrigger>
                   <TabsTrigger value="aseguradoras" className="data-[state=active]:bg-background data-[state=active]:shadow-sm"><Shield className="mr-2 h-4 w-4"/>Aseguradoras</TabsTrigger>
                   <TabsTrigger value="empleados" className="data-[state=active]:bg-background data-[state=active]:shadow-sm"><Users className="mr-2 h-4 w-4"/>Empleados</TabsTrigger>
                 </TabsList>
                 
-                {/* Sub-Pestaña "Marcas y Modelos" */}
                 <TabsContent value="marcas">
                   <Card className="shadow-lg border-border/50">
                     <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -1483,7 +1442,6 @@ export default function DashboardPage() {
                   </Card>
                 </TabsContent>
 
-                {/* Sub-Pestaña "Aseguradoras" */}
                 <TabsContent value="aseguradoras">
                     <Card className="shadow-lg border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -1499,7 +1457,7 @@ export default function DashboardPage() {
                                 <TableBody>
                                 {aseguradoras.map((aseg) => (
                                     <TableRow key={aseg._id?.toString()}>
-                                    <TableCell>{aseg.idAseguradora}</TableCell>
+                                    <TableCell>{aseg._id?.substring(0, 8)}...</TableCell>
                                     <TableCell className="font-medium">{aseg.nombre}</TableCell>
                                     <TableCell>{aseg.telefono || 'N/A'}</TableCell>
                                     <TableCell>{aseg.ajustadores?.length || 0}</TableCell>
@@ -1517,7 +1475,6 @@ export default function DashboardPage() {
                     </Card>
                 </TabsContent>
 
-                {/* Sub-Pestaña "Empleados" */}
                 <TabsContent value="empleados">
                     <Card className="shadow-lg border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -1556,7 +1513,7 @@ export default function DashboardPage() {
       </main>
 
       {/* --- Diálogos para Órdenes de Servicio --- */}
-      <Dialog open={isCreateOrderDialogOpen} onOpenChange={setIsCreateOrderDialogOpen}>
+      <Dialog open={isCreateOrderDialogOpen} onOpenChange={(open) => {setIsCreateOrderDialogOpen(open); if (!open) {setNewOrderData(initialNewOrderData); setAvailableAjustadoresForOrder([]);}}}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Crear Nueva Orden de Servicio</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1565,14 +1522,14 @@ export default function DashboardPage() {
             {renderDialogField("Placas", "placas", "text", "Ej: ABC-123", "newOrder", undefined, false, false, false, true)}
             {renderDialogField("VIN", "vin", "text", "Número de Identificación Vehicular", "newOrder")}
             {renderDialogField("Marca", "idMarca", "select", isLoadingMarcas ? "Cargando..." : "Seleccionar marca", "newOrder", marcas.map(m => ({ value: m._id!, label: m.marca })))}
-            {renderDialogField("ID Modelo", "idModelo", "number", "ID numérico del modelo", "newOrder")}
+            {renderDialogField("ID Modelo (Numérico)", "idModelo", "number", "ID del modelo (ej: 101)", "newOrder")}
             {renderDialogField("Año", "año", "number", "Ej: 2020", "newOrder")}
             {renderDialogField("Color", "color", "text", "Ej: Rojo", "newOrder")}
             {renderDialogField("Kilometraje", "kilometraje", "text", "Ej: 55000 km", "newOrder")}
 
             <h3 className="font-semibold text-lg border-b pb-2 mb-2 mt-4">Datos de Aseguradora (Opcional)</h3>
             {renderDialogField("Aseguradora", "idAseguradora", "select", isLoadingAseguradoras? "Cargando..." : "Seleccionar aseguradora", "newOrder", aseguradoras.map(a => ({ value: a._id!, label: a.nombre })))}
-            {renderDialogField("ID Ajustador", "ajustador", "number", "ID numérico del ajustador", "newOrder")}
+            {renderDialogField("Ajustador", "ajustador", "select", newOrderData.idAseguradora ? (availableAjustadoresForOrder.length > 0 ? "Seleccionar ajustador" : "No hay ajustadores") : "Seleccione aseguradora primero", "newOrder", availableAjustadoresForOrder.map(aj => ({value: aj.idAjustador, label: aj.nombre})), false, false, !newOrderData.idAseguradora)}
             {renderDialogField("Siniestro", "siniestro", "text", "No. Siniestro", "newOrder")}
             {renderDialogField("Póliza", "poliza", "text", "No. Póliza", "newOrder")}
             {renderDialogField("Folio", "folio", "text", "Folio dictamen/pase", "newOrder")}
@@ -1588,7 +1545,7 @@ export default function DashboardPage() {
             {renderDialogField("Asesor", "idAsesor", "select", asesores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar asesor", "newOrder", asesores.map(a => ({ value: a._id, label: a.nombre })), undefined, false, false, userRole === UserRole.ASESOR && !!empleadoId)}
             {renderDialogField("Hojalatero", "idHojalatero", "select", hojalateros.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar hojalatero", "newOrder", hojalateros.map(h => ({ value: h._id, label: h.nombre })))}
             {renderDialogField("Pintor", "idPintor", "select", pintores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar pintor", "newOrder", pintores.map(p => ({ value: p._id, label: p.nombre })))}
-            {renderDialogField("ID Presupuesto", "idPresupuesto", "text", "ID del presupuesto asociado", "newOrder")}
+            {renderDialogField("ID Presupuesto (MongoDB ID)", "idPresupuesto", "text", "ID del presupuesto asociado", "newOrder")}
 
             <h3 className="font-semibold text-lg border-b pb-2 mb-2 mt-4">Fechas Importantes (Opcional)</h3>
             {renderDialogField("Fecha Valuación", "fechaValuacion", "date", "", "newOrder")}
@@ -1599,7 +1556,7 @@ export default function DashboardPage() {
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateOrder}>Crear Orden</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={isEditOrderDialogOpen} onOpenChange={(open) => { setIsEditOrderDialogOpen(open); if (!open) setCurrentOrder(null); }}>
+      <Dialog open={isEditOrderDialogOpen} onOpenChange={(open) => { setIsEditOrderDialogOpen(open); if (!open) {setCurrentOrder(null); setAvailableAjustadoresForOrder([]);} }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Editar Orden: OT-{String(currentOrder?.idOrder || '').padStart(4, '0')}</DialogTitle></DialogHeader>
           {currentOrder && <div className="grid gap-4 py-4">
@@ -1608,14 +1565,14 @@ export default function DashboardPage() {
             {renderDialogField("Placas", "placas", "text", "Ej: ABC-123", "editOrder", undefined, false, false, false, true)}
             {renderDialogField("VIN", "vin", "text", "Número de Identificación Vehicular", "editOrder")}
             {renderDialogField("Marca", "idMarca", "select", isLoadingMarcas ? "Cargando..." : "Seleccionar marca", "editOrder", marcas.map(m => ({ value: m._id!, label: m.marca })))}
-            {renderDialogField("ID Modelo", "idModelo", "number", "ID numérico del modelo", "editOrder")}
+            {renderDialogField("ID Modelo (Numérico)", "idModelo", "number", "ID del modelo (ej: 101)", "editOrder")}
             {renderDialogField("Año", "año", "number", "Ej: 2020", "editOrder")}
             {renderDialogField("Color", "color", "text", "Ej: Rojo", "editOrder")}
             {renderDialogField("Kilometraje", "kilometraje", "text", "Ej: 55000 km", "editOrder")}
 
             <h3 className="font-semibold text-lg border-b pb-2 mb-2 mt-4">Datos de Aseguradora</h3>
             {renderDialogField("Aseguradora", "idAseguradora", "select", isLoadingAseguradoras? "Cargando..." : "Seleccionar aseguradora", "editOrder", aseguradoras.map(a => ({ value: a._id!, label: a.nombre })))}
-            {renderDialogField("ID Ajustador", "ajustador", "number", "ID numérico del ajustador", "editOrder")}
+            {renderDialogField("Ajustador", "ajustador", "select", editOrderData.idAseguradora ? (availableAjustadoresForOrder.length > 0 ? "Seleccionar ajustador" : "No hay ajustadores") : "Seleccione aseguradora primero", "editOrder", availableAjustadoresForOrder.map(aj => ({value: aj.idAjustador, label: aj.nombre})), false, false, !editOrderData.idAseguradora)}
             {renderDialogField("Siniestro", "siniestro", "text", "No. Siniestro", "editOrder")}
             {renderDialogField("Póliza", "poliza", "text", "No. Póliza", "editOrder")}
             {renderDialogField("Folio", "folio", "text", "Folio dictamen/pase", "editOrder")}
@@ -1631,7 +1588,7 @@ export default function DashboardPage() {
             {renderDialogField("Asesor", "idAsesor", "select", asesores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar asesor", "editOrder", asesores.map(a => ({ value: a._id, label: a.nombre })), undefined, false, false, true)}
             {renderDialogField("Hojalatero", "idHojalatero", "select", hojalateros.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar hojalatero", "editOrder", hojalateros.map(h => ({ value: h._id, label: h.nombre })))}
             {renderDialogField("Pintor", "idPintor", "select", pintores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar pintor", "editOrder", pintores.map(p => ({ value: p._id, label: p.nombre })))}
-            {renderDialogField("ID Presupuesto", "idPresupuesto", "text", "ID presupuesto asociado", "editOrder")}
+            {renderDialogField("ID Presupuesto (MongoDB ID)", "idPresupuesto", "text", "ID presupuesto asociado", "editOrder")}
 
             <h3 className="font-semibold text-lg border-b pb-2 mb-2 mt-4">Fechas Importantes</h3>
             {renderDialogField("Fecha Valuación", "fechaValuacion", "date", "", "editOrder")}
@@ -1654,7 +1611,7 @@ export default function DashboardPage() {
                     <p><span className="font-medium">Placas:</span> {currentOrder.placas}</p>
                     <p><span className="font-medium">VIN:</span> {currentOrder.vin || 'N/A'}</p>
                     <p><span className="font-medium">Marca:</span> {marcas.find(m => m._id === currentOrder.idMarca)?.marca || currentOrder.idMarca || 'N/A'}</p>
-                    <p><span className="font-medium">Modelo ID:</span> {currentOrder.idModelo || 'N/A'}</p>
+                    <p><span className="font-medium">Modelo ID (Numérico):</span> {currentOrder.idModelo || 'N/A'}</p>
                     <p><span className="font-medium">Año:</span> {currentOrder.año || 'N/A'}</p>
                     <p><span className="font-medium">Color:</span> {currentOrder.color || 'N/A'}</p>
                     <p><span className="font-medium">Kilometraje:</span> {currentOrder.kilometraje || 'N/A'}</p>
@@ -1665,7 +1622,7 @@ export default function DashboardPage() {
                     {currentOrder.idAseguradora && (<>
                         <div className="col-span-1 md:col-span-2 mt-3 mb-2 border-b pb-2"> <p className="font-semibold text-base">Aseguradora:</p></div>
                         <p><span className="font-medium">Aseguradora:</span> {aseguradoras.find(a => a._id === currentOrder.idAseguradora)?.nombre || currentOrder.idAseguradora}</p>
-                        <p><span className="font-medium">ID Ajustador:</span> {currentOrder.ajustador || 'N/A'}</p>
+                        <p><span className="font-medium">Ajustador:</span> {aseguradoras.find(a => a._id === currentOrder.idAseguradora)?.ajustadores?.find(aj => aj.idAjustador === currentOrder.ajustador)?.nombre || currentOrder.ajustador || 'N/A'}</p>
                         <p><span className="font-medium">Siniestro:</span> {currentOrder.siniestro || 'N/A'}</p>
                         <p><span className="font-medium">Póliza:</span> {currentOrder.poliza || 'N/A'}</p>
                         <p><span className="font-medium">Folio:</span> {currentOrder.folio || 'N/A'}</p>
@@ -1684,10 +1641,10 @@ export default function DashboardPage() {
                     <p><span className="font-medium">Fecha Entrega:</span> {formatDate(currentOrder.fechaEntrega)}</p>
 
                     <div className="col-span-1 md:col-span-2 mt-3 mb-2 border-b pb-2"> <p className="font-semibold text-base">Personal Asignado:</p></div>
-                    <p><span className="font-medium">Valuador:</span> {valuadores.find(v => v._id === currentOrder.idValuador)?.nombre || currentOrder.idValuador || 'N/A'}</p>
-                    <p><span className="font-medium">Asesor:</span> {asesores.find(a => a._id === currentOrder.idAsesor)?.nombre || currentOrder.idAsesor || 'N/A'}</p>
-                    <p><span className="font-medium">Hojalatero:</span> {hojalateros.find(h => h._id === currentOrder.idHojalatero)?.nombre || currentOrder.idHojalatero || 'N/A'}</p>
-                    <p><span className="font-medium">Pintor:</span> {pintores.find(p => p._id === currentOrder.idPintor)?.nombre || currentOrder.idPintor || 'N/A'}</p>
+                    <p><span className="font-medium">Valuador:</span> {empleadosList.find(e => e._id === currentOrder.idValuador)?.nombre || currentOrder.idValuador || 'N/A'}</p>
+                    <p><span className="font-medium">Asesor:</span> {empleadosList.find(e => e._id === currentOrder.idAsesor)?.nombre || currentOrder.idAsesor || 'N/A'}</p>
+                    <p><span className="font-medium">Hojalatero:</span> {empleadosList.find(e => e._id === currentOrder.idHojalatero)?.nombre || currentOrder.idHojalatero || 'N/A'}</p>
+                    <p><span className="font-medium">Pintor:</span> {empleadosList.find(e => e._id === currentOrder.idPintor)?.nombre || currentOrder.idPintor || 'N/A'}</p>
 
                     <div className="col-span-1 md:col-span-2 mt-3 mb-2 border-b pb-2"> <p className="font-semibold text-base">Presupuesto:</p></div>
                     <p><span className="font-medium">ID Presupuesto:</span> {currentOrder.idPresupuesto || 'N/A'}</p>
@@ -1696,7 +1653,7 @@ export default function DashboardPage() {
                     <div className="col-span-1 md:col-span-2 max-h-32 overflow-y-auto bg-muted/50 p-2 rounded-md">
                         {currentOrder.log && currentOrder.log.length > 0 ? currentOrder.log.map((entry, index) => (
                             <p key={index} className="text-xs mb-1">
-                                <span className="font-medium">{formatDateTime(entry.timestamp)}</span> (Usr: {empleadosList.find(e => e._id === entry.userId)?.nombre || entry.userId || 'Sis'}): {entry.action} {entry.details && `- ${entry.details}`}
+                                <span className="font-medium">{formatDateTime(entry.timestamp)}</span> (Usr: {empleadosList.find(e => e._id === entry.userId)?.nombre || entry.userId?.substring(0,8) || 'Sis'}): {entry.action} {entry.details && `- ${entry.details}`}
                             </p>
                         )) : <p className="text-xs text-muted-foreground">No hay logs.</p>}
                     </div>
@@ -1733,7 +1690,6 @@ export default function DashboardPage() {
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button variant="destructive" onClick={handleDeleteMarca}>Eliminar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Diálogo para gestionar Modelos de una Marca */}
       <Dialog open={isManageModelosDialogOpen} onOpenChange={(open) => { setIsManageModelosDialogOpen(open); if (!open) setCurrentMarca(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Gestionar Modelos para: {currentMarca?.marca}</DialogTitle></DialogHeader>
@@ -1756,7 +1712,6 @@ export default function DashboardPage() {
           <DialogFooter><DialogClose asChild><Button variant="outline">Cerrar</Button></DialogClose></DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Diálogo para Crear Modelo */}
       <Dialog open={isCreateModeloDialogOpen} onOpenChange={(open) => {setIsCreateModeloDialogOpen(open); if(!open) setNewModeloData({ idModelo: undefined, modelo: '' });}}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Añadir Nuevo Modelo a {currentMarca?.marca}</DialogTitle></DialogHeader>
@@ -1767,7 +1722,6 @@ export default function DashboardPage() {
             <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateModelo}>Añadir Modelo</Button></DialogFooter>
           </DialogContent>
       </Dialog>
-      {/* Diálogo para Editar Modelo */}
       <Dialog open={isEditModeloDialogOpen} onOpenChange={(open) => { setIsEditModeloDialogOpen(open); if (!open) setCurrentModelo(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Editar Modelo: {currentModelo?.modelo}</DialogTitle></DialogHeader>
@@ -1805,7 +1759,6 @@ export default function DashboardPage() {
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button variant="destructive" onClick={handleDeleteAseguradora}>Eliminar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Diálogo para gestionar Ajustadores de una Aseguradora */}
       <Dialog open={isManageAjustadoresDialogOpen} onOpenChange={(open) => { setIsManageAjustadoresDialogOpen(open); if (!open) setCurrentAseguradora(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Gestionar Ajustadores para: {currentAseguradora?.nombre}</DialogTitle></DialogHeader>
@@ -1815,7 +1768,7 @@ export default function DashboardPage() {
               <TableHeader><TableRow><TableHead>ID</TableHead><TableHead>Nombre</TableHead><TableHead>Teléfono</TableHead><TableHead>Correo</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
               <TableBody>
                 {currentAseguradora.ajustadores.map(aj => (
-                  <TableRow key={aj.idAjustador}><TableCell>{aj.idAjustador}</TableCell><TableCell>{aj.nombre}</TableCell><TableCell>{aj.telefono || 'N/A'}</TableCell><TableCell>{aj.correo || 'N/A'}</TableCell>
+                  <TableRow key={aj.idAjustador}><TableCell>{aj.idAjustador.substring(0,8)}...</TableCell><TableCell>{aj.nombre}</TableCell><TableCell>{aj.telefono || 'N/A'}</TableCell><TableCell>{aj.correo || 'N/A'}</TableCell>
                     <TableCell className="text-right space-x-1">
                       <Button variant="ghost" size="icon" onClick={() => openEditAjustadorDialog(aj)}><Edit className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDeleteAjustador(aj.idAjustador)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
@@ -1828,7 +1781,6 @@ export default function DashboardPage() {
           <DialogFooter><DialogClose asChild><Button variant="outline">Cerrar</Button></DialogClose></DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Diálogo para Crear Ajustador */}
       <Dialog open={isCreateAjustadorDialogOpen} onOpenChange={(open) => { setIsCreateAjustadorDialogOpen(open); if (!open) setNewAjustadorData({ nombre: '', telefono: '', correo: ''}); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Añadir Nuevo Ajustador a {currentAseguradora?.nombre}</DialogTitle></DialogHeader>
@@ -1840,7 +1792,6 @@ export default function DashboardPage() {
             <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateAjustador}>Añadir Ajustador</Button></DialogFooter>
           </DialogContent>
       </Dialog>
-      {/* Diálogo para Editar Ajustador */}
       <Dialog open={isEditAjustadorDialogOpen} onOpenChange={(open) => { setIsEditAjustadorDialogOpen(open); if (!open) setCurrentAjustador(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Editar Ajustador: {currentAjustador?.nombre}</DialogTitle></DialogHeader>
@@ -1859,7 +1810,6 @@ export default function DashboardPage() {
       <Dialog open={isCreateEmpleadoDialogOpen} onOpenChange={setIsCreateEmpleadoDialogOpen}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Crear Nuevo Empleado</DialogTitle></DialogHeader>
-          {/* Formulario de creación de empleado con espaciado mejorado */}
           <div className="space-y-4 py-4">
             <div className="space-y-1">
                 {renderDialogField("Nombre Completo", "nombre", "text", "Ej: Juan Pérez García", "newEmpleado",undefined,false,false,false,true)}
@@ -1880,12 +1830,10 @@ export default function DashboardPage() {
                 {renderDialogField("Comisión (%)", "comision", "number", "Ej: 5", "newEmpleado")}
             </div>
             
-            {/* Sección para crear acceso al sistema */}
             <div className="my-2 border-t pt-4">
                 {renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "", "newEmpleado", undefined, true)}
             </div>
 
-            {/* Campos condicionales para credenciales de sistema */}
             {newEmpleadoData.createSystemUser && (
                 <>
                     <div className="space-y-1">
@@ -1906,7 +1854,6 @@ export default function DashboardPage() {
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateEmpleado}>Crear Empleado</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Diálogo para Editar Empleado */}
       <Dialog open={isEditEmpleadoDialogOpen} onOpenChange={(open) => { setIsEditEmpleadoDialogOpen(open); if (!open) setCurrentEmpleadoToEdit(null); }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Editar Empleado: {currentEmpleadoToEdit?.nombre}</DialogTitle></DialogHeader>
@@ -1931,29 +1878,25 @@ export default function DashboardPage() {
                 {renderDialogField("Comisión (%)", "comision", "number", "", "editEmpleado")}
               </div>
 
-              {/* Sección para gestionar acceso al sistema */}
               <div className="my-2 border-t pt-4">
                 <h4 className="font-medium mb-2 text-base">Acceso al Sistema</h4>
-                {/* Si el empleado NO tiene usuario Y el checkbox de crear NO está marcado, muestra el checkbox */}
                 {!currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser && ( 
                      renderDialogField("Crear nuevo acceso al sistema", "createSystemUser", "checkbox", "", "editEmpleado", undefined, true)
                 )}
                 
-                {/* Si el empleado YA tiene usuario O el checkbox de crear SÍ está marcado */}
                 {(currentEmpleadoToEdit.user || editEmpleadoData.createSystemUser) && ( 
                     <>
                         <div className="space-y-1">
                         {renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", "Ej: juan.perez", "editEmpleado", undefined, false, false, 
-                                          !!(currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser), // Deshabilitar si ya existe y no se está en modo "crear nuevo"
+                                          !!(currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser), 
                                           true)}
                         </div>
                         <div className="space-y-1">
                         {renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol", "editEmpleado", userRoleOptions, false, false, 
-                                          !!(currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser), // Deshabilitar si ya existe y no se está en modo "crear nuevo"
+                                          !!(currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser), 
                                           true)}
                         </div>
                         
-                        {/* Título para sección de contraseña cambia según si se está creando o modificando */}
                         <h5 className="font-medium mt-3 text-sm">
                             {(currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser) ? 'Cambiar Contraseña (Opcional)' : 'Establecer Contraseña*'}
                         </h5>
@@ -1961,14 +1904,13 @@ export default function DashboardPage() {
                         {renderDialogField("Nueva Contraseña", "newSystemUserContraseña", "password", 
                                           (currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser) ? "Dejar en blanco para no cambiar" : "Mínimo 6 caracteres", 
                                           "editEmpleado", undefined, false, false, false, 
-                                          editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user)} {/* Requerido solo si se está creando nuevo acceso */}
+                                          editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user)} 
                         </div>
                         <div className="space-y-1">
                         {renderDialogField("Confirmar Nueva Contraseña", "newSystemUserConfirmContraseña", "password", "", "editEmpleado", undefined, false, false, false, 
-                                          editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user)} {/* Requerido solo si se está creando nuevo acceso */}
+                                          editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user)} 
                         </div>
                         
-                        {/* Botón para remover acceso si ya existe y no se está intentando crear uno nuevo */}
                         {currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser && (
                             <div className="mt-2 text-right">
                                 <Button variant="destructive" size="sm" onClick={() => handleRemoveSystemUser(currentEmpleadoToEdit._id!)}>
@@ -1987,7 +1929,6 @@ export default function DashboardPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Diálogo para Eliminar Empleado */}
       <Dialog open={isDeleteEmpleadoDialogOpen} onOpenChange={(open) => { setIsDeleteEmpleadoDialogOpen(open); if(!open) setEmpleadoToDeleteId(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Confirmar Eliminación</DialogTitle><DialogDescription>¿Seguro que deseas eliminar al empleado {empleadosList.find(e => e._id === empleadoToDeleteId)?.nombre}? Esta acción no se puede deshacer.</DialogDescription></DialogHeader>
@@ -1998,4 +1939,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
