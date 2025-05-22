@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 
 // Importación de tipos de datos.
 import type {
-  UserRole as UserRoleType,
+  UserRole as UserRoleType, // Alias para el tipo UserRole
   Empleado,
   SystemUserCredentials,
   Order,
@@ -34,6 +34,8 @@ import type {
   UpdateAseguradoraData,
   Ajustador,
   Cliente,
+  LogEntry, // Import LogEntry
+  PresupuestoItem, // Import PresupuestoItem
 } from '@/lib/types';
 import { UserRole } from '@/lib/types'; // Enum para usar sus valores.
 
@@ -47,7 +49,7 @@ import {
   getAsesores,
   getValuadores,
   getEmployeesByPosition,
-  getAjustadoresForSelectByAseguradoraAction, 
+  getAjustadoresByAseguradora, 
 } from './service-orders/actions';
 
 import {
@@ -59,6 +61,7 @@ import {
   updateModeloInMarcaAction,
   removeModeloFromMarcaAction,
   getMarcaByIdAction as getMarcaForModelosAction,
+  getModelosByMarcaAction, // Importar la nueva acción
 } from './admin/marcas/actions';
 
 import {
@@ -86,13 +89,23 @@ import {
 
 /**
  * Tipo de datos para el formulario de creación/edición de Órdenes de Servicio.
- * Los IDs de entidades relacionadas son strings (_id de MongoDB).
+ * Los IDs de entidades relacionadas son strings (_id de MongoDB ObjectId).
+ * Las fechas se manejan como strings en el formulario y se convierten a Date para el backend.
  */
-type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log'>> & {
-  año?: number | string; // Puede ser string desde el input, convertir a number
-  deducible?: number | string; // Puede ser string desde el input, convertir a number
-  kilometraje?: string; // Kilometraje como string
+type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log' | 'presupuestos'>> & {
+  // Campos que son string en formulario pero Date en backend
+  fechaValuacion?: string;
+  fechaReingreso?: string;
+  fechaEntrega?: string;
+  fechaPromesa?: string;
+  fechaBaja?: string;
+  // Campos que son string en formulario pero number en backend
+  año?: string;
+  deducible?: string;
+  // aseguradoTercero se maneja con 'true'/'false' strings en Select, se convierte a boolean
+  aseguradoTercero?: string; // 'true' o 'false'
 };
+
 
 /** Tipo de datos para el formulario de creación/edición de Marcas de Vehículos. */
 type MarcaFormDataType = Partial<Omit<MarcaVehiculo, '_id' | 'modelos'>>;
@@ -135,7 +148,7 @@ export default function DashboardPage() {
 
   // --- Estados de Sesión y Usuario ---
   const [userName, setUserName] = useState<string | null>(null);
-  /** _id (string) del empleado logueado. */
+  /** _id (string ObjectId) del empleado logueado. */
   const [empleadoId, setEmpleadoId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRoleType | null>(null);
 
@@ -147,13 +160,21 @@ export default function DashboardPage() {
   const [isViewOrderDialogOpen, setIsViewOrderDialogOpen] = useState(false);
   const [isDeleteOrderDialogOpen, setIsDeleteOrderDialogOpen] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
-  /** _id (string) de la orden a eliminar. */
+  /** _id (string ObjectId) de la orden a eliminar. */
   const [orderToDeleteId, setOrderToDeleteId] = useState<string | null>(null);
-  const [availableAjustadoresForOrder, setAvailableAjustadoresForOrder] = useState<{idAjustador: string, nombre: string}[]>([]);
+  
+  /** Estado para los ajustadores disponibles cuando se selecciona una aseguradora en el formulario de orden. */
+  const [availableAjustadoresForOrder, setAvailableAjustadoresForOrder] = useState<Pick<Ajustador, 'idAjustador' | 'nombre'>[]>([]);
+  /** Estado para los modelos disponibles cuando se selecciona una marca en el formulario de orden. */
+  const [availableModelosForOrder, setAvailableModelosForOrder] = useState<Pick<ModeloVehiculo, 'idModelo' | 'modelo'>[]>([]);
 
+
+  /** Datos iniciales para el formulario de creación de una nueva orden. */
   const initialNewOrderData: OrderFormDataType = {
-    proceso: 'pendiente', piso: false, grua: false,
-    aseguradoTercero: 'asegurado', // Valor por defecto
+    proceso: 'pendiente', // Valor por defecto
+    piso: false, 
+    grua: false,
+    aseguradoTercero: 'true', // Valor por defecto para el select ('true' para Asegurado)
   };
   const [newOrderData, setNewOrderData] = useState<OrderFormDataType>(initialNewOrderData);
   const [editOrderData, setEditOrderData] = useState<OrderFormDataType>({});
@@ -174,7 +195,7 @@ export default function DashboardPage() {
   const [isEditMarcaDialogOpen, setIsEditMarcaDialogOpen] = useState(false);
   const [isDeleteMarcaDialogOpen, setIsDeleteMarcaDialogOpen] = useState(false);
   const [currentMarca, setCurrentMarca] = useState<MarcaVehiculo | null>(null);
-  /** _id (string) de la marca a eliminar. */
+  /** _id (string ObjectId) de la marca a eliminar. */
   const [marcaToDeleteId, setMarcaToDeleteId] = useState<string | null>(null);
   const [newMarcaData, setNewMarcaData] = useState<MarcaFormDataType>({ marca: '' });
   const [editMarcaData, setEditMarcaData] = useState<MarcaFormDataType>({});
@@ -193,7 +214,7 @@ export default function DashboardPage() {
   const [isEditAseguradoraDialogOpen, setIsEditAseguradoraDialogOpen] = useState(false);
   const [isDeleteAseguradoraDialogOpen, setIsDeleteAseguradoraDialogOpen] = useState(false);
   const [currentAseguradora, setCurrentAseguradora] = useState<Aseguradora | null>(null);
-  /** _id (string) de la aseguradora a eliminar. */
+  /** _id (string ObjectId) de la aseguradora a eliminar. */
   const [aseguradoraToDeleteId, setAseguradoraToDeleteId] = useState<string | null>(null);
   const [newAseguradoraData, setNewAseguradoraData] = useState<AseguradoraFormDataType>({ nombre: '', telefono: '' });
   const [editAseguradoraData, setEditAseguradoraData] = useState<AseguradoraFormDataType>({});
@@ -219,7 +240,7 @@ export default function DashboardPage() {
   const [editEmpleadoData, setEditEmpleadoData] = useState<EditEmpleadoFormDataType>({
     nombre: '', puesto: '', createSystemUser: false 
   });
-  /** _id (string) del empleado a eliminar. */
+  /** _id (string ObjectId) del empleado a eliminar. */
   const [empleadoToDeleteId, setEmpleadoToDeleteId] = useState<string | null>(null);
 
   /**
@@ -231,7 +252,7 @@ export default function DashboardPage() {
     console.log("Dashboard useEffect: Verificando sesión...");
     const loggedIn = localStorage.getItem('isLoggedIn');
     const storedUserName = localStorage.getItem('username');
-    const storedEmpleadoId = localStorage.getItem('empleadoId');
+    const storedEmpleadoId = localStorage.getItem('empleadoId'); // Este es el Empleado._id (string ObjectId)
     const storedUserRole = localStorage.getItem('userRole') as UserRoleType | null;
 
     console.log("Dashboard useEffect: Valores RAW de localStorage:", {
@@ -251,51 +272,49 @@ export default function DashboardPage() {
     if (loggedIn === 'true' && storedUserName && isEmpleadoIdValid && isUserRoleValid) {
       console.log("Dashboard useEffect: Usuario logueado. Configurando estado y cargando datos iniciales.");
       setUserName(storedUserName);
-      setEmpleadoId(storedEmpleadoId); // Este es el Empleado._id (string)
-      setUserRole(storedUserRole as UserRoleType);
+      setEmpleadoId(storedEmpleadoId); 
+      setUserRole(storedUserRole);
 
       // Pre-llenar idAsesor si el rol es ASESOR
       if (storedUserRole === UserRole.ASESOR && storedEmpleadoId) {
         console.log("Dashboard useEffect: Rol Asesor. Pre-llenando idAsesor con Empleado._id:", storedEmpleadoId);
         setNewOrderData(prev => ({ ...prev, idAsesor: storedEmpleadoId }));
       }
-      fetchInitialData(storedUserRole as UserRoleType, storedEmpleadoId);
+      fetchInitialData(storedUserRole, storedEmpleadoId);
     } else {
       console.log("Dashboard useEffect: Sesión inválida o datos faltantes. Redirigiendo a /. Detalles:", { loggedIn, storedUserName, storedEmpleadoId, storedUserRole });
       router.replace('/');
     }
-  }, [router]);
+  }, [router]); // router como dependencia para el redirect
 
   /**
    * Carga todos los datos iniciales necesarios para el dashboard.
    * @param {UserRoleType | null} role Rol del usuario actual.
-   * @param {string | null} currentEmpleadoLogId _id (string) del empleado actual.
+   * @param {string | null} currentEmpleadoLogId _id (string ObjectId) del empleado actual.
    */
-  const fetchInitialData = async (role: UserRoleType | null, currentEmpleadoLogId: string | null) => {
+  const fetchInitialData = useCallback(async (role: UserRoleType | null, currentEmpleadoLogId: string | null) => {
     console.log("fetchInitialData: Iniciando carga de datos...", { role, currentEmpleadoId: currentEmpleadoLogId });
     
-    // Asegurar que idAsesor se establezca correctamente al inicio para Asesores
     setNewOrderData(prev => ({ 
         ...initialNewOrderData, 
         idAsesor: role === UserRole.ASESOR && currentEmpleadoLogId ? currentEmpleadoLogId : undefined,
     }));
 
     setIsLoadingOrders(true); setIsLoadingMarcas(true); setIsLoadingAseguradoras(true);
-    setIsLoadingClients(true); setIsLoadingAsesores(true);
-    if (role === UserRole.ADMIN) setIsLoadingEmpleadosList(true);
+    setIsLoadingClients(true); setIsLoadingAsesores(true); setIsLoadingEmpleadosList(true); // Siempre cargar empleados para logs, etc.
 
     try {
       await Promise.all([
         fetchOrders(), fetchMarcas(), fetchAseguradoras(), fetchClients(),
         fetchAsesores(), fetchValuadores(), fetchHojalateros(), fetchPintores(),
-        role === UserRole.ADMIN ? fetchEmpleados() : Promise.resolve(),
+        fetchEmpleados(), // Cargar siempre para lookup de nombres en logs, etc.
       ]);
       console.log("fetchInitialData: Todos los datos cargados.");
     } catch (error) {
       console.error("fetchInitialData: Error al cargar datos iniciales:", error);
       toast({ title: "Error Crítico", description: "No se pudieron cargar los datos iniciales del dashboard.", variant: "destructive" });
     }
-  };
+  }, [toast]); // Dependencias de useCallback
 
   // --- Funciones de Carga de Datos Específicas (fetchers) ---
   const fetchOrders = async () => {
@@ -346,7 +365,7 @@ export default function DashboardPage() {
     console.log("fetchAsesores: Iniciando...");
     setIsLoadingAsesores(true);
     try {
-      const result = await getAsesores(); // Asesores son Empleados con rol ASESOR
+      const result = await getAsesores(); 
       console.log("fetchAsesores: Resultado:", result);
       if (result.success && result.data) setAsesores(result.data);
       else toast({ title: "Error Asesores", description: result.error || "No se pudieron cargar los asesores.", variant: "destructive" });
@@ -356,7 +375,7 @@ export default function DashboardPage() {
   const fetchValuadores = async () => {
     console.log("fetchValuadores: Iniciando...");
     try {
-      const result = await getValuadores(); // Valuadores son Empleados con rol VALUADOR
+      const result = await getValuadores(); 
       console.log("fetchValuadores: Resultado:", result);
       if (result.success && result.data) setValuadores(result.data);
       else toast({ title: "Error Valuadores", description: result.error || "No se pudieron cargar los valuadores.", variant: "destructive" });
@@ -381,14 +400,14 @@ export default function DashboardPage() {
     } catch (error) { console.error("fetchPintores: Error:", error); toast({ title: "Error Crítico Pintores", description: "Fallo al obtener pintores.", variant: "destructive" }); }
   };
   const fetchEmpleados = async () => {
-    console.log("fetchEmpleados (admin): Iniciando...");
+    console.log("fetchEmpleados: Iniciando...");
     setIsLoadingEmpleadosList(true);
     try {
       const result = await getAllEmpleadosAction();
-      console.log("fetchEmpleados (admin): Resultado:", result);
+      console.log("fetchEmpleados: Resultado:", result);
       if (result.success && result.data) setEmpleadosList(result.data);
       else toast({ title: "Error Empleados", description: result.error || "No se pudieron cargar los empleados.", variant: "destructive" });
-    } catch (error) { console.error("fetchEmpleados (admin): Error:", error); toast({ title: "Error Crítico Empleados", description: "Fallo al obtener empleados.", variant: "destructive" });
+    } catch (error) { console.error("fetchEmpleados: Error:", error); toast({ title: "Error Crítico Empleados", description: "Fallo al obtener empleados.", variant: "destructive" });
     } finally { setIsLoadingEmpleadosList(false); }
   };
   
@@ -412,31 +431,30 @@ export default function DashboardPage() {
     setState: React.Dispatch<React.SetStateAction<any>>
   ) => {
     const { name, value, type } = e.target;
-    let processedValue: any;
-    if (type === 'number') {
-      processedValue = value === '' ? undefined : Number(value); 
-    } else {
-      processedValue = value;
-    }
+    let processedValue: any = value;
+    // No convertir a Number aquí, dejarlo como string para el estado del formulario.
+    // La conversión a Number se hará al enviar el formulario si es necesario.
     setState((prev: any) => ({ ...prev, [name]: processedValue }));
   };
 
   /**
-   * Manejador genérico para cambios en componentes Checkbox.
+   * Manejador genérico para cambios en componentes Checkbox de ShadCN.
    * @param name Nombre del campo en el estado del formulario.
    * @param checked Nuevo valor booleano.
    * @param setState Función para actualizar el estado del formulario.
    */
   const handleCheckboxChangeGeneric = (
     name: string,
-    checked: boolean,
+    checked: boolean, // ShadCN onCheckedChange devuelve boolean o 'indeterminate'
     setState: React.Dispatch<React.SetStateAction<any>>
   ) => {
-    setState((prev: any) => ({ ...prev, [name]: checked }));
+    // Asegurarse de que solo se procese un valor booleano
+    setState((prev: any) => ({ ...prev, [name]: typeof checked === 'boolean' ? checked : false }));
   };
 
+
   /**
-   * Manejador genérico para cambios en componentes Select.
+   * Manejador genérico para cambios en componentes Select de ShadCN.
    * @param name Nombre del campo en el estado del formulario.
    * @param value Nuevo valor seleccionado (puede ser string o undefined).
    * @param setState Función para actualizar el estado del formulario.
@@ -451,7 +469,7 @@ export default function DashboardPage() {
 
   // --- Funciones de Gestión de Órdenes de Servicio ---
   /**
-   * Actualiza el estado `newOrderData` o `editOrderData` al cambiar un input.
+   * Actualiza el estado `newOrderData` o `editOrderData` al cambiar un input o textarea.
    * @param e Evento de cambio del input/textarea.
    * @param formType Indica si es el formulario de 'new' o 'edit'.
    */
@@ -471,7 +489,7 @@ export default function DashboardPage() {
   
   /**
    * Actualiza el estado `newOrderData` o `editOrderData` al cambiar un select.
-   * También maneja la carga de ajustadores si se cambia la aseguradora.
+   * También maneja la carga de ajustadores si se cambia la aseguradora, o modelos si cambia la marca.
    * @param name Nombre del campo del select.
    * @param value Valor seleccionado.
    * @param formType Indica si es el formulario de 'new' o 'edit'.
@@ -481,15 +499,32 @@ export default function DashboardPage() {
     handleSelectChangeGeneric(name, value, setState);
 
     if (name === 'idAseguradora' && value) {
-      const result = await getAjustadoresForSelectByAseguradoraAction(value);
+      const result = await getAjustadoresByAseguradora(value);
       if (result.success && result.data) {
         setAvailableAjustadoresForOrder(result.data);
         // Limpiar ajustador si la aseguradora cambia
-        setState((prev: any) => ({ ...prev, ajustador: undefined })); 
+        setState((prev: any) => ({ ...prev, idAjustador: undefined })); 
       } else {
         setAvailableAjustadoresForOrder([]);
         toast({ title: "Error", description: result.error || "No se pudieron cargar los ajustadores.", variant: "destructive" });
       }
+    } else if (name === 'idAseguradora' && !value) { // Si se deselecciona la aseguradora
+        setAvailableAjustadoresForOrder([]);
+        setState((prev: any) => ({ ...prev, idAjustador: undefined }));
+    }
+
+    if (name === 'idMarca' && value) {
+        const result = await getModelosByMarcaAction(value);
+        if (result.success && result.data) {
+            setAvailableModelosForOrder(result.data);
+            setState((prev: any) => ({ ...prev, idModelo: undefined }));
+        } else {
+            setAvailableModelosForOrder([]);
+            toast({ title: "Error", description: result.error || "No se pudieron cargar los modelos.", variant: "destructive" });
+        }
+    } else if (name === 'idMarca' && !value) { // Si se deselecciona la marca
+        setAvailableModelosForOrder([]);
+        setState((prev: any) => ({ ...prev, idModelo: undefined }));
     }
   };
 
@@ -498,23 +533,54 @@ export default function DashboardPage() {
    * Valida los datos y llama a la acción del servidor.
    */
   const handleCreateOrder = async () => {
+    // Validación de campos obligatorios
     if (!newOrderData.idCliente || !newOrderData.idMarca || !newOrderData.idAsesor) {
       toast({ title: "Error de Validación", description: "Cliente, Marca y Asesor son obligatorios.", variant: "destructive" }); return;
     }
+
     const dataToCreate: NewOrderData = {
-      ...newOrderData,
+      // Mapeo de OrderFormDataType a NewOrderData, convirtiendo tipos donde sea necesario
+      idCliente: newOrderData.idCliente,
+      idMarca: newOrderData.idMarca,
+      idModelo: newOrderData.idModelo, // Ya es string (ObjectId) o undefined
       año: newOrderData.año ? Number(newOrderData.año) : undefined,
+      placas: newOrderData.placas,
+      color: newOrderData.color,
+      vin: newOrderData.vin,
+      kilometraje: newOrderData.kilometraje,
+      idAseguradora: newOrderData.idAseguradora,
+      idAjustador: newOrderData.idAjustador, // Ya es string (ObjectId) o undefined
+      siniestro: newOrderData.siniestro,
+      poliza: newOrderData.poliza,
+      folio: newOrderData.folio,
       deducible: newOrderData.deducible ? Number(newOrderData.deducible) : undefined,
+      // aseguradoTercero viene como 'true'/'false' string del select. Convertir a boolean.
+      aseguradoTercero: newOrderData.aseguradoTercero === 'true', 
+      piso: newOrderData.piso || false,
+      grua: newOrderData.grua || false,
+      urlArchivos: newOrderData.urlArchivos,
+      proceso: newOrderData.proceso || 'pendiente',
+      idAsesor: newOrderData.idAsesor,
+      idValuador: newOrderData.idValuador,
+      idHojalatero: newOrderData.idHojalatero,
+      idPintor: newOrderData.idPintor,
       fechaValuacion: newOrderData.fechaValuacion ? new Date(newOrderData.fechaValuacion) : undefined,
-      fechaRengreso: newOrderData.fechaRengreso ? new Date(newOrderData.fechaRengreso) : undefined,
+      fechaReingreso: newOrderData.fechaReingreso ? new Date(newOrderData.fechaReingreso) : undefined,
       fechaEntrega: newOrderData.fechaEntrega ? new Date(newOrderData.fechaEntrega) : undefined,
       fechaPromesa: newOrderData.fechaPromesa ? new Date(newOrderData.fechaPromesa) : undefined,
+      fechaBaja: newOrderData.fechaBaja ? new Date(newOrderData.fechaBaja) : undefined,
+      // presupuestos se inicializará vacío en el backend o se pasará si se implementa UI
     };
-    // El empleadoId para el log ya es string.
-    const result = await createOrderAction(dataToCreate, empleadoId || undefined);
+    
+    const result = await createOrderAction(dataToCreate, empleadoId || undefined); // empleadoId es Empleado._id (string ObjectId)
     if (result.success) {
       toast({ title: "Éxito", description: result.message || `Orden OT-${result.data?.customOrderId} creada.` });
-      setIsCreateOrderDialogOpen(false); fetchOrders(); setNewOrderData(initialNewOrderData);
+      setIsCreateOrderDialogOpen(false); 
+      fetchOrders(); 
+      setNewOrderData(initialNewOrderData); // Resetear formulario
+      // Resetear selects dependientes
+      setAvailableAjustadoresForOrder([]);
+      setAvailableModelosForOrder([]);
     } else {
       toast({ title: "Error", description: result.error || "No se pudo crear la orden.", variant: "destructive" });
     }
@@ -522,32 +588,45 @@ export default function DashboardPage() {
 
   /**
    * Abre el diálogo para editar una orden. Carga los datos de la orden.
-   * @param orderId _id (string) de la orden a editar.
+   * @param orderId _id (string ObjectId) de la orden a editar.
    */
   const openEditOrderDialog = async (orderId: string) => {
     const result = await getOrderByIdAction(orderId);
     if (result.success && result.data) {
-      setCurrentOrder(result.data);
       const orderData = result.data;
-      setEditOrderData({ // Mapear todos los campos
+      setCurrentOrder(orderData);
+      setEditOrderData({ 
         ...orderData,
-        año: orderData.año ? String(orderData.año) : '', // Convertir a string para input
-        deducible: orderData.deducible ? String(orderData.deducible) : '', // Convertir a string para input
-        // Formatear fechas para inputs de tipo 'date' (YYYY-MM-DD)
+        // Convertir números y fechas a string para los inputs del formulario
+        año: orderData.año ? String(orderData.año) : undefined,
+        deducible: orderData.deducible ? String(orderData.deducible) : undefined,
+        aseguradoTercero: String(orderData.aseguradoTercero), // Convertir boolean a 'true'/'false' string
         fechaValuacion: orderData.fechaValuacion ? formatDate(orderData.fechaValuacion, 'YYYY-MM-DD') : undefined,
-        fechaRengreso: orderData.fechaRengreso ? formatDate(orderData.fechaRengreso, 'YYYY-MM-DD') : undefined,
+        fechaReingreso: orderData.fechaReingreso ? formatDate(orderData.fechaReingreso, 'YYYY-MM-DD') : undefined,
         fechaEntrega: orderData.fechaEntrega ? formatDate(orderData.fechaEntrega, 'YYYY-MM-DD') : undefined,
         fechaPromesa: orderData.fechaPromesa ? formatDate(orderData.fechaPromesa, 'YYYY-MM-DD') : undefined,
+        fechaBaja: orderData.fechaBaja ? formatDate(orderData.fechaBaja, 'YYYY-MM-DD') : undefined,
       });
+      
       // Cargar ajustadores si hay una aseguradora seleccionada
       if (orderData.idAseguradora) {
-        const ajustadoresResult = await getAjustadoresForSelectByAseguradoraAction(orderData.idAseguradora);
+        const ajustadoresResult = await getAjustadoresByAseguradora(orderData.idAseguradora);
         if (ajustadoresResult.success && ajustadoresResult.data) {
           setAvailableAjustadoresForOrder(ajustadoresResult.data);
         }
       } else {
         setAvailableAjustadoresForOrder([]);
       }
+      // Cargar modelos si hay una marca seleccionada
+      if (orderData.idMarca) {
+        const modelosResult = await getModelosByMarcaAction(orderData.idMarca);
+        if (modelosResult.success && modelosResult.data) {
+            setAvailableModelosForOrder(modelosResult.data);
+        }
+      } else {
+        setAvailableModelosForOrder([]);
+      }
+
       setIsEditOrderDialogOpen(true);
     } else {
       toast({ title: "Error", description: result.error || "No se pudo cargar la orden para editar.", variant: "destructive" });
@@ -559,22 +638,34 @@ export default function DashboardPage() {
    */
   const handleUpdateOrder = async () => {
     if (!currentOrder || !currentOrder._id) return;
+    // Validación de campos obligatorios
     if (!editOrderData.idCliente || !editOrderData.idMarca || !editOrderData.idAsesor) {
       toast({ title: "Error de Validación", description: "Cliente, Marca y Asesor son obligatorios.", variant: "destructive" }); return;
     }
+
     const dataToUpdate: UpdateOrderData = {
+      // Mapeo de OrderFormDataType a UpdateOrderData
       ...editOrderData,
+      // Convertir strings de formulario a tipos correctos para el backend
       año: editOrderData.año ? Number(editOrderData.año) : undefined,
       deducible: editOrderData.deducible ? Number(editOrderData.deducible) : undefined,
+      aseguradoTercero: editOrderData.aseguradoTercero === 'true',
       fechaValuacion: editOrderData.fechaValuacion ? new Date(editOrderData.fechaValuacion) : undefined,
-      fechaRengreso: editOrderData.fechaRengreso ? new Date(editOrderData.fechaRengreso) : undefined,
+      fechaReingreso: editOrderData.fechaReingreso ? new Date(editOrderData.fechaReingreso) : undefined,
       fechaEntrega: editOrderData.fechaEntrega ? new Date(editOrderData.fechaEntrega) : undefined,
       fechaPromesa: editOrderData.fechaPromesa ? new Date(editOrderData.fechaPromesa) : undefined,
+      fechaBaja: editOrderData.fechaBaja ? new Date(editOrderData.fechaBaja) : undefined,
     };
+
     const result = await updateOrderAction(currentOrder._id, dataToUpdate, empleadoId || undefined);
     if (result.success) {
       toast({ title: "Éxito", description: result.message || "Orden actualizada." });
-      setIsEditOrderDialogOpen(false); fetchOrders(); setCurrentOrder(null); setEditOrderData({});
+      setIsEditOrderDialogOpen(false); 
+      fetchOrders(); 
+      setCurrentOrder(null); 
+      setEditOrderData({});
+      setAvailableAjustadoresForOrder([]);
+      setAvailableModelosForOrder([]);
     } else {
       toast({ title: "Error", description: result.error || "No se pudo actualizar la orden.", variant: "destructive" });
     }
@@ -606,7 +697,7 @@ export default function DashboardPage() {
     if (!newMarcaData.marca?.trim()) {
       toast({ title: "Error", description: "El nombre de la marca es obligatorio.", variant: "destructive" }); return;
     }
-    const result = await createMarcaAction({ marca: newMarcaData.marca! }); // NewMarcaData ya no necesita modelos iniciales
+    const result = await createMarcaAction({ marca: newMarcaData.marca! }); 
     if (result.success) {
       toast({ title: "Éxito", description: `Marca "${newMarcaData.marca}" creada.` });
       setIsCreateMarcaDialogOpen(false); fetchMarcas(); setNewMarcaData({ marca: '' });
@@ -655,10 +746,10 @@ export default function DashboardPage() {
     const result = await addModeloToMarcaAction(currentMarca._id, { modelo: newModeloData.modelo! });
     if (result.success && result.data) {
       toast({ title: "Éxito", description: "Modelo añadido." });
-      const marcaRes = await getMarcaForModelosAction(currentMarca._id); // Recargar la marca actual
-      if (marcaRes.success && marcaRes.data) setCurrentMarca(marcaRes.data); else fetchMarcas(); // Fallback a recargar todas
-      setNewModeloData({ modelo: '' }); // Resetear form
-      setIsCreateModeloDialogOpen(false); // Cerrar diálogo de creación de modelo
+      const marcaRes = await getMarcaForModelosAction(currentMarca._id); 
+      if (marcaRes.success && marcaRes.data) setCurrentMarca(marcaRes.data); else fetchMarcas(); 
+      setNewModeloData({ modelo: '' }); 
+      setIsCreateModeloDialogOpen(false); 
     } else {
       toast({ title: "Error", description: result.error || "No se pudo crear el modelo.", variant: "destructive" });
     }
@@ -771,7 +862,7 @@ export default function DashboardPage() {
     if (!currentAseguradora?._id || !currentAjustador?.idAjustador || !editAjustadorData.nombre?.trim()) {
       toast({ title: "Error", description: "Datos de ajustador inválidos.", variant: "destructive" }); return;
     }
-    const {idAjustador, ...dataToUpdate} = editAjustadorData; // Quitar idAjustador del payload
+    const {idAjustador, ...dataToUpdate} = editAjustadorData; 
     const result = await updateAjustadorInAseguradoraAction(currentAseguradora._id, currentAjustador.idAjustador, dataToUpdate);
     if (result.success) {
       toast({ title: "Éxito", description: "Ajustador actualizado." });
@@ -830,10 +921,9 @@ export default function DashboardPage() {
       setEditEmpleadoData({
         nombre: emp.nombre, puesto: emp.puesto, telefono: emp.telefono, correo: emp.correo,
         sueldo: emp.sueldo, comision: emp.comision,
-        // Para la UI, si tiene usuario, poblamos los campos de sistema (sin contraseña)
         systemUserUsuario: emp.user?.usuario,
         systemUserRol: emp.user?.rol,
-        createSystemUser: !!emp.user, // Marcar si ya tiene usuario
+        createSystemUser: !!emp.user, 
       });
       setIsEditEmpleadoDialogOpen(true);
     } else {
@@ -851,11 +941,10 @@ export default function DashboardPage() {
     const empleadoUpdate: Partial<Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>> = { nombre, puesto, ...restData };
     let systemUserUpdate: Partial<Omit<SystemUserCredentials, 'permisos' | '_id' | 'contraseña'>> & { contraseña?: string } | undefined = undefined;
 
-    // Si se quiere crear/modificar el usuario del sistema
     if (createSystemUser || (currentEmpleadoToEdit.user && (systemUserUsuario || systemUserRol || newSystemUserContraseña))) {
         systemUserUpdate = {};
-        if (systemUserUsuario) systemUserUpdate.usuario = systemUserUsuario; // Asumiendo que esto es editable
-        if (systemUserRol) systemUserUpdate.rol = systemUserRol; // Asumiendo que esto es editable
+        if (systemUserUsuario && currentEmpleadoToEdit.user?.usuario !== systemUserUsuario) systemUserUpdate.usuario = systemUserUsuario;
+        if (systemUserRol && currentEmpleadoToEdit.user?.rol !== systemUserRol) systemUserUpdate.rol = systemUserRol;
 
         if (newSystemUserContraseña) {
             if (newSystemUserContraseña !== newSystemUserConfirmContraseña) {
@@ -888,8 +977,7 @@ export default function DashboardPage() {
     const result = await removeSystemUserFromEmpleadoAction(empleadoIdToRemoveAccess);
     if (result.success) {
         toast({ title: "Éxito", description: result.message });
-        fetchEmpleados(); // Recargar lista
-        // Si el empleado actual editado es el afectado, actualizar su estado en UI
+        fetchEmpleados(); 
         if (currentEmpleadoToEdit?._id === empleadoIdToRemoveAccess) {
             setCurrentEmpleadoToEdit(prev => prev ? ({ ...prev, user: undefined }) : null);
             setEditEmpleadoData(prev => ({ ...prev, systemUserUsuario: undefined, systemUserRol: undefined, createSystemUser: false }));
@@ -901,9 +989,9 @@ export default function DashboardPage() {
 
   // --- Funciones Auxiliares de Formateo ---
   /**
-   * Formatea una fecha a un string legible 'dd/mm/yyyy'.
+   * Formatea una fecha a un string legible 'dd/MM/yyyy' o 'yyyy-MM-dd'.
    * @param dateInput Fecha como Date, string o número.
-   * @param format String de formato deseado (ej: 'dd/MM/yyyy', 'yyyy-MM-dd').
+   * @param format String de formato deseado ('dd/MM/yyyy' o 'yyyy-MM-dd').
    * @returns String de la fecha formateada o string vacío si la entrada es inválida.
    */
   const formatDate = (dateInput?: Date | string | number, format: 'dd/MM/yyyy' | 'YYYY-MM-DD' = 'dd/MM/yyyy'): string => {
@@ -911,12 +999,12 @@ export default function DashboardPage() {
     try {
       let date;
       if (typeof dateInput === 'string') {
-        // Si es YYYY-MM-DD, necesita ajuste de zona horaria para evitar día anterior
+        // Si es YYYY-MM-DD, se asume UTC para evitar problemas de un día antes/después por zona horaria local.
+        // La conversión a Date local se hará al final si es necesario.
         if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-          const [year, month, day] = dateInput.split('-').map(Number);
-          date = new Date(year, month - 1, day); // Mes es 0-indexado
+          date = new Date(dateInput + 'T00:00:00Z'); // Interpretar como UTC
         } else {
-          date = new Date(dateInput);
+          date = new Date(dateInput); // Intentar parseo normal para otros formatos
         }
       } else {
         date = new Date(dateInput);
@@ -925,13 +1013,15 @@ export default function DashboardPage() {
       if (isNaN(date.getTime())) return ''; // Fecha inválida
 
       if (format === 'YYYY-MM-DD') {
+        // Para input type="date", necesitamos el formato YYYY-MM-DD en la zona horaria local del navegador.
+        // getFullYear, getMonth, getDate usan la zona horaria local.
         const year = date.getFullYear();
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
         const day = date.getDate().toString().padStart(2, '0');
         return `${year}-${month}-${day}`;
       }
-      // Por defecto 'dd/MM/yyyy'
-      return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      // Por defecto 'dd/MM/yyyy', usando la zona horaria local.
+      return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
     } catch (error) {
       console.error("Error formateando fecha:", dateInput, error);
       return '';
@@ -948,7 +1038,7 @@ export default function DashboardPage() {
     try {
       const date = new Date(dateInput);
       if (isNaN(date.getTime())) return '';
-      return date.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+      return date.toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: 'UTC' });
     } catch (error) {
       console.error("Error formateando fecha y hora:", dateInput, error);
       return '';
@@ -959,9 +1049,9 @@ export default function DashboardPage() {
   const getProcesoVariant = (proceso?: Order['proceso']): "default" | "secondary" | "outline" | "destructive" => {
     switch (proceso) {
       case 'pendiente': return 'default';
-      case 'entregado': case 'facturado': return 'secondary'; // Usar un color que indique completado
+      case 'entregado': case 'facturado': return 'secondary'; 
       case 'cancelado': return 'destructive';
-      default: return 'outline'; // Para procesos intermedios
+      default: return 'outline'; 
     }
   };
 
@@ -976,7 +1066,13 @@ export default function DashboardPage() {
     { value: 'entregado', label: 'Entregado' }, { value: 'facturado', label: 'Facturado' },
     { value: 'garantia', label: 'Garantía' }, { value: 'cancelado', label: 'Cancelado' },
   ];
+  /** Opciones para el select de rol de usuario. */
   const userRoleOptions = Object.values(UserRole).map(role => ({ value: role, label: role.charAt(0).toUpperCase() + role.slice(1) }));
+  /** Opciones para el select de Asegurado/Tercero. */
+  const aseguradoTerceroOptions: {value: string; label: string}[] = [
+    {value: 'true', label: 'Asegurado'},
+    {value: 'false', label: 'Tercero'},
+  ];
   
   /**
    * Renderiza un campo de formulario (Input, Select, Textarea, Checkbox) para un diálogo.
@@ -1032,8 +1128,8 @@ export default function DashboardPage() {
           <Textarea id={name} name={name} placeholder={placeholder} value={value || ''} onChange={handleChange} disabled={isDisabled} className="mt-1 w-full" />
         ) : type === 'checkbox' ? (
            <div className="flex items-center space-x-2 mt-1">
-             <Checkbox id={name} name={name} checked={!!value} onCheckedChange={handleCheckbox} disabled={isDisabled} />
-             {/* Label para checkbox se maneja externamente si es necesario, o se puede integrar aquí */}
+             <Checkbox id={name} name={name} checked={!!value} onCheckedChange={(checked) => handleCheckbox(checked as boolean)} disabled={isDisabled} />
+             {/* Label para checkbox se maneja externamente */}
            </div>
         ) : (
           <Input id={name} name={name} type={type} placeholder={placeholder} value={value || ''} onChange={handleChange} disabled={isDisabled} className="mt-1 w-full" />
@@ -1044,13 +1140,12 @@ export default function DashboardPage() {
 
 
   // --- Lógica de Renderizado del Componente ---
-  // Si no hay userName o userRole válidos, muestra "Cargando..."
-  if (!userName || !userRole || (userRole && !Object.values(UserRole).includes(userRole))) {
-    console.log("DashboardPage: userName o userRole faltan o son inválidos. Mostrando 'Cargando...' Detalles:", { userName, userRole });
+  if (!userName || !userRole) {
+    console.log("DashboardPage: userName o userRole faltan. Mostrando 'Cargando...' Detalles:", { userName, userRole });
     return <div className="flex min-h-screen items-center justify-center bg-background"><p>Cargando...</p></div>;
   }
 
-  // Datos de ejemplo para Citas y Almacén (a reemplazar con datos reales)
+  // Datos de ejemplo para Citas y Almacén
   const dummyCitas = [
     { id: 1, fecha: new Date(), cliente: "Juan Pérez", vehiculo: "Toyota Corolla", servicio: "Cambio de aceite", estado: "Confirmada" },
     { id: 2, fecha: new Date(new Date().setDate(new Date().getDate() + 1)), cliente: "Ana Gómez", vehiculo: "Honda CRV", servicio: "Revisión frenos", estado: "Pendiente" },
@@ -1058,10 +1153,8 @@ export default function DashboardPage() {
   const inventoryItems = [
     { id: 'REF001', name: 'Filtro de Aceite X', quantity: 15, category: 'Filtros', location: 'Estante A-1' },
     { id: 'REF002', name: 'Pastillas de Freno Y', quantity: 8, category: 'Frenos', location: 'Estante B-3' },
-    { id: 'PNT001', name: 'Pintura Roja Z', quantity: 5, category: 'Pinturas', location: 'Almacén Pintura' },
   ];
   
-  // Determina las clases para la lista de pestañas principal basado en si el rol es ADMIN.
   const mainTabsListClassName = userRole === UserRole.ADMIN ? 
     "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" : 
     "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted";
@@ -1075,7 +1168,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold text-foreground">Panel del Taller Automotriz</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:inline">
-              Bienvenido, <span className="font-medium text-foreground">{userName} ({empleadoId?.substring(0,8)}..., Rol: {userRole})</span>
+              Bienvenido, <span className="font-medium text-foreground">{userName} ({empleadoId?.substring(0,8)}... Rol: {userRole})</span>
             </span>
             <Button onClick={handleLogout} variant="outline" size="sm"><LogOut className="mr-2 h-4 w-4" />Cerrar Sesión</Button>
           </div>
@@ -1110,7 +1203,6 @@ export default function DashboardPage() {
                 <Button size="sm" className="mb-4"><PlusCircle className="mr-2 h-4 w-4" /> Nueva Cita</Button>
                 <div className="rounded-md border bg-background p-4">
                   <p className="text-center text-muted-foreground">Calendario de citas (funcionalidad pendiente)...</p>
-                  {/* Aquí iría un componente de calendario más interactivo */}
                   <Table>
                     <TableHeader><TableRow><TableHead>ID</TableHead><TableHead>Fecha</TableHead><TableHead>Cliente</TableHead><TableHead>Vehículo</TableHead><TableHead>Servicio</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
                     <TableBody>
@@ -1228,77 +1320,113 @@ export default function DashboardPage() {
 
       {/* --- Diálogos para Órdenes de Servicio --- */}
       <Dialog open={isCreateOrderDialogOpen} onOpenChange={setIsCreateOrderDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto"> {/* Aumentado el ancho */}
           <DialogHeader><DialogTitle>Crear Nueva Orden de Servicio</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-            {renderDialogField("Cliente", "idCliente", "select", "Seleccionar cliente...", "newOrder", clients.map(c=>({value: c._id!, label: c.nombre || c.razonSocial || `Cliente ID: ${c.idCliente}`})), false, false, true)}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4"> {/* Más columnas para mejor distribución */}
+            {/* Cliente */}
+            {renderDialogField("Cliente", "idCliente", "select", "Seleccionar cliente...", "newOrder", clients.map(c=>({value: c._id!, label: `${c.nombre || c.razonSocial || 'N/A'} (ID: ${c.idCliente || c._id.substring(0,6)}...)`})), false, false, true)}
+            
+            {/* Datos Aseguradora */}
+            {renderDialogField("Aseguradora", "idAseguradora", "select", "Seleccionar aseguradora...", "newOrder", aseguradoras.map(a=>({value: a._id, label: a.nombre})))}
+            {renderDialogField("Ajustador", "idAjustador", "select", "Seleccionar ajustador...", "newOrder", availableAjustadoresForOrder.map(aj => ({value: aj.idAjustador, label: aj.nombre})) )}
+            {renderDialogField("No. Siniestro", "siniestro", "text", "Ej: 12345", "newOrder")}
+            {renderDialogField("No. Póliza", "poliza", "text", "Ej: 98765", "newOrder")}
+            {renderDialogField("Folio Aseguradora", "folio", "text", "Ej: XYZ789", "newOrder")}
+            {renderDialogField("Deducible ($)", "deducible", "number", "Ej: 5000", "newOrder")}
+            {renderDialogField("Asegurado/Tercero", "aseguradoTercero", "select", "Seleccionar tipo...", "newOrder", aseguradoTerceroOptions, false, false, true)}
+            
+            {/* Datos Vehículo */}
             {renderDialogField("Marca", "idMarca", "select", "Seleccionar marca...", "newOrder", marcas.map(m=>({value: m._id, label: m.marca})), false, false, true)}
-            {renderDialogField("Modelo (ID Numérico)", "idModelo", "number", "Ej: 1 (ID del modelo)", "newOrder")}
+            {renderDialogField("Modelo", "idModelo", "select", "Seleccionar modelo...", "newOrder", availableModelosForOrder.map(mod => ({value: mod.idModelo, label: mod.modelo})), false, !newOrderData.idMarca)} {/* Deshabilitado si no hay marca */}
             {renderDialogField("Año", "año", "number", "Ej: 2020", "newOrder")}
             {renderDialogField("Placas", "placas", "text", "Ej: ABC-123", "newOrder")}
             {renderDialogField("Color", "color", "text", "Ej: Rojo", "newOrder")}
             {renderDialogField("VIN", "vin", "text", "Número de Identificación Vehicular", "newOrder")}
             {renderDialogField("Kilometraje", "kilometraje", "text", "Ej: 55000", "newOrder")}
-            {renderDialogField("Aseguradora", "idAseguradora", "select", "Seleccionar aseguradora...", "newOrder", aseguradoras.map(a=>({value: a._id, label: a.nombre})))}
-            {renderDialogField("Ajustador (ID de Ajustador)", "ajustador", "select", "Seleccionar ajustador...", "newOrder", availableAjustadoresForOrder.map(aj => ({value: aj.idAjustador, label: aj.nombre})) )}
-            {renderDialogField("No. Siniestro", "siniestro", "text", "Ej: 12345", "newOrder")}
-            {renderDialogField("No. Póliza", "poliza", "text", "Ej: 98765", "newOrder")}
-            {renderDialogField("Folio", "folio", "text", "Ej: XYZ789", "newOrder")}
-            {renderDialogField("Deducible ($)", "deducible", "number", "Ej: 5000", "newOrder")}
-            {renderDialogField("Tipo", "aseguradoTercero", "select", "Asegurado o Tercero", "newOrder", [{value: 'asegurado', label: 'Asegurado'}, {value: 'tercero', label: 'Tercero'}])}
-            <div className="md:col-span-2 grid grid-cols-2 gap-4">
-              {renderDialogField("¿Piso?", "piso", "checkbox", undefined, "newOrder")}
-              {renderDialogField("¿Grúa?", "grua", "checkbox", undefined, "newOrder")}
+            
+            {/* Detalles de la Orden */}
+            <div className="col-span-1 md:col-span-2 lg:col-span-3 grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="newOrder_piso" name="piso" checked={!!newOrderData.piso} onCheckedChange={(checked) => handleOrderCheckboxChange('piso', checked as boolean, 'new')} />
+                    <Label htmlFor="newOrder_piso">¿Piso?</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="newOrder_grua" name="grua" checked={!!newOrderData.grua} onCheckedChange={(checked) => handleOrderCheckboxChange('grua', checked as boolean, 'new')} />
+                    <Label htmlFor="newOrder_grua">¿Grúa?</Label>
+                </div>
             </div>
-            {renderDialogField("URL Archivos", "urlArchivos", "text", "Link a carpeta de fotos/documentos", "newOrder")}
-            {renderDialogField("Proceso", "proceso", "select", "Seleccionar proceso...", "newOrder", procesoOptions, false, false, true)}
+            {renderDialogField("URL Archivos", "urlArchivos", "text", "Link a carpeta de fotos/documentos", "newOrder", undefined, false, false, false, "col-span-1 md:col-span-2 lg:col-span-3")} {/* Ocupa más espacio */}
+            {renderDialogField("Proceso Inicial", "proceso", "select", "Seleccionar proceso...", "newOrder", procesoOptions, false, false, true)}
+            
+            {/* Personal Asignado */}
             {renderDialogField("Asesor", "idAsesor", "select", "Seleccionar asesor...", "newOrder", asesores.map(a=>({value: a._id, label: a.nombre})),false, userRole === UserRole.ASESOR, true)}
             {renderDialogField("Valuador", "idValuador", "select", "Seleccionar valuador...", "newOrder", valuadores.map(v=>({value: v._id, label: v.nombre})))}
             {renderDialogField("Hojalatero", "idHojalatero", "select", "Seleccionar hojalatero...", "newOrder", hojalateros.map(h=>({value: h._id, label: h.nombre})))}
             {renderDialogField("Pintor", "idPintor", "select", "Seleccionar pintor...", "newOrder", pintores.map(p=>({value: p._id, label: p.nombre})))}
+            
+            {/* Fechas */}
             {renderDialogField("Fecha Valuación", "fechaValuacion", "date", undefined, "newOrder")}
-            {renderDialogField("Fecha Reingreso", "fechaRengreso", "date", undefined, "newOrder")}
+            {renderDialogField("Fecha Reingreso", "fechaReingreso", "date", undefined, "newOrder")}
             {renderDialogField("Fecha Promesa", "fechaPromesa", "date", undefined, "newOrder")}
             {renderDialogField("Fecha Entrega", "fechaEntrega", "date", undefined, "newOrder")}
+            {renderDialogField("Fecha Baja", "fechaBaja", "date", undefined, "newOrder")}
           </div>
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateOrder}>Crear Orden</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isEditOrderDialogOpen} onOpenChange={(open) => { setIsEditOrderDialogOpen(open); if (!open) setCurrentOrder(null); }}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={isEditOrderDialogOpen} onOpenChange={(open) => { setIsEditOrderDialogOpen(open); if (!open) { setCurrentOrder(null); setAvailableAjustadoresForOrder([]); setAvailableModelosForOrder([]);} }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto"> {/* Aumentado el ancho */}
           <DialogHeader><DialogTitle>Editar Orden de Servicio: OT-{currentOrder?.idOrder}</DialogTitle></DialogHeader>
           {currentOrder && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-              {renderDialogField("Cliente", "idCliente", "select", "Seleccionar cliente...", "editOrder", clients.map(c=>({value: c._id!, label: c.nombre || c.razonSocial || `Cliente ID: ${c.idCliente}`})), false, false, true)}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 py-4"> {/* Más columnas */}
+              {/* Cliente */}
+              {renderDialogField("Cliente", "idCliente", "select", "Seleccionar cliente...", "editOrder", clients.map(c=>({value: c._id!, label: `${c.nombre || c.razonSocial || 'N/A'} (ID: ${c.idCliente || c._id.substring(0,6)}...)`})), false, false, true)}
+              
+              {/* Datos Aseguradora */}
+              {renderDialogField("Aseguradora", "idAseguradora", "select", "Seleccionar aseguradora...", "editOrder", aseguradoras.map(a=>({value: a._id, label: a.nombre})))}
+              {renderDialogField("Ajustador", "idAjustador", "select", "Seleccionar ajustador...", "editOrder", availableAjustadoresForOrder.map(aj => ({value: aj.idAjustador, label: aj.nombre})), false, !editOrderData.idAseguradora )}
+              {renderDialogField("No. Siniestro", "siniestro", "text", "Ej: 12345", "editOrder")}
+              {renderDialogField("No. Póliza", "poliza", "text", "Ej: 98765", "editOrder")}
+              {renderDialogField("Folio Aseguradora", "folio", "text", "Ej: XYZ789", "editOrder")}
+              {renderDialogField("Deducible ($)", "deducible", "number", "Ej: 5000", "editOrder")}
+              {renderDialogField("Asegurado/Tercero", "aseguradoTercero", "select", "Seleccionar tipo...", "editOrder", aseguradoTerceroOptions, false, false, true)}
+
+              {/* Datos Vehículo */}
               {renderDialogField("Marca", "idMarca", "select", "Seleccionar marca...", "editOrder", marcas.map(m=>({value: m._id, label: m.marca})), false, false, true)}
-              {renderDialogField("Modelo (ID Numérico)", "idModelo", "number", "Ej: 1", "editOrder")}
+              {renderDialogField("Modelo", "idModelo", "select", "Seleccionar modelo...", "editOrder", availableModelosForOrder.map(mod => ({value: mod.idModelo, label: mod.modelo})), false, !editOrderData.idMarca)}
               {renderDialogField("Año", "año", "number", "Ej: 2020", "editOrder")}
               {renderDialogField("Placas", "placas", "text", "Ej: ABC-123", "editOrder")}
               {renderDialogField("Color", "color", "text", "Ej: Rojo", "editOrder")}
               {renderDialogField("VIN", "vin", "text", "Número de Identificación Vehicular", "editOrder")}
               {renderDialogField("Kilometraje", "kilometraje", "text", "Ej: 55000", "editOrder")}
-              {renderDialogField("Aseguradora", "idAseguradora", "select", "Seleccionar aseguradora...", "editOrder", aseguradoras.map(a=>({value: a._id, label: a.nombre})))}
-              {renderDialogField("Ajustador (ID de Ajustador)", "ajustador", "select", "Seleccionar ajustador...", "editOrder", availableAjustadoresForOrder.map(aj => ({value: aj.idAjustador, label: aj.nombre})) )}
-              {renderDialogField("No. Siniestro", "siniestro", "text", "Ej: 12345", "editOrder")}
-              {renderDialogField("No. Póliza", "poliza", "text", "Ej: 98765", "editOrder")}
-              {renderDialogField("Folio", "folio", "text", "Ej: XYZ789", "editOrder")}
-              {renderDialogField("Deducible ($)", "deducible", "number", "Ej: 5000", "editOrder")}
-              {renderDialogField("Tipo", "aseguradoTercero", "select", "Asegurado o Tercero", "editOrder", [{value: 'asegurado', label: 'Asegurado'}, {value: 'tercero', label: 'Tercero'}])}
-              <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                {renderDialogField("¿Piso?", "piso", "checkbox", undefined, "editOrder")}
-                {renderDialogField("¿Grúa?", "grua", "checkbox", undefined, "editOrder")}
+
+              {/* Detalles de la Orden */}
+              <div className="col-span-1 md:col-span-2 lg:col-span-3 grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="editOrder_piso" name="piso" checked={!!editOrderData.piso} onCheckedChange={(checked) => handleOrderCheckboxChange('piso', checked as boolean, 'edit')} />
+                    <Label htmlFor="editOrder_piso">¿Piso?</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="editOrder_grua" name="grua" checked={!!editOrderData.grua} onCheckedChange={(checked) => handleOrderCheckboxChange('grua', checked as boolean, 'edit')} />
+                    <Label htmlFor="editOrder_grua">¿Grúa?</Label>
+                </div>
               </div>
-              {renderDialogField("URL Archivos", "urlArchivos", "text", "Link a carpeta de fotos/documentos", "editOrder")}
+              {renderDialogField("URL Archivos", "urlArchivos", "text", "Link a carpeta de fotos/documentos", "editOrder", undefined, false, false, false, "col-span-1 md:col-span-2 lg:col-span-3")}
               {renderDialogField("Proceso", "proceso", "select", "Seleccionar proceso...", "editOrder", procesoOptions, false, false, true)}
-              {renderDialogField("Asesor", "idAsesor", "select", "Seleccionar asesor...", "editOrder", asesores.map(a=>({value: a._id, label: a.nombre})), false, userRole === UserRole.ASESOR && currentOrder?.idAsesor === empleadoId, true)}
+
+              {/* Personal Asignado */}
+              {renderDialogField("Asesor", "idAsesor", "select", "Seleccionar asesor...", "editOrder", asesores.map(a=>({value: a._id, label: a.nombre})),false, userRole === UserRole.ASESOR && currentOrder?.idAsesor === empleadoId, true)}
               {renderDialogField("Valuador", "idValuador", "select", "Seleccionar valuador...", "editOrder", valuadores.map(v=>({value: v._id, label: v.nombre})))}
               {renderDialogField("Hojalatero", "idHojalatero", "select", "Seleccionar hojalatero...", "editOrder", hojalateros.map(h=>({value: h._id, label: h.nombre})))}
               {renderDialogField("Pintor", "idPintor", "select", "Seleccionar pintor...", "editOrder", pintores.map(p=>({value: p._id, label: p.nombre})))}
+              
+              {/* Fechas */}
               {renderDialogField("Fecha Valuación", "fechaValuacion", "date", undefined, "editOrder")}
-              {renderDialogField("Fecha Reingreso", "fechaRengreso", "date", undefined, "editOrder")}
+              {renderDialogField("Fecha Reingreso", "fechaReingreso", "date", undefined, "editOrder")}
               {renderDialogField("Fecha Promesa", "fechaPromesa", "date", undefined, "editOrder")}
               {renderDialogField("Fecha Entrega", "fechaEntrega", "date", undefined, "editOrder")}
+              {renderDialogField("Fecha Baja", "fechaBaja", "date", undefined, "editOrder")}
             </div>
           )}
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleUpdateOrder}>Actualizar Orden</Button></DialogFooter>
@@ -1310,57 +1438,96 @@ export default function DashboardPage() {
           <DialogHeader><DialogTitle>Detalles de Orden: OT-{currentOrder?.idOrder}</DialogTitle></DialogHeader>
           {currentOrder && (
             <div className="space-y-4 py-4 text-sm">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <div><strong>Cliente:</strong> {clients.find(c => c._id === currentOrder.idCliente)?.nombre || currentOrder.idCliente || 'N/A'}</div>
-                <div><strong>Vehículo:</strong> {marcas.find(m => m._id === currentOrder.idMarca)?.marca} {currentOrder.idModelo} ({currentOrder.año})</div>
-                <div><strong>Placas:</strong> {currentOrder.placas || 'N/A'}</div>
-                <div><strong>Color:</strong> {currentOrder.color || 'N/A'}</div>
-                <div><strong>VIN:</strong> {currentOrder.vin || 'N/A'}</div>
-                <div><strong>Kilometraje:</strong> {currentOrder.kilometraje || 'N/A'}</div>
-              </div>
-              <hr />
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <div><strong>Aseguradora:</strong> {aseguradoras.find(a => a._id === currentOrder.idAseguradora)?.nombre || 'N/A'}</div>
-                <div><strong>Ajustador:</strong> {(aseguradoras.find(a => a._id === currentOrder.idAseguradora)?.ajustadores?.find(aj => aj.idAjustador === currentOrder.ajustador)?.nombre) || currentOrder.ajustador || 'N/A'}</div>
-                <div><strong>Siniestro:</strong> {currentOrder.siniestro || 'N/A'}</div>
-                <div><strong>Póliza:</strong> {currentOrder.poliza || 'N/A'}</div>
-                <div><strong>Folio:</strong> {currentOrder.folio || 'N/A'}</div>
-                <div><strong>Deducible:</strong> ${currentOrder.deducible?.toLocaleString() || '0.00'}</div>
-                <div><strong>Tipo:</strong> {currentOrder.aseguradoTercero || 'N/A'}</div>
-              </div>
-              <hr />
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <div><strong>Piso:</strong> {currentOrder.piso ? 'Sí' : 'No'}</div>
-                <div><strong>Grúa:</strong> {currentOrder.grua ? 'Sí' : 'No'}</div>
-                <div><strong>Proceso:</strong> {procesoOptions.find(p=>p.value === currentOrder.proceso)?.label || currentOrder.proceso}</div>
-                <div><strong>URL Archivos:</strong> {currentOrder.urlArchivos ? <a href={currentOrder.urlArchivos} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Archivos</a> : 'N/A'}</div>
-              </div>
-              <hr />
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <div><strong>Asesor:</strong> {asesores.find(e => e._id === currentOrder.idAsesor)?.nombre || 'N/A'}</div>
-                <div><strong>Valuador:</strong> {valuadores.find(e => e._id === currentOrder.idValuador)?.nombre || 'N/A'}</div>
-                <div><strong>Hojalatero:</strong> {hojalateros.find(e => e._id === currentOrder.idHojalatero)?.nombre || 'N/A'}</div>
-                <div><strong>Pintor:</strong> {pintores.find(e => e._id === currentOrder.idPintor)?.nombre || 'N/A'}</div>
-              </div>
-              <hr />
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <div><strong>Fecha Registro:</strong> {formatDate(currentOrder.fechaRegistro)}</div>
-                <div><strong>Fecha Valuación:</strong> {currentOrder.fechaValuacion ? formatDate(currentOrder.fechaValuacion) : 'N/A'}</div>
-                <div><strong>Fecha Reingreso:</strong> {currentOrder.fechaRengreso ? formatDate(currentOrder.fechaRengreso) : 'N/A'}</div>
-                <div><strong>Fecha Promesa:</strong> {currentOrder.fechaPromesa ? formatDate(currentOrder.fechaPromesa) : 'N/A'}</div>
-                <div><strong>Fecha Entrega:</strong> {currentOrder.fechaEntrega ? formatDate(currentOrder.fechaEntrega) : 'N/A'}</div>
-              </div>
-              {currentOrder.log && currentOrder.log.length > 0 && (<>
-                <hr />
-                <div><strong>Historial de Cambios:</strong></div>
-                <ul className="list-disc pl-5 space-y-1 max-h-40 overflow-y-auto">
-                  {currentOrder.log.map((entry, index) => (
-                    <li key={index}>
-                      {formatDateTime(entry.timestamp)} - {empleadosList.find(e => e._id === entry.userId)?.nombre || entry.userId || 'Sistema'}: {entry.action} {entry.details && `(${entry.details})`}
-                    </li>
-                  ))}
-                </ul>
-              </>)}
+              {/* Sección Cliente y Vehículo */}
+              <Card><CardHeader><CardTitle className="text-base">Cliente y Vehículo</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div><strong>Cliente:</strong> {clients.find(c => c._id === currentOrder.idCliente)?.nombre || currentOrder.idCliente || 'N/A'}</div>
+                  <div><strong>Marca:</strong> {marcas.find(m => m._id === currentOrder.idMarca)?.marca || 'N/A'}</div>
+                  <div><strong>Modelo:</strong> {(marcas.find(m => m._id === currentOrder.idMarca)?.modelos?.find(mod => mod.idModelo === currentOrder.idModelo)?.modelo) || currentOrder.idModelo || 'N/A'}</div>
+                  <div><strong>Año:</strong> {currentOrder.año || 'N/A'}</div>
+                  <div><strong>Placas:</strong> {currentOrder.placas || 'N/A'}</div>
+                  <div><strong>Color:</strong> {currentOrder.color || 'N/A'}</div>
+                  <div><strong>VIN:</strong> {currentOrder.vin || 'N/A'}</div>
+                  <div><strong>Kilometraje:</strong> {currentOrder.kilometraje || 'N/A'}</div>
+                </CardContent>
+              </Card>
+
+              {/* Sección Aseguradora */}
+              <Card><CardHeader><CardTitle className="text-base">Datos de Aseguradora</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div><strong>Aseguradora:</strong> {aseguradoras.find(a => a._id === currentOrder.idAseguradora)?.nombre || 'N/A'}</div>
+                  <div><strong>Ajustador:</strong> {(aseguradoras.find(a => a._id === currentOrder.idAseguradora)?.ajustadores?.find(aj => aj.idAjustador === currentOrder.idAjustador)?.nombre) || currentOrder.idAjustador || 'N/A'}</div>
+                  <div><strong>Siniestro:</strong> {currentOrder.siniestro || 'N/A'}</div>
+                  <div><strong>Póliza:</strong> {currentOrder.poliza || 'N/A'}</div>
+                  <div><strong>Folio:</strong> {currentOrder.folio || 'N/A'}</div>
+                  <div><strong>Deducible:</strong> ${currentOrder.deducible?.toLocaleString() || '0.00'}</div>
+                  <div><strong>Tipo:</strong> {currentOrder.aseguradoTercero ? 'Asegurado' : 'Tercero'}</div>
+                </CardContent>
+              </Card>
+
+              {/* Sección Detalles de la Orden */}
+              <Card><CardHeader><CardTitle className="text-base">Detalles de la Orden</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div><strong>Proceso:</strong> {procesoOptions.find(p=>p.value === currentOrder.proceso)?.label || currentOrder.proceso}</div>
+                  <div><strong>Piso:</strong> {currentOrder.piso ? 'Sí' : 'No'}</div>
+                  <div><strong>Grúa:</strong> {currentOrder.grua ? 'Sí' : 'No'}</div>
+                  <div><strong>URL Archivos:</strong> {currentOrder.urlArchivos ? <a href={currentOrder.urlArchivos} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver Archivos</a> : 'N/A'}</div>
+                </CardContent>
+              </Card>
+              
+              {/* Sección Personal Asignado */}
+              <Card><CardHeader><CardTitle className="text-base">Personal Asignado</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div><strong>Asesor:</strong> {empleadosList.find(e => e._id === currentOrder.idAsesor)?.nombre || 'N/A'}</div>
+                  <div><strong>Valuador:</strong> {empleadosList.find(e => e._id === currentOrder.idValuador)?.nombre || 'N/A'}</div>
+                  <div><strong>Hojalatero:</strong> {empleadosList.find(e => e._id === currentOrder.idHojalatero)?.nombre || 'N/A'}</div>
+                  <div><strong>Pintor:</strong> {empleadosList.find(e => e._id === currentOrder.idPintor)?.nombre || 'N/A'}</div>
+                </CardContent>
+              </Card>
+
+              {/* Sección Fechas */}
+              <Card><CardHeader><CardTitle className="text-base">Fechas Importantes</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div><strong>Fecha Registro:</strong> {formatDate(currentOrder.fechaRegistro)}</div>
+                  <div><strong>Fecha Valuación:</strong> {currentOrder.fechaValuacion ? formatDate(currentOrder.fechaValuacion) : 'N/A'}</div>
+                  <div><strong>Fecha Reingreso:</strong> {currentOrder.fechaReingreso ? formatDate(currentOrder.fechaReingreso) : 'N/A'}</div>
+                  <div><strong>Fecha Promesa:</strong> {currentOrder.fechaPromesa ? formatDate(currentOrder.fechaPromesa) : 'N/A'}</div>
+                  <div><strong>Fecha Entrega:</strong> {currentOrder.fechaEntrega ? formatDate(currentOrder.fechaEntrega) : 'N/A'}</div>
+                  <div><strong>Fecha Baja:</strong> {currentOrder.fechaBaja ? formatDate(currentOrder.fechaBaja) : 'N/A'}</div>
+                </CardContent>
+              </Card>
+              
+              {/* Sección Presupuestos (Placeholder) */}
+              {currentOrder.presupuestos && currentOrder.presupuestos.length > 0 && (
+                <Card><CardHeader><CardTitle className="text-base">Resumen de Presupuesto</CardTitle></CardHeader>
+                  <CardContent>
+                    <ul className="list-disc pl-5 space-y-1 text-xs">
+                      {currentOrder.presupuestos.map((item, index) => (
+                        <li key={item._id || index}>
+                          {item.cantidad} x {item.concepto} - Proc: {item.procedimiento} (Pintura: {item.pintura ? 'Sí':'No'})
+                          {/* Aquí se podrían mostrar más detalles como precios si estuvieran disponibles */}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+
+              {/* Sección Historial de Cambios (Log) */}
+              {currentOrder.log && currentOrder.log.length > 0 && (
+                <Card><CardHeader><CardTitle className="text-base">Historial de Cambios</CardTitle></CardHeader>
+                  <CardContent>
+                    <ul className="list-disc pl-5 space-y-1 text-xs max-h-40 overflow-y-auto">
+                      {currentOrder.log.map((entry, index) => (
+                        <li key={index}>
+                          {formatDateTime(entry.timestamp)} - {empleadosList.find(e => e._id === entry.userId)?.nombre || entry.userId || 'Sistema'}: {entry.action}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
           <DialogFooter><DialogClose asChild><Button variant="outline">Cerrar</Button></DialogClose></DialogFooter>
@@ -1378,14 +1545,14 @@ export default function DashboardPage() {
       <Dialog open={isCreateMarcaDialogOpen} onOpenChange={setIsCreateMarcaDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Crear Nueva Marca</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">{renderDialogField("Nombre Marca", "marca", "text", "Ej: Toyota", "newMarca",undefined,false,false,false,true)}</div>
+          <div className="space-y-4 py-4">{renderDialogField("Nombre Marca", "marca", "text", "Ej: Toyota", "newMarca",undefined,false,false,true)}</div>
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateMarca}>Crear Marca</Button></DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog open={isEditMarcaDialogOpen} onOpenChange={(open) => { setIsEditMarcaDialogOpen(open); if (!open) setCurrentMarca(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Editar Marca: {currentMarca?.marca}</DialogTitle></DialogHeader>
-          {currentMarca && <div className="space-y-4 py-4">{renderDialogField("Nombre Marca", "marca", "text", "Ej: Toyota", "editMarca",undefined,false,false,false,true)}</div>}
+          {currentMarca && <div className="space-y-4 py-4">{renderDialogField("Nombre Marca", "marca", "text", "Ej: Toyota", "editMarca",undefined,false,false,true)}</div>}
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleUpdateMarca}>Actualizar Marca</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1415,7 +1582,7 @@ export default function DashboardPage() {
       <Dialog open={isCreateModeloDialogOpen} onOpenChange={(open) => {setIsCreateModeloDialogOpen(open); if(!open) setNewModeloData({ modelo: '' });}}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Añadir Nuevo Modelo a {currentMarca?.marca}</DialogTitle></DialogHeader>
-            <div className="space-y-4 py-4">{renderDialogField("Nombre Modelo", "modelo", "text", "Ej: Corolla", "newModelo",undefined,false,false,false,true)}</div>
+            <div className="space-y-4 py-4">{renderDialogField("Nombre Modelo", "modelo", "text", "Ej: Corolla", "newModelo",undefined,false,false,true)}</div>
             <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateModelo}>Añadir Modelo</Button></DialogFooter>
           </DialogContent>
       </Dialog>
@@ -1423,7 +1590,7 @@ export default function DashboardPage() {
       <Dialog open={isEditModeloDialogOpen} onOpenChange={(open) => { setIsEditModeloDialogOpen(open); if (!open) setCurrentModelo(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Editar Modelo: {currentModelo?.modelo}</DialogTitle></DialogHeader>
-            {currentModelo && (<div className="space-y-4 py-4">{renderDialogField("Nombre Modelo", "modelo", "text", "Ej: Corolla", "editModelo",undefined,false,false,false,true)}</div>)}
+            {currentModelo && (<div className="space-y-4 py-4">{renderDialogField("Nombre Modelo", "modelo", "text", "Ej: Corolla", "editModelo",undefined,false,false,true)}</div>)}
             <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleUpdateModelo}>Actualizar Modelo</Button></DialogFooter>
           </DialogContent>
       </Dialog>
@@ -1433,7 +1600,7 @@ export default function DashboardPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Crear Nueva Aseguradora</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            {renderDialogField("Nombre Aseguradora", "nombre", "text", "Ej: Quálitas", "newAseguradora",undefined,false,false,false,true)}
+            {renderDialogField("Nombre Aseguradora", "nombre", "text", "Ej: Quálitas", "newAseguradora",undefined,false,false,true)}
             {renderDialogField("Teléfono", "telefono", "text", "Ej: 5512345678", "newAseguradora")}
           </div>
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateAseguradora}>Crear Aseguradora</Button></DialogFooter>
@@ -1444,7 +1611,7 @@ export default function DashboardPage() {
           <DialogHeader><DialogTitle>Editar Aseguradora: {currentAseguradora?.nombre}</DialogTitle></DialogHeader>
           {currentAseguradora && (
             <div className="space-y-4 py-4">
-              {renderDialogField("Nombre Aseguradora", "nombre", "text", "Ej: Quálitas", "editAseguradora",undefined,false,false,false,true)}
+              {renderDialogField("Nombre Aseguradora", "nombre", "text", "Ej: Quálitas", "editAseguradora",undefined,false,false,true)}
               {renderDialogField("Teléfono", "telefono", "text", "Ej: 5512345678", "editAseguradora")}
             </div>
           )}
@@ -1478,7 +1645,7 @@ export default function DashboardPage() {
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Añadir Nuevo Ajustador a {currentAseguradora?.nombre}</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
-              {renderDialogField("Nombre Ajustador", "nombre", "text", "Ej: Juan Pérez", "newAjustador",undefined,false,false,false,true)}
+              {renderDialogField("Nombre Ajustador", "nombre", "text", "Ej: Juan Pérez", "newAjustador",undefined,false,false,true)}
               {renderDialogField("Teléfono", "telefono", "text", "Ej: 5587654321", "newAjustador")}
               {renderDialogField("Correo Electrónico", "correo", "email", "Ej: juan.perez@example.com", "newAjustador")}
             </div>
@@ -1491,7 +1658,7 @@ export default function DashboardPage() {
             <DialogHeader><DialogTitle>Editar Ajustador: {currentAjustador?.nombre}</DialogTitle></DialogHeader>
             {currentAjustador && (
             <div className="space-y-4 py-4">
-              {renderDialogField("Nombre Ajustador", "nombre", "text", "Ej: Juan Pérez", "editAjustador",undefined,false,false,false,true)}
+              {renderDialogField("Nombre Ajustador", "nombre", "text", "Ej: Juan Pérez", "editAjustador",undefined,false,false,true)}
               {renderDialogField("Teléfono", "telefono", "text", "Ej: 5587654321", "editAjustador")}
               {renderDialogField("Correo Electrónico", "correo", "email", "Ej: juan.perez@example.com", "editAjustador")}
             </div>)}
@@ -1504,23 +1671,25 @@ export default function DashboardPage() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Crear Nuevo Empleado</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            {renderDialogField("Nombre Completo", "nombre", "text", "Nombre del empleado", "newEmpleado", undefined, false, false, true)}
-            {renderDialogField("Puesto", "puesto", "text", "Puesto del empleado", "newEmpleado", undefined, false, false, true)}
-            {renderDialogField("Teléfono", "telefono", "text", "Número de teléfono", "newEmpleado")}
-            {renderDialogField("Correo Electrónico", "correo", "email", "Correo electrónico", "newEmpleado")}
-            {renderDialogField("Sueldo ($)", "sueldo", "number", "0.00", "newEmpleado")}
-            {renderDialogField("Comisión (%)", "comision", "number", "0", "newEmpleado")}
+            <div className="space-y-1">{renderDialogField("Nombre Completo", "nombre", "text", "Nombre del empleado", "newEmpleado", undefined, false, false, true)}</div>
+            <div className="space-y-1">{renderDialogField("Puesto", "puesto", "text", "Puesto del empleado", "newEmpleado", undefined, false, false, true)}</div>
+            <div className="space-y-1">{renderDialogField("Teléfono", "telefono", "text", "Número de teléfono", "newEmpleado")}</div>
+            <div className="space-y-1">{renderDialogField("Correo Electrónico", "correo", "email", "Correo electrónico", "newEmpleado")}</div>
+            <div className="space-y-1">{renderDialogField("Sueldo ($)", "sueldo", "number", "0.00", "newEmpleado")}</div>
+            <div className="space-y-1">{renderDialogField("Comisión (%)", "comision", "number", "0", "newEmpleado")}</div>
+            
             <div className="flex items-center space-x-2 pt-2">
-              {renderDialogField("", "createSystemUser", "checkbox", undefined, "newEmpleado")}
-              <Label htmlFor="createSystemUser" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Crear acceso al sistema</Label>
+              <Checkbox id="newEmpleado_createSystemUser" name="createSystemUser" checked={!!newEmpleadoData.createSystemUser} onCheckedChange={(checked) => handleCheckboxChangeGeneric('createSystemUser', checked as boolean, setNewEmpleadoData)} />
+              <Label htmlFor="newEmpleado_createSystemUser" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Crear acceso al sistema</Label>
             </div>
+
             {newEmpleadoData.createSystemUser && (
               <>
                 <hr className="my-3"/>
-                {renderDialogField("Nombre de Usuario (sistema)", "systemUserUsuario", "text", "usuario_sistema", "newEmpleado",undefined,false,false,true)}
-                {renderDialogField("Contraseña (sistema)", "systemUserContraseña", "password", "••••••••", "newEmpleado",undefined,false,false,true)}
-                {renderDialogField("Confirmar Contraseña", "systemUserConfirmContraseña", "password", "••••••••", "newEmpleado",undefined,false,false,true)}
-                {renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol...", "newEmpleado", userRoleOptions,false,false,true)}
+                <div className="space-y-1">{renderDialogField("Nombre de Usuario (sistema)", "systemUserUsuario", "text", "usuario_sistema", "newEmpleado",undefined,false,false,true)}</div>
+                <div className="space-y-1">{renderDialogField("Contraseña (sistema)", "systemUserContraseña", "password", "••••••••", "newEmpleado",undefined,false,false,true)}</div>
+                <div className="space-y-1">{renderDialogField("Confirmar Contraseña", "systemUserConfirmContraseña", "password", "••••••••", "newEmpleado",undefined,false,false,true)}</div>
+                <div className="space-y-1">{renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol...", "newEmpleado", userRoleOptions,false,false,true)}</div>
               </>
             )}
           </div>
@@ -1532,38 +1701,38 @@ export default function DashboardPage() {
           <DialogHeader><DialogTitle>Editar Empleado: {currentEmpleadoToEdit?.nombre}</DialogTitle></DialogHeader>
           {currentEmpleadoToEdit && (
             <div className="space-y-4 py-4">
-              {renderDialogField("Nombre Completo", "nombre", "text", undefined, "editEmpleado",undefined,false,false,true)}
-              {renderDialogField("Puesto", "puesto", "text", undefined, "editEmpleado",undefined,false,false,true)}
-              {renderDialogField("Teléfono", "telefono", "text", undefined, "editEmpleado")}
-              {renderDialogField("Correo Electrónico", "correo", "email", undefined, "editEmpleado")}
-              {renderDialogField("Sueldo ($)", "sueldo", "number", undefined, "editEmpleado")}
-              {renderDialogField("Comisión (%)", "comision", "number", undefined, "editEmpleado")}
+              <div className="space-y-1">{renderDialogField("Nombre Completo", "nombre", "text", undefined, "editEmpleado",undefined,false,false,true)}</div>
+              <div className="space-y-1">{renderDialogField("Puesto", "puesto", "text", undefined, "editEmpleado",undefined,false,false,true)}</div>
+              <div className="space-y-1">{renderDialogField("Teléfono", "telefono", "text", undefined, "editEmpleado")}</div>
+              <div className="space-y-1">{renderDialogField("Correo Electrónico", "correo", "email", undefined, "editEmpleado")}</div>
+              <div className="space-y-1">{renderDialogField("Sueldo ($)", "sueldo", "number", undefined, "editEmpleado")}</div>
+              <div className="space-y-1">{renderDialogField("Comisión (%)", "comision", "number", undefined, "editEmpleado")}</div>
               
               <hr className="my-3"/>
               {currentEmpleadoToEdit.user ? (
                 <>
                   <p className="text-sm font-medium text-muted-foreground">Acceso al Sistema:</p>
-                  {renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", undefined, "editEmpleado", undefined, false, true)} {/* Usuario no editable */}
-                  {renderDialogField("Rol", "systemUserRol", "select", undefined, "editEmpleado", userRoleOptions, false, true)} {/* Rol no editable directamente aquí */}
-                  {renderDialogField("Nueva Contraseña (opcional)", "newSystemUserContraseña", "password", "Dejar en blanco para no cambiar", "editEmpleado")}
-                  {renderDialogField("Confirmar Nueva Contraseña", "newSystemUserConfirmContraseña", "password", "Repetir nueva contraseña", "editEmpleado")}
+                  <div className="space-y-1">{renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", undefined, "editEmpleado", undefined, false, true)}</div> {/* Usuario no editable directamente */}
+                  <div className="space-y-1">{renderDialogField("Rol", "systemUserRol", "select", undefined, "editEmpleado", userRoleOptions, false, true)}</div> {/* Rol no editable directamente */}
+                  <div className="space-y-1">{renderDialogField("Nueva Contraseña (opcional)", "newSystemUserContraseña", "password", "Dejar en blanco para no cambiar", "editEmpleado")}</div>
+                  <div className="space-y-1">{renderDialogField("Confirmar Nueva Contraseña", "newSystemUserConfirmContraseña", "password", "Repetir nueva contraseña", "editEmpleado")}</div>
                   <Button variant="outline" size="sm" onClick={() => handleRemoveSystemUser(currentEmpleadoToEdit._id!)} className="mt-2 text-destructive hover:text-destructive border-destructive/50 hover:bg-destructive/10">
                     <UserX className="mr-2 h-4 w-4"/>Remover Acceso al Sistema
                   </Button>
                 </>
               ) : (
                 <div className="flex items-center space-x-2 pt-2">
-                   {renderDialogField("", "createSystemUser", "checkbox", undefined, "editEmpleado")}
-                   <Label htmlFor="createSystemUser" className="text-sm font-medium">Añadir acceso al sistema</Label>
+                   <Checkbox id="editEmpleado_createSystemUser" name="createSystemUser" checked={!!editEmpleadoData.createSystemUser} onCheckedChange={(checked) => handleCheckboxChangeGeneric('createSystemUser', checked as boolean, setEditEmpleadoData)} />
+                   <Label htmlFor="editEmpleado_createSystemUser" className="text-sm font-medium">Añadir acceso al sistema</Label>
                 </div>
               )}
               {/* Campos para añadir acceso si no lo tiene y createSystemUser es true */}
               {editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user && (
                 <>
-                  {renderDialogField("Nombre de Usuario (sistema)", "systemUserUsuario", "text", "usuario_sistema", "editEmpleado",undefined,false,false,true)}
-                  {renderDialogField("Contraseña (sistema)", "newSystemUserContraseña", "password", "••••••••", "editEmpleado",undefined,false,false,true)}
-                  {renderDialogField("Confirmar Contraseña", "newSystemUserConfirmContraseña", "password", "••••••••", "editEmpleado",undefined,false,false,true)}
-                  {renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol...", "editEmpleado", userRoleOptions,false,false,true)}
+                  <div className="space-y-1">{renderDialogField("Nombre de Usuario (sistema)", "systemUserUsuario", "text", "usuario_sistema", "editEmpleado",undefined,false,false,true)}</div>
+                  <div className="space-y-1">{renderDialogField("Contraseña (sistema)", "newSystemUserContraseña", "password", "••••••••", "editEmpleado",undefined,false,false,true)}</div>
+                  <div className="space-y-1">{renderDialogField("Confirmar Contraseña", "newSystemUserConfirmContraseña", "password", "••••••••", "editEmpleado",undefined,false,false,true)}</div>
+                  <div className="space-y-1">{renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol...", "editEmpleado", userRoleOptions,false,false,true)}</div>
                 </>
               )}
             </div>

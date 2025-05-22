@@ -2,60 +2,99 @@
 'use server';
 /**
  * @fileOverview Manages service order (Order) operations with MongoDB.
+ * Orders have a main MongoDB ObjectId `_id` and a custom sequential numeric `idOrder`.
+ * References to other entities (Aseguradora, Ajustador, Cliente, Marca, Modelo, Empleado)
+ * are stored as ObjectId strings.
  */
 
-import type { Collection, ObjectId, InsertOneResult, Filter, UpdateResult, DeleteResult } from 'mongodb'; // Added UpdateResult, DeleteResult
-import { connectDB } from './db';
-import type { Order, NewOrderData, UpdateOrderData, LogEntry } from '@/lib/types'; 
+import type { Collection, ObjectId as MongoObjectIdType, InsertOneResult, Filter, UpdateResult, DeleteResult } from 'mongodb';
+import { connectDB, ObjectId } from './db'; // Import ObjectId constructor
+import type { Order, NewOrderData, UpdateOrderData, LogEntry, PresupuestoItem } from '@/lib/types'; 
 
-
+/**
+ * Manages CRUD operations and business logic for service orders.
+ */
 class OrderManager {
   private collectionPromise: Promise<Collection<Order>>;
+  private countersCollectionPromise: Promise<Collection<{ _id: string; sequence_value: number }>>;
 
   constructor() {
     this.collectionPromise = connectDB().then(db => {
       const ordersCollection = db.collection<Order>('orders');
-      const countersCollection = db.collection<{ _id: string; sequence_value: number }>('counters');
-      countersCollection.updateOne(
-        { _id: 'orderIdSequence' },
-        { $setOnInsert: { sequence_value: 1000 } }, 
-        { upsert: true }
-      ).catch(console.warn);
-      ordersCollection.createIndex({ idOrder: 1 }, { unique: true }).catch(console.warn);
+      // Index on custom numeric idOrder for uniqueness and fast lookups if needed.
+      ordersCollection.createIndex({ idOrder: 1 }, { unique: true }).catch(err => {
+        if (err.code !== 11000) console.warn('Failed to create index on orders.idOrder:', err);
+      });
+      // Index on fechaRegistro for sorting or time-based queries.
+      ordersCollection.createIndex({ fechaRegistro: -1 }).catch(err => {
+         if (err.code !== 11000) console.warn('Failed to create index on orders.fechaRegistro:', err);
+      });
       return ordersCollection;
     }).catch(err => {
       console.error('Error al obtener la colección de órdenes:', err);
       throw err;
     });
+
+    this.countersCollectionPromise = connectDB().then(db => {
+      const countersCollection = db.collection<{ _id: string; sequence_value: number }>('counters');
+      // Ensure the sequence counter for idOrder exists, initializing if not.
+      countersCollection.updateOne(
+        { _id: 'orderIdSequence' },
+        { $setOnInsert: { sequence_value: 1000 } }, // Start idOrder from 1000
+        { upsert: true }
+      ).catch(err => {
+         if (err.code !== 11000) console.warn('Failed to initialize orderIdSequence counter:', err);
+      });
+      return countersCollection;
+    });
   }
 
+  /**
+   * Retrieves the MongoDB collection for orders.
+   * @returns {Promise<Collection<Order>>} The order collection.
+   */
   private async getCollection(): Promise<Collection<Order>> {
     return this.collectionPromise;
   }
 
+  /**
+   * Retrieves the MongoDB collection for counters (used for sequences).
+   * @returns {Promise<Collection<{ _id: string; sequence_value: number }>>} The counters collection.
+   */
+  private async getCountersCollection(): Promise<Collection<{ _id: string; sequence_value: number }>> {
+    return this.countersCollectionPromise;
+  }
+
+  /**
+   * Gets the next value for a named sequence (e.g., 'orderIdSequence').
+   * @param {string} sequenceName - The name of the sequence.
+   * @returns {Promise<number>} The next sequence value.
+   * @throws Will throw if the sequence cannot be found or incremented.
+   */
   private async getNextSequenceValue(sequenceName: string): Promise<number> {
-    const db = await connectDB();
-    const countersCollection = db.collection<{ _id: string; sequence_value: number }>('counters');
+    const countersCollection = await this.getCountersCollection();
     const sequenceDocument = await countersCollection.findOneAndUpdate(
       { _id: sequenceName },
       { $inc: { sequence_value: 1 } },
-      { returnDocument: 'after', upsert: true }
+      { returnDocument: 'after', upsert: true } // Upsert true ensures it's created if not found.
     );
+    // This condition should ideally not be hit due to upsert, but it's a safeguard.
     if (!sequenceDocument || sequenceDocument.sequence_value === null || sequenceDocument.sequence_value === undefined) {
-      const initialValue = sequenceName === 'orderIdSequence' ? 1000 : 0;
-      await countersCollection.updateOne({ _id: sequenceName }, { $setOnInsert: { sequence_value: initialValue } }, { upsert: true });
-      const newSequenceDoc = await countersCollection.findOneAndUpdate(
-        { _id: sequenceName }, { $inc: { sequence_value: 1 } }, { returnDocument: 'after' }
-      );
-      if (!newSequenceDoc || newSequenceDoc.sequence_value === null || newSequenceDoc.sequence_value === undefined) {
-        throw new Error(`Could not find or create sequence for ${sequenceName}`);
-      }
-      return newSequenceDoc.sequence_value;
+      throw new Error(`Could not find or create sequence for ${sequenceName}`);
     }
     return sequenceDocument.sequence_value;
   }
 
-  async createOrder(orderData: NewOrderData, empleadoLogId?: string): Promise<ObjectId | null> { // empleadoLogId is Empleado._id (string)
+  /**
+   * Creates a new service order.
+   * Generates a custom `idOrder` and an initial log entry.
+   * `_id` is automatically generated by MongoDB.
+   * @param {NewOrderData} orderData - Data for the new order, excluding `_id`, `idOrder`, `fechaRegistro`, `log`.
+   * @param {string} [empleadoLogId] - The _id (string ObjectId) of the employee performing the action, for logging.
+   * @returns {Promise<MongoObjectIdType | null>} The MongoDB ObjectId (_id) of the newly created order, or null on failure.
+   * @throws Will throw if there's a database error or data validation issue.
+   */
+  async createOrder(orderData: NewOrderData, empleadoLogId?: string): Promise<MongoObjectIdType | null> {
     const collection = await this.getCollection();
     const nextIdOrder = await this.getNextSequenceValue('orderIdSequence');
 
@@ -66,25 +105,50 @@ class OrderManager {
       fechaRegistro: new Date(), 
       log: [{
         timestamp: new Date(),
-        userId: empleadoLogId, // Empleado._id
-        action: 'Orden Creada',
-        details: `ID Orden: OT-${String(nextIdOrder).padStart(4, '0')}`
+        userId: empleadoLogId, // Empleado._id (string ObjectId)
+        action: `Orden OT-${nextIdOrder} Creada`,
       }],
+      presupuestos: orderData.presupuestos || [], // Initialize as empty array if not provided
     };
 
     try {
+      // Ensure all ObjectId string fields are valid or undefined
+      const fieldsToValidate: (keyof Order)[] = ['idAseguradora', 'idAjustador', 'idMarca', 'idModelo', 'idCliente', 'idValuador', 'idAsesor', 'idHojalatero', 'idPintor'];
+      for (const field of fieldsToValidate) {
+        const value = newOrderDocument[field] as string | undefined;
+        if (value !== undefined && !ObjectId.isValid(value)) {
+          throw new Error(`Invalid ObjectId string for field ${field}: ${value}`);
+        }
+      }
+      if (newOrderDocument.presupuestos) {
+        for (const item of newOrderDocument.presupuestos) {
+          if (item.idRefaccion !== undefined && !ObjectId.isValid(item.idRefaccion)) {
+            throw new Error(`Invalid ObjectId string for presupuesto item idRefaccion: ${item.idRefaccion}`);
+          }
+        }
+      }
+
+
       const result: InsertOneResult<Order> = await collection.insertOne(newOrderDocument as Order);
       console.log('Orden creada con ID de MongoDB:', result.insertedId, 'y idOrder:', nextIdOrder);
-      return result.insertedId;
+      return result.insertedId; // This is a MongoDB ObjectId
     } catch (error) {
       console.error('Error al crear orden:', error);
-      throw error;
+      throw error; // Re-throw for handling by the caller (e.g., server action).
     }
   }
 
+  /**
+   * Retrieves all service orders, optionally filtered, sorted by registration date descending.
+   * @param {Filter<Order>} [filter] - Optional MongoDB filter.
+   * @returns {Promise<Order[]>} A list of orders.
+   * @throws Will throw if there's a database error.
+   */
   async getAllOrders(filter?: Filter<Order>): Promise<Order[]> {
     const collection = await this.getCollection();
     try {
+      // The `Order` type already defines _id as string after serialization.
+      // The collection directly returns documents that will be serialized by the action.
       const orders = await collection.find(filter || {}).sort({ fechaRegistro: -1 }).toArray();
       return orders;
     } catch (error) {
@@ -93,6 +157,12 @@ class OrderManager {
     }
   }
 
+  /**
+   * Retrieves a single order by its MongoDB ObjectId (_id).
+   * @param {string} id - The MongoDB ObjectId string of the order.
+   * @returns {Promise<Order | null>} The order object, or null if not found or ID is invalid.
+   * @throws Will throw if there's a database error.
+   */
   async getOrderById(id: string): Promise<Order | null> { 
     const collection = await this.getCollection();
     try {
@@ -101,13 +171,19 @@ class OrderManager {
         return null;
       }
       const order = await collection.findOne({ _id: new ObjectId(id) });
-      return order;
+      return order; // Returns the raw document, to be serialized by the action.
     } catch (error) {
       console.error('Error al obtener orden por ID de MongoDB:', error);
       throw error;
     }
   }
 
+  /**
+   * Retrieves a single order by its custom numeric `idOrder`.
+   * @param {number} idOrder - The custom numeric ID of the order.
+   * @returns {Promise<Order | null>} The order object, or null if not found.
+   * @throws Will throw if there's a database error.
+   */
   async getOrderByCustomId(idOrder: number): Promise<Order | null> {
     const collection = await this.getCollection();
     try {
@@ -119,6 +195,14 @@ class OrderManager {
     }
   }
 
+  /**
+   * Updates the process of a specific order and adds a log entry.
+   * @param {string} id - The MongoDB ObjectId string of the order.
+   * @param {Order['proceso']} proceso - The new process state.
+   * @param {string} [empleadoLogId] - The _id (string ObjectId) of the employee performing the action.
+   * @returns {Promise<boolean>} True if the update was successful (modified count > 0), false otherwise.
+   * @throws Will throw if there's a database error or if the ID is invalid.
+   */
   async updateOrderProceso(id: string, proceso: Order['proceso'], empleadoLogId?: string): Promise<boolean> {
     const collection = await this.getCollection();
     try {
@@ -126,11 +210,16 @@ class OrderManager {
           console.warn('Invalid ObjectId for updateOrderProceso:', id);
           return false;
         }
-        const result: UpdateResult = await collection.updateOne( // Added type
+        const logEntry: LogEntry = { 
+            timestamp: new Date(), 
+            userId: empleadoLogId, 
+            action: `Proceso cambiado a: ${proceso}` 
+        };
+        const result: UpdateResult = await collection.updateOne(
             { _id: new ObjectId(id) },
             {
                 $set: { proceso: proceso },
-                $push: { log: { timestamp: new Date(), userId: empleadoLogId, action: `Proceso cambiado a: ${proceso}` } as LogEntry }
+                $push: { log: logEntry as any } // Cast to any if LogEntry structure differs slightly in DB schema
             }
         );
         return result.modifiedCount > 0;
@@ -140,8 +229,16 @@ class OrderManager {
     }
 }
 
-
-  async updateOrder(id: string, updateData: UpdateOrderData, empleadoLogId?: string): Promise<boolean> { // empleadoLogId is Empleado._id
+  /**
+   * Updates an existing service order.
+   * Adds a log entry detailing the changes.
+   * @param {string} id - The MongoDB ObjectId string of the order to update.
+   * @param {UpdateOrderData} updateData - The data to update. `_id`, `idOrder`, `fechaRegistro`, `log` are not updatable here.
+   * @param {string} [empleadoLogId] - The _id (string ObjectId) of the employee performing the action.
+   * @returns {Promise<boolean>} True if the update was successful (modified count > 0), false otherwise.
+   * @throws Will throw if there's a database error or if the ID is invalid.
+   */
+  async updateOrder(id: string, updateData: UpdateOrderData, empleadoLogId?: string): Promise<boolean> {
     const collection = await this.getCollection();
     try {
       if (!ObjectId.isValid(id)) {
@@ -149,41 +246,82 @@ class OrderManager {
         return false;
       }
       if (Object.keys(updateData).length === 0) {
-        return true; 
+        console.log('No fields to update for order ID:', id);
+        return true; // No changes needed, considered a success.
+      }
+      
+      // Prepare log entry: Compare old and new values for more detailed logging.
+      const currentOrder = await collection.findOne({ _id: new ObjectId(id) });
+      if (!currentOrder) {
+        console.warn('Order not found for update:', id);
+        return false;
       }
       
       let logDetails = "Campos actualizados: ";
-      const changedFields: string[] = [];
+      const changedFieldsMessages: string[] = [];
       for (const key in updateData) {
         if (Object.prototype.hasOwnProperty.call(updateData, key)) {
-          changedFields.push(`${key}`);
+          const oldValue = (currentOrder as any)[key];
+          const newValue = (updateData as any)[key];
+          if (oldValue !== newValue) { // Log only actual changes
+            // For dates, format them for readability in logs
+            let oldValueStr = oldValue instanceof Date ? oldValue.toLocaleDateString('es-MX') : oldValue;
+            let newValueStr = newValue instanceof Date ? newValue.toLocaleDateString('es-MX') : newValue;
+            if (typeof oldValue === 'boolean' || typeof newValue === 'boolean') {
+                oldValueStr = oldValue ? 'Sí' : 'No';
+                newValueStr = newValue ? 'Sí' : 'No';
+            }
+            changedFieldsMessages.push(`${key}: de '${oldValueStr === undefined ? 'N/A' : oldValueStr}' a '${newValueStr}'`);
+          }
         }
       }
-      logDetails += changedFields.join(', ');
-
+      logDetails += changedFieldsMessages.join('; ') || "Ningún valor cambiado.";
 
       const logEntry: LogEntry = {
         timestamp: new Date(),
         userId: empleadoLogId,
-        action: 'Orden Actualizada',
-        details: logDetails
+        action: changedFieldsMessages.length > 0 ? logDetails : 'Actualización de orden sin cambios de valor detectados.',
       };
+      
+      // Ensure all ObjectId string fields in updateData are valid or undefined
+      const fieldsToValidate: (keyof UpdateOrderData)[] = ['idAseguradora', 'idAjustador', 'idMarca', 'idModelo', 'idCliente', 'idValuador', 'idAsesor', 'idHojalatero', 'idPintor'];
+      for (const field of fieldsToValidate) {
+        const value = updateData[field] as string | undefined;
+        if (value !== undefined && !ObjectId.isValid(value)) {
+          throw new Error(`Invalid ObjectId string for field ${field} in updateData: ${value}`);
+        }
+      }
+      // Add presupuestos to updateData if it's part of it, otherwise it won't be touched by $set
+      const updatePayload: any = { ...updateData };
+      if (updateData.presupuestos) {
+        updatePayload.presupuestos = updateData.presupuestos.map(item => ({
+          ...item,
+          idRefaccion: item.idRefaccion && ObjectId.isValid(item.idRefaccion) ? item.idRefaccion : undefined
+        }));
+      }
 
-      const result: UpdateResult = await collection.updateOne( // Added type
+
+      const result: UpdateResult = await collection.updateOne(
         { _id: new ObjectId(id) },
         {
-          $set: updateData,
-          $push: { log: logEntry }
+          $set: updatePayload, // Use the validated and potentially modified payload
+          $push: { log: logEntry as any }
         }
       );
-      console.log('Orden actualizada:', result.modifiedCount);
-      return result.modifiedCount > 0;
+      console.log('Orden actualizada, modificados:', result.modifiedCount);
+      return result.modifiedCount > 0 || changedFieldsMessages.length === 0; // Success if modified or if no value changes needed
     } catch (error) {
       console.error('Error al actualizar orden:', error);
       throw error;
     }
   }
 
+  /**
+   * Deletes an order by its MongoDB ObjectId (_id).
+   * @param {string} id - The MongoDB ObjectId string of the order to delete.
+   * @returns {Promise<boolean>} True if the order was deleted (deleted count > 0), false otherwise.
+   * @throws Will throw if there's a database error or if the ID is invalid.
+   */
   async deleteOrder(id: string): Promise<boolean> { 
     const collection = await this.getCollection();
     try {
@@ -191,8 +329,8 @@ class OrderManager {
         console.warn('Invalid ObjectId format for deleteOrder:', id);
         return false;
       }
-      const result: DeleteResult = await collection.deleteOne({ _id: new ObjectId(id) }); // Added type
-      console.log('Orden eliminada:', result.deletedCount);
+      const result: DeleteResult = await collection.deleteOne({ _id: new ObjectId(id) });
+      console.log('Orden eliminada, conteo:', result.deletedCount);
       return result.deletedCount > 0;
     } catch (error) {
       console.error('Error al eliminar orden:', error);

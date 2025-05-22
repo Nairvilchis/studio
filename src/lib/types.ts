@@ -40,7 +40,7 @@ export interface UserPermissions {
  * Esta información se anida dentro del objeto Empleado si el empleado tiene acceso al sistema.
  */
 export interface SystemUserCredentials {
-  _id?: string; // ID interno de MongoDB para este subdocumento si fuera necesario (actualmente no usado).
+  _id?: string; // ID interno de MongoDB para este subdocumento (generalmente no necesario si es embebido).
   usuario: string; // Nombre de usuario para el login, debe ser único globalmente.
   contraseña?: string; // Contraseña del usuario. IMPORTANTE: Almacenar hasheada.
   rol: UserRole; // Rol del usuario, determina sus permisos por defecto.
@@ -51,9 +51,10 @@ export interface SystemUserCredentials {
  * Representa un Empleado en el sistema.
  * Cada empleado tiene detalles personales y profesionales, y opcionalmente,
  * credenciales de acceso al sistema anidadas bajo el campo 'user'.
+ * El `_id` es el ObjectId de MongoDB, generado automáticamente.
  */
 export interface Empleado {
-  _id?: string; // ID principal del empleado, generado por MongoDB (ObjectId como string).
+  _id: string; // ID principal del empleado (MongoDB ObjectId como string).
   nombre: string; // Nombre completo del empleado.
   telefono?: string; // Número de teléfono del empleado.
   correo?: string; // Correo electrónico del empleado.
@@ -68,56 +69,60 @@ export interface Empleado {
 
 // --- Order Types ---
 /**
- * Representa una entrada en el historial de cambios de una orden de servicio.
+ * Representa una entrada en el historial de cambios (log) de una orden de servicio.
  * Registra quién hizo qué cambio y cuándo.
  */
 export interface LogEntry {
   timestamp: Date; // Fecha y hora del cambio.
-  userId?: string; // _id (string) del Empleado que realizó la acción.
-  action: string; // Descripción de la acción realizada.
-  details?: string; // Detalles adicionales sobre el cambio.
+  userId?: string; // _id (string ObjectId) del Empleado que realizó la acción.
+  action: string; // Descripción de la acción realizada (ej. "Proceso cambiado a: pintura", "Folio actualizado: 123 a 456").
 }
 
 /**
+ * Representa un ítem dentro del array de presupuestos de una orden de servicio.
+ */
+export interface PresupuestoItem {
+  _id?: string; // ObjectId de MongoDB para este item de presupuesto si se decidiera hacerlo un subdocumento con ID propio.
+  concepto: string; // ej. "Cambio de cofre", "Reparación de defensa".
+  cantidad: number; // Cantidad del concepto.
+  precioPublico?: number; // Precio unitario o total para el cliente.
+  costoPintura?: number; // Costo de pintura asociado a este concepto.
+  costoManoObra?: number; // Costo de mano de obra asociado.
+  costoRefaccion?: number; // Costo de la refacción asociada.
+  pintura?: boolean; // Indica si este concepto requiere pintura.
+  procedimiento?: 'reparacion' | 'cambio' | 'diagnostico' | string; // Tipo de procedimiento.
+  idRefaccion?: string; // ObjectId (string) de la refacción, si aplica.
+}
+
+
+/**
  * Representa una orden de servicio en el taller.
- * Los IDs de referencia a otras entidades (idCliente, idMarca, etc.) son strings que
- * corresponden a los `_id` de MongoDB de esas entidades.
+ * Los IDs de referencia a otras entidades son generalmente ObjectId de MongoDB, almacenados como strings.
  */
 export interface Order {
-  _id?: string; // ID principal de la orden (MongoDB ObjectId como string).
+  _id: string; // ID principal de la orden (MongoDB ObjectId como string), generado automáticamente.
   idOrder: number; // ID numérico personalizado y secuencial (ej. OT-1001).
   
+  // Datos de la aseguradora y siniestro
+  idAseguradora?: string; // ObjectId (string) de la Aseguradora.
+  idAjustador?: string; // ObjectId (string) del Ajustador (debe pertenecer a idAseguradora).
+  poliza?: string; // Número de póliza.
+  folio?: string; // Folio de la aseguradora o interno.
+  siniestro?: string; // Número de siniestro.
+  deducible?: number; // Monto del deducible.
+  aseguradoTercero?: boolean; // true si es asegurado, false si es tercero.
+
   // Datos del vehículo
-  vin?: string;
-  idMarca?: string; // Refiere a MarcaVehiculo._id (string).
-  idModelo?: string; // Refiere a ModeloVehiculo.idModelo (string ObjectId) dentro de la marca.
-  año?: number;
-  placas?: string;
-  color?: string;
-  kilometraje?: string;
-
-  // Datos del cliente y aseguradora
-  idCliente?: string; // Refiere a Cliente._id (string).
-  idAseguradora?: string; // Refiere a Aseguradora._id (string).
-  ajustador?: string; // Refiere a Ajustador.idAjustador (string ObjectId) dentro de Aseguradora.
-  siniestro?: string;
-  poliza?: string;
-  folio?: string;
-  deducible?: number;
-  aseguradoTercero?: 'asegurado' | 'tercero';
-
-  // Detalles de la orden
-  piso?: boolean;
-  grua?: boolean;
-  urlArchivos?: string;
-  proceso: 'pendiente' | 'valuacion' | 'espera_refacciones' | 'refacciones_listas' | 'hojalateria' | 'preparacion_pintura' | 'pintura' | 'mecanica' | 'armado' | 'detallado_lavado' | 'control_calidad' | 'listo_entrega' | 'entregado' | 'facturado' | 'garantia' | 'cancelado';
-
-  // Fechas relevantes
-  fechaRegistro: Date;
-  fechaValuacion?: Date;
-  fechaRengreso?: Date; // R-Engreso (reingreso)
-  fechaEntrega?: Date;
-  fechaPromesa?: Date;
+  idMarca?: string; // ObjectId (string) de la MarcaVehiculo.
+  idModelo?: string; // ObjectId (string) del ModeloVehiculo (debe pertenecer a idMarca).
+  año?: number; // Año del vehículo.
+  vin?: string; // Número de Identificación Vehicular.
+  placas?: string; // Placas del vehículo.
+  color?: string; // Color del vehículo.
+  kilometraje?: string; // Kilometraje del vehículo.
+  
+  // Datos del cliente
+  idCliente?: string; // ObjectId (string) del Cliente.
 
   // Personal asignado (referencian a Empleado._id como string)
   idValuador?: string; 
@@ -125,15 +130,33 @@ export interface Order {
   idHojalatero?: string;
   idPintor?: string; 
   
-  idPresupuesto?: string; // Refiere a Presupuesto._id (string).
+  // Estado y detalles de la orden
+  proceso: 'pendiente' | 'valuacion' | 'espera_refacciones' | 'refacciones_listas' | 'hojalateria' | 'preparacion_pintura' | 'pintura' | 'mecanica' | 'armado' | 'detallado_lavado' | 'control_calidad' | 'listo_entrega' | 'entregado' | 'facturado' | 'garantia' | 'cancelado';
+  piso?: boolean; // ¿La unidad está en el piso del taller?
+  grua?: boolean; // ¿Llegó en grúa?
+  urlArchivos?: string; // URL a carpeta de fotos/documentos.
+  
+  // Fechas relevantes (almacenadas como objetos Date en DB, pueden ser strings en formularios)
+  fechaRegistro: Date;
+  fechaValuacion?: Date;
+  fechaReingreso?: Date; // Fecha de reingreso si aplica.
+  fechaEntrega?: Date;
+  fechaPromesa?: Date; // Fecha tentativa de entrega.
+  fechaBaja?: Date; // Fecha en que se da de baja la orden (ej. cancelada, entregada y finalizada).
 
+  // Historial de cambios
   log?: LogEntry[];
+
+  // Presupuesto (array de items)
+  presupuestos?: PresupuestoItem[]; 
 }
 
-/** Tipo de datos para crear una nueva orden. */
-export type NewOrderData = Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log'>;
+/** Tipo de datos para crear una nueva orden. El `_id` y `idOrder` se generan automáticamente. */
+export type NewOrderData = Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log' | 'presupuestos'> & {
+  presupuestos?: PresupuestoItem[]; // Permitir pasar presupuestos al crear, aunque puede ser opcional.
+};
 /** Tipo de datos para actualizar una orden existente. */
-export type UpdateOrderData = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro'>>;
+export type UpdateOrderData = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log'>>;
 
 
 // --- Marca Types ---
@@ -195,11 +218,11 @@ export type UpdateAseguradoraData = Partial<Pick<Aseguradora, 'nombre' | 'telefo
 /**
  * Representa un cliente del taller automotriz.
  * El `_id` (ObjectId de MongoDB, como string) es el identificador principal.
- * `idCliente` es un ID numérico personalizado, secuencial.
+ * `idCliente` es un ID numérico personalizado, secuencial (considerar si aún es necesario si `_id` es el primario).
  */
 export interface Cliente {
-  _id?: string; // ID principal (MongoDB ObjectId como string).
-  idCliente: number; // ID numérico personalizado y secuencial (este podría eliminarse si se usa solo _id).
+  _id: string; // ID principal (MongoDB ObjectId como string).
+  idCliente?: number; // ID numérico personalizado y secuencial (opcional, _id es el primario).
   nombre?: string; // Para personas físicas.
   razonSocial?: string; // Para personas morales/empresas.
   rfc?: string;
@@ -208,47 +231,36 @@ export interface Cliente {
   // ordenes?: { idOrden: number }[]; // Referencia a órdenes, si se decide embeber (actualmente no usado).
 }
 /** Tipo de datos para crear un nuevo cliente. */
-export type NewClienteData = Omit<Cliente, '_id' | 'idCliente'>; // idCliente podría ser manejado por una secuencia si se mantiene.
+export type NewClienteData = Omit<Cliente, '_id' | 'idCliente'> & { idCliente?: number };
 /** Tipo de datos para actualizar un cliente. */
-export type UpdateClienteData = Partial<Omit<Cliente, '_id' | 'idCliente'>>;
+export type UpdateClienteData = Partial<Omit<Cliente, '_id'>>;
 
 
-// --- Presupuesto Types ---
-/**
- * Representa un concepto o línea de ítem dentro de un presupuesto.
- */
-export interface ConceptoPresupuesto {
-  concepto: string; // Nombre o descripción del concepto.
-  cantidad: number;
-  precio: number;
-  pintura: boolean; // Indica si el concepto requiere pintura.
-  procedimiento: string; // ej. "reparacion", "cambio", "diagnostico".
-  idRefaccion?: string; // Refiere a Refaccion._id (string), si aplica para un cambio de pieza.
-}
-
-/**
- * Representa un presupuesto o cotización para una orden de servicio.
- */
+// --- Presupuesto Types (Standalone, si se decide tener una colección separada) ---
+// La estructura `PresupuestoItem` ya está definida arriba para ser usada embebida en `Order`.
+// Si se quisiera una colección `presupuestos` separada, se definiría así:
+/*
 export interface Presupuesto {
   _id?: string; // ID principal (MongoDB ObjectId como string).
   idPresupuesto: number; // ID numérico personalizado y secuencial.
-  idOrder: number; // Refiere a Order.idOrder (numérico).
-  conceptos: ConceptoPresupuesto[];
+  idOrder: string; // ObjectId (string) de la Order a la que pertenece.
+  conceptos: PresupuestoItem[];
   // Se podrían añadir más campos como: totalCalculado, fechaCreacion, version, estado (aprobado, rechazado), etc.
 }
+*/
 
 // --- Refaccion Types ---
 /**
  * Representa una refacción o parte de repuesto.
  */
 export interface Refaccion {
-  _id?: string; // ID principal (MongoDB ObjectId como string).
-  idRefaccion: number; // ID numérico personalizado y secuencial (podría eliminarse si se usa solo _id).
-  idOrder: number; // Refiere a Order.idOrder (numérico) a la que pertenece la solicitud de esta refacción.
+  _id: string; // ID principal (MongoDB ObjectId como string).
+  // idRefaccion?: number; // ID numérico personalizado (opcional, _id es el primario).
+  idOrder?: string; // ObjectId (string) de la Order a la que pertenece la solicitud de esta refacción.
   refaccion: string; // Nombre o descripción de la refacción.
   cantidad: number;
-  idMarca?: string; // Refiere a MarcaVehiculo._id (string) de la marca de la refacción (si es específica).
-  idModelo?: string; // Refiere a ModeloVehiculo.idModelo (string ObjectId) del modelo (si es específico).
+  idMarca?: string; // ObjectId (string) de la MarcaVehiculo (si es específica de marca).
+  idModelo?: string; // ObjectId (string) del ModeloVehiculo (si es específica de modelo).
   año?: number; // Año del vehículo para el que es la refacción.
   proveedor?: string;
   precio?: number;
