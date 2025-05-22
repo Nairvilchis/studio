@@ -3,7 +3,6 @@
 
 import AseguradoraManager from '@/aseguradoraManager';
 import type { Aseguradora, NewAseguradoraData, UpdateAseguradoraData, Ajustador } from '@/lib/types';
-// No longer need to import ObjectId from mongodb here if types are string-based for client
 
 interface ActionResult<T> {
   success: boolean;
@@ -12,13 +11,11 @@ interface ActionResult<T> {
   message?: string;
 }
 
-// Helper to serialize _id to string
-// The Aseguradora type from lib/types already expects _id as string | undefined
-function serializeAseguradora(aseguradoraFromDb: any): Aseguradora { // aseguradoraFromDb is raw doc from Mongo
+function serializeAseguradora(aseguradoraFromDb: any): Aseguradora { 
   return {
     ...aseguradoraFromDb,
     _id: aseguradoraFromDb._id ? aseguradoraFromDb._id.toHexString() : undefined,
-    ajustadores: aseguradoraFromDb.ajustadores?.map((ajustador: any) => ({ ...ajustador })) || [], // Ajustadores don't have _id
+    ajustadores: aseguradoraFromDb.ajustadores?.map((ajustador: any) => ({ ...ajustador })) || [],
   } as Aseguradora;
 }
 
@@ -29,7 +26,7 @@ function serializeAseguradoras(aseguradorasFromDb: any[]): Aseguradora[] {
 export async function getAllAseguradorasAction(): Promise<ActionResult<Aseguradora[]>> {
   const manager = new AseguradoraManager();
   try {
-    const dataFromDBRaw = await manager.getAllAseguradoras(); // Returns docs with ObjectId
+    const dataFromDBRaw = await manager.getAllAseguradoras(); 
     const dataForClient = serializeAseguradoras(dataFromDBRaw);
     return { success: true, data: dataForClient };
   } catch (error) {
@@ -41,14 +38,14 @@ export async function getAllAseguradorasAction(): Promise<ActionResult<Asegurado
 export async function createAseguradoraAction(data: NewAseguradoraData): Promise<ActionResult<{ aseguradoraId: string | null, customIdAseguradora?: number }>> {
   const manager = new AseguradoraManager();
   try {
-    const newMongoIdObject = await manager.createAseguradora(data); // Returns ObjectId
+    const newMongoIdObject = await manager.createAseguradora(data); 
     if (newMongoIdObject) {
       const createdRaw = await manager.getAseguradoraById(newMongoIdObject.toHexString());
       return {
         success: true,
         message: 'Aseguradora creada exitosamente.',
         data: {
-          aseguradoraId: newMongoIdObject.toHexString(), // String for client
+          aseguradoraId: newMongoIdObject.toHexString(), 
           customIdAseguradora: createdRaw?.idAseguradora
         }
       };
@@ -64,7 +61,7 @@ export async function createAseguradoraAction(data: NewAseguradoraData): Promise
 export async function getAseguradoraByIdAction(id: string): Promise<ActionResult<Aseguradora | null>> {
   const manager = new AseguradoraManager();
   try {
-    const dataFromDBRaw = await manager.getAseguradoraById(id); // `id` is string
+    const dataFromDBRaw = await manager.getAseguradoraById(id); 
     if (dataFromDBRaw) {
       return { success: true, data: serializeAseguradora(dataFromDBRaw) };
     }
@@ -78,7 +75,6 @@ export async function getAseguradoraByIdAction(id: string): Promise<ActionResult
 export async function updateAseguradoraAction(id: string, updateData: UpdateAseguradoraData): Promise<ActionResult<null>> {
   const manager = new AseguradoraManager();
   try {
-    // `id` is string, manager.updateAseguradora expects string
     const success = await manager.updateAseguradora(id, updateData);
     if (success) {
       return { success: true, message: 'Aseguradora actualizada exitosamente.' };
@@ -96,7 +92,6 @@ export async function updateAseguradoraAction(id: string, updateData: UpdateAseg
 export async function deleteAseguradoraAction(id: string): Promise<ActionResult<null>> {
   const manager = new AseguradoraManager();
   try {
-    // `id` is string, manager.deleteAseguradora expects string
     const success = await manager.deleteAseguradora(id);
     if (success) {
       return { success: true, message: 'Aseguradora eliminada exitosamente.' };
@@ -110,14 +105,12 @@ export async function deleteAseguradoraAction(id: string): Promise<ActionResult<
 }
 
 // --- Ajustador Actions ---
-// Ajustadores are subdocuments, their actions operate on the parent Aseguradora identified by string `aseguradoraId`
 export async function addAjustadorToAseguradoraAction(aseguradoraId: string, ajustadorData: Omit<Ajustador, 'idAjustador'>): Promise<ActionResult<Ajustador>> {
     const manager = new AseguradoraManager();
     try {
         if (!ajustadorData.nombre?.trim()) {
             return { success: false, error: "Nombre del ajustador es requerido."};
         }
-        // `aseguradoraId` is string
         const newAjustador = await manager.addAjustadorToAseguradora(aseguradoraId, ajustadorData);
         if (newAjustador) {
             return { success: true, message: "Ajustador añadido exitosamente.", data: newAjustador };
@@ -136,7 +129,6 @@ export async function updateAjustadorInAseguradoraAction(aseguradoraId: string, 
         if (ajustadorUpdateData.nombre !== undefined && !ajustadorUpdateData.nombre?.trim()) {
              return { success: false, error: "El nombre del ajustador no puede estar vacío."};
         }
-        // `aseguradoraId` is string
         const success = await manager.updateAjustadorInAseguradora(aseguradoraId, idAjustador, ajustadorUpdateData);
         if (success) {
             return { success: true, message: "Ajustador actualizado exitosamente." };
@@ -152,7 +144,6 @@ export async function updateAjustadorInAseguradoraAction(aseguradoraId: string, 
 export async function removeAjustadorFromAseguradoraAction(aseguradoraId: string, idAjustador: number): Promise<ActionResult<null>> {
     const manager = new AseguradoraManager();
     try {
-        // `aseguradoraId` is string
         const success = await manager.removeAjustadorFromAseguradora(aseguradoraId, idAjustador);
         if (success) {
             return { success: true, message: "Ajustador eliminado exitosamente." };
@@ -171,7 +162,6 @@ export async function getAjustadoresByAseguradora(aseguradoraId: string): Promis
  if (!aseguradoraId) {
  return { success: false, error: "Se requiere el ID de la aseguradora." };
  }
- // `aseguradoraId` is string
  const aseguradora = await manager.getAseguradoraById(aseguradoraId);
  if (aseguradora && aseguradora.ajustadores) {
  return { success: true, data: aseguradora.ajustadores.map(adj => ({ idAjustador: adj.idAjustador, nombre: adj.nombre })) };

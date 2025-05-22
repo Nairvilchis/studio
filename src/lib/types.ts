@@ -1,5 +1,5 @@
-import { ObjectId } from "mongodb";
-// --- User Types ---
+
+// --- User & Employee Types ---
 export enum UserRole {
   ADMIN = "admin",
   VALUADOR = "valuador",
@@ -25,38 +25,39 @@ export interface UserPermissions {
   [key: string]: boolean | undefined;
 }
 
-// This interface represents the document in the 'users' collection
-export interface User {
-  _id?: string; // MongoDB ObjectId as string
-  idEmpleado: number; // Custom numeric ID for the employee
+export interface SystemUserCredentials {
+  _id?: string; // Internal ID for this subdocument if ever needed, not primary
   usuario: string;
-  contraseña?: string; // Should be hashed in a real app
+  contraseña?: string; // Should be hashed
   rol: UserRole;
-  nombre: string; // Full name of the employee/user
-  puesto?: string; // Job title, e.g., "Hojalatero", "Pintor"
+  permisos?: UserPermissions;
+}
+
+export interface Empleado {
+  _id?: string; // MongoDB ObjectId as string, primary ID for empleado
+  nombre: string;
   telefono?: string;
   correo?: string;
-  tipo?: string; // Could be 'interno', 'externo'
+  puesto?: string;
   sueldo?: number;
   comision?: number;
   fechaRegistro?: Date;
   fechaBaja?: Date;
-  permisos?: UserPermissions;
-  workstation?: string;
+  user?: SystemUserCredentials; // Optional system access credentials
 }
 
 
 // --- Order Types ---
 export interface LogEntry {
   timestamp: Date;
-  userId?: number; // User's custom idEmpleado
+  userId?: string; // Empleado._id who performed the action
   action: string;
   details?: string;
 }
 
 export interface Order {
   _id?: string;
-  idOrder: number;
+  idOrder: number; // Custom numeric ID
   idCliente?: string; // References Cliente._id
   vin?: string;
   idMarca?: string; // References MarcaVehiculo._id
@@ -64,7 +65,7 @@ export interface Order {
   año?: number;
   placas?: string;
   color?: string;
-  kilometraje?: string; // Kept as string as per user schema
+  kilometraje?: string;
   idAseguradora?: string; // References Aseguradora._id
   ajustador?: number; // Numeric ID of the ajustador within the aseguradora
   siniestro?: string;
@@ -79,10 +80,10 @@ export interface Order {
   fechaRengreso?: Date;
   fechaEntrega?: Date;
   fechaPromesa?: Date;
-  idValuador?: string; // References User._id (for valuador role)
-  idAsesor?: string; // References User._id (for asesor role)
-  idHojalatero?: string; // References User._id (for hojalatero role)
-  idPintor?: string; // References User._id (for pintor role)
+  idValuador?: string; // References Empleado._id (for valuador role)
+  idAsesor?: string; // References Empleado._id (for asesor role)
+  idHojalatero?: string; // References Empleado._id (for hojalatero role)
+  idPintor?: string; // References Empleado._id (for pintor role)
   idPresupuesto?: string; // Reference to a Presupuesto._id
   proceso: 'pendiente' | 'valuacion' | 'espera_refacciones' | 'refacciones_listas' | 'hojalateria' | 'preparacion_pintura' | 'pintura' | 'mecanica' | 'armado' | 'detallado_lavado' | 'control_calidad' | 'listo_entrega' | 'entregado' | 'facturado' | 'garantia' | 'cancelado';
   urlArchivos?: string;

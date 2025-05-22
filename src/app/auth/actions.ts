@@ -1,31 +1,35 @@
 
 'use server';
 
-import UserManager from '@/userManager';
-import type { User, UserRole } from '@/lib/types'; // Import from new types file
+import EmpleadoManager from '@/empleadoManager'; // Changed from UserManager
+import type { SystemUserCredentials, UserRole } from '@/lib/types'; // UserRole is now under lib/types
 
 interface LoginResult {
   success: boolean;
   message?: string;
-  user?: { usuario: string, idEmpleado: string, rol: UserRole };
+  user?: { 
+    empleadoId: string; // Changed from idEmpleado to empleadoId (which is _id)
+    usuario: string; 
+    rol: UserRole 
+  };
 }
 
 export async function loginUser(credentials: {usuario: string, contraseña: string}): Promise<LoginResult> {
   console.log("Server Action: loginUser - Intentando iniciar sesión con:", credentials.usuario);
-  const userManager = new UserManager();
+  const empleadoManager = new EmpleadoManager(); // Changed from UserManager
   try {
-    const user = await userManager.getUserByUsername(credentials.usuario);
-    console.log("Server Action: loginUser - Usuario encontrado en DB:", user ? `{ usuario: '${user.usuario}', idEmpleado: ${user.idEmpleado}, rol: '${user.rol}' }` : 'No encontrado');
-
-    if (user && user.contraseña === credentials.contraseña) { 
-      console.log("Server Action: loginUser - Contraseña coincide para:", user.usuario);
+    const empleado = await empleadoManager.getEmpleadoByUsername(credentials.usuario); // Changed method and manager
+    
+    if (empleado && empleado.user && empleado.user.contraseña === credentials.contraseña) {
+      // Password check is against empleado.user.contraseña
       // En una aplicación real, aquí se verificaría una contraseña hasheada.
+      console.log("Server Action: loginUser - Contraseña coincide para:", empleado.user.usuario);
       return {
         success: true,
         user: {
-          usuario: user.usuario,
-          idEmpleado: user.idEmpleado,
-          rol: user.rol 
+          empleadoId: empleado._id!.toString(), // Use empleado's MongoDB _id
+          usuario: empleado.user.usuario,
+          rol: empleado.user.rol 
         }
       };
     } else {

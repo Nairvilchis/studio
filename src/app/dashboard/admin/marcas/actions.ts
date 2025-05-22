@@ -3,7 +3,6 @@
 
 import MarcaManager from '@/marcaManager';
 import type { MarcaVehiculo, NewMarcaData, UpdateMarcaData, ModeloVehiculo } from '@/lib/types';
-// No longer need to import ObjectId from mongodb here if types are string-based for client
 
 interface ActionResult<T> {
   success: boolean;
@@ -12,13 +11,11 @@ interface ActionResult<T> {
   message?: string;
 }
 
-// Helper to serialize _id to string
-// The MarcaVehiculo type from lib/types already expects _id as string | undefined
-function serializeMarca(marcaFromDb: any): MarcaVehiculo { // marcaFromDb is raw doc from Mongo
+function serializeMarca(marcaFromDb: any): MarcaVehiculo { 
   return {
     ...marcaFromDb,
     _id: marcaFromDb._id ? marcaFromDb._id.toHexString() : undefined,
-    modelos: marcaFromDb.modelos?.map((modelo: any) => ({ ...modelo })) || [], // Modelos don't have _id
+    modelos: marcaFromDb.modelos?.map((modelo: any) => ({ ...modelo })) || [],
   } as MarcaVehiculo;
 }
 
@@ -29,7 +26,7 @@ function serializeMarcas(marcasFromDb: any[]): MarcaVehiculo[] {
 export async function getAllMarcasAction(): Promise<ActionResult<MarcaVehiculo[]>> {
   const marcaManager = new MarcaManager();
   try {
-    const marcasFromDBRaw = await marcaManager.getAllMarcas(); // Returns docs with ObjectId
+    const marcasFromDBRaw = await marcaManager.getAllMarcas();
     const marcasForClient = serializeMarcas(marcasFromDBRaw);
     return { success: true, data: marcasForClient };
   } catch (error) {
@@ -41,14 +38,14 @@ export async function getAllMarcasAction(): Promise<ActionResult<MarcaVehiculo[]
 export async function createMarcaAction(marcaData: NewMarcaData): Promise<ActionResult<{ marcaId: string | null, customIdMarca?: number }>> {
   const marcaManager = new MarcaManager();
   try {
-    const newMongoIdObject = await marcaManager.createMarca(marcaData); // Returns ObjectId
+    const newMongoIdObject = await marcaManager.createMarca(marcaData); 
     if (newMongoIdObject) {
       const createdMarcaRaw = await marcaManager.getMarcaById(newMongoIdObject.toHexString());
       return {
         success: true,
         message: 'Marca creada exitosamente.',
         data: {
-          marcaId: newMongoIdObject.toHexString(), // String for client
+          marcaId: newMongoIdObject.toHexString(), 
           customIdMarca: createdMarcaRaw?.idMarca
         }
       };
@@ -64,7 +61,7 @@ export async function createMarcaAction(marcaData: NewMarcaData): Promise<Action
 export async function getMarcaByIdAction(id: string): Promise<ActionResult<MarcaVehiculo | null>> {
   const marcaManager = new MarcaManager();
   try {
-    const marcaFromDBRaw = await marcaManager.getMarcaById(id); // `id` is string
+    const marcaFromDBRaw = await marcaManager.getMarcaById(id); 
     if (marcaFromDBRaw) {
       return { success: true, data: serializeMarca(marcaFromDBRaw) };
     }
@@ -78,7 +75,6 @@ export async function getMarcaByIdAction(id: string): Promise<ActionResult<Marca
 export async function updateMarcaAction(id: string, updateData: UpdateMarcaData): Promise<ActionResult<null>> {
   const marcaManager = new MarcaManager();
   try {
-    // `id` is string, manager.updateMarca expects string
     const success = await marcaManager.updateMarca(id, updateData);
     if (success) {
       return { success: true, message: 'Marca actualizada exitosamente.' };
@@ -96,7 +92,6 @@ export async function updateMarcaAction(id: string, updateData: UpdateMarcaData)
 export async function deleteMarcaAction(id: string): Promise<ActionResult<null>> {
   const marcaManager = new MarcaManager();
   try {
-    // `id` is string, manager.deleteMarca expects string
     const success = await marcaManager.deleteMarca(id);
     if (success) {
       return { success: true, message: 'Marca eliminada exitosamente.' };
@@ -109,15 +104,12 @@ export async function deleteMarcaAction(id: string): Promise<ActionResult<null>>
   }
 }
 
-// --- Model Actions ---
-// Modelos are subdocuments, their actions operate on the parent Marca identified by string `marcaId`
 export async function addModeloToMarcaAction(marcaId: string, modeloData: ModeloVehiculo): Promise<ActionResult<null>> {
     const marcaManager = new MarcaManager();
     try {
-        if (!modeloData.idModelo || !modeloData.modelo?.trim()) {
+        if (modeloData.idModelo == null || String(modeloData.idModelo).trim() === '' || !modeloData.modelo?.trim()) { // Check for null or empty string for idModelo
             return { success: false, error: "ID Modelo y Nombre del Modelo son requeridos."};
         }
-        // `marcaId` is string
         const success = await marcaManager.addModeloToMarca(marcaId, modeloData);
         if (success) {
             return { success: true, message: "Modelo añadido exitosamente." };
@@ -136,7 +128,6 @@ export async function updateModeloInMarcaAction(marcaId: string, modeloId: numbe
         if (modeloUpdateData.modelo !== undefined && !modeloUpdateData.modelo?.trim()) {
              return { success: false, error: "El nombre del modelo no puede estar vacío."};
         }
-        // `marcaId` is string
         const success = await marcaManager.updateModeloInMarca(marcaId, modeloId, modeloUpdateData);
         if (success) {
             return { success: true, message: "Modelo actualizado exitosamente." };
@@ -152,7 +143,6 @@ export async function updateModeloInMarcaAction(marcaId: string, modeloId: numbe
 export async function removeModeloFromMarcaAction(marcaId: string, modeloId: number): Promise<ActionResult<null>> {
     const marcaManager = new MarcaManager();
     try {
-        // `marcaId` is string
         const success = await marcaManager.removeModeloFromMarca(marcaId, modeloId);
         if (success) {
             return { success: true, message: "Modelo eliminado exitosamente." };

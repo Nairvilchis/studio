@@ -2,10 +2,10 @@
 'use server';
 
 import OrderManager from '@/serviceOrderManager';
-import type { Order, NewOrderData, UpdateOrderData, User } from '@/lib/types';
+import type { Order, NewOrderData, UpdateOrderData, Empleado } from '@/lib/types'; // Changed User to Empleado
 import { UserRole } from '@/lib/types';
 import type { Filter } from 'mongodb';
-import UserManager from '@/userManager';
+import EmpleadoManager from '@/empleadoManager'; // Import EmpleadoManager
 
 
 interface ActionResult<T> {
@@ -16,33 +16,41 @@ interface ActionResult<T> {
 }
 
 interface EmployeeOption {
-  _id: string; // User._id (MongoDB ObjectId as string)
-  nombre: string; // User.nombre
+  _id: string; // Empleado._id (MongoDB ObjectId as string)
+  nombre: string; // Empleado.nombre
 }
 
 
 // Helper function to serialize _id to string and ensure dates are client-friendly
 function serializeOrder(orderFromDb: any): Order {
-  return {
+  const serialized = { // Ensure this matches Order type structure from lib/types.ts
     ...orderFromDb,
     _id: orderFromDb._id ? orderFromDb._id.toHexString() : undefined,
-    fechaRegistro: orderFromDb.fechaRegistro,
+    fechaRegistro: orderFromDb.fechaRegistro, // Keep as Date object or convert to ISO string
     fechaValuacion: orderFromDb.fechaValuacion ? orderFromDb.fechaValuacion : undefined,
     fechaRengreso: orderFromDb.fechaRengreso ? orderFromDb.fechaRengreso : undefined,
     fechaEntrega: orderFromDb.fechaEntrega ? orderFromDb.fechaEntrega : undefined,
     fechaPromesa: orderFromDb.fechaPromesa ? orderFromDb.fechaPromesa : undefined,
-    log: orderFromDb.log?.map((entry: any) => ({ ...entry, timestamp: entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp) }))
-  } as Order;
+    log: orderFromDb.log?.map((entry: any) => ({ 
+        ...entry, 
+        timestamp: entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp),
+        userId: entry.userId?.toString() // Ensure userId is string
+    }))
+  };
+  // Remove any fields not in Order type or handle them if necessary
+  return serialized as Order;
 }
+
 
 function serializeOrders(ordersFromDb: any[]): Order[] {
   return ordersFromDb.map(serializeOrder);
 }
 
-function serializeUserToEmployeeOption(userFromDb: any): EmployeeOption {
+// Serializer for Empleado to EmployeeOption
+function serializeEmpleadoToEmployeeOption(empleado: Empleado): EmployeeOption {
  return {
-    _id: userFromDb._id.toHexString(),
-    nombre: userFromDb.nombre // Using 'nombre' as per the unified User interface
+    _id: empleado._id!, // Assumes _id is present and stringified by EmpleadoManager already or serialize it here
+    nombre: empleado.nombre
  };
 }
 
@@ -62,11 +70,10 @@ export async function getAllOrdersAction(filter?: Filter<Order>): Promise<Action
 
 export async function createOrderAction(
   orderData: NewOrderData,
-  userId?: number // This is idEmpleado for logging
+  empleadoLogId?: string // This is Empleado._id for logging
 ): Promise<ActionResult<{ orderId: string | null, customOrderId?: number }>> {
   const orderManager = new OrderManager();
   try {
-    // Ensure dates are Date objects for manager, if they are passed as strings
     const dataWithDates: NewOrderData = {
       ...orderData,
       fechaValuacion: orderData.fechaValuacion ? new Date(orderData.fechaValuacion) : undefined,
@@ -75,7 +82,7 @@ export async function createOrderAction(
       fechaPromesa: orderData.fechaPromesa ? new Date(orderData.fechaPromesa) : undefined,
     };
 
-    const newMongoIdObject = await orderManager.createOrder(dataWithDates, userId);
+    const newMongoIdObject = await orderManager.createOrder(dataWithDates, empleadoLogId);
     if (newMongoIdObject) {
       const createdOrderRaw = await orderManager.getOrderById(newMongoIdObject.toHexString());
       return {
@@ -111,10 +118,10 @@ export async function getOrderByIdAction(id: string): Promise<ActionResult<Order
   }
 }
 
-export async function updateOrderProcesoAction(id: string, proceso: Order['proceso'], userId?: number): Promise<ActionResult<null>> {
+export async function updateOrderProcesoAction(id: string, proceso: Order['proceso'], empleadoLogId?: string): Promise<ActionResult<null>> {
     const orderManager = new OrderManager();
     try {
-        const success = await orderManager.updateOrderProceso(id, proceso, userId);
+        const success = await orderManager.updateOrderProceso(id, proceso, empleadoLogId);
         if (success) {
             return { success: true, message: 'Proceso de la orden actualizado.' };
         } else {
@@ -130,12 +137,12 @@ export async function updateOrderProcesoAction(id: string, proceso: Order['proce
 }
 
 export async function getValuadores(): Promise<ActionResult<EmployeeOption[]>> {
-  const userManager = new UserManager();
+  const empleadoManager = new EmpleadoManager(); // Changed to EmpleadoManager
   try {
-    const users = await userManager.getAllUsers(); // Fetches all users
-    const valuadores = users
-      .filter(user => user.rol === UserRole.VALUADOR)
-      .map(serializeUserToEmployeeOption);
+    const empleados = await empleadoManager.getAllEmpleados(); 
+    const valuadores = empleados
+      .filter(emp => emp.user?.rol === UserRole.VALUADOR)
+      .map(serializeEmpleadoToEmployeeOption);
     return { success: true, data: valuadores };
   } catch (error) {
     console.error("Server action getValuadores error:", error);
@@ -146,12 +153,12 @@ export async function getValuadores(): Promise<ActionResult<EmployeeOption[]>> {
 
 
 export async function getAsesores(): Promise<ActionResult<EmployeeOption[]>> {
-  const userManager = new UserManager();
+  const empleadoManager = new EmpleadoManager(); // Changed to EmpleadoManager
   try {
-    const users = await userManager.getAllUsers();
-    const asesores = users
-        .filter(user => user.rol === UserRole.ASESOR)
-        .map(serializeUserToEmployeeOption);
+    const empleados = await empleadoManager.getAllEmpleados();
+    const asesores = empleados
+        .filter(emp => emp.user?.rol === UserRole.ASESOR)
+        .map(serializeEmpleadoToEmployeeOption);
     return { success: true, data: asesores };
   } catch (error) {
     console.error("Server action getAsesores error:", error);
@@ -161,11 +168,11 @@ export async function getAsesores(): Promise<ActionResult<EmployeeOption[]>> {
 }
 
 export async function getEmployeesByPosition(position: string): Promise<ActionResult<EmployeeOption[]>> {
-  const userManager = new UserManager();
+  const empleadoManager = new EmpleadoManager(); // Changed to EmpleadoManager
   try {
-    const usersWithPosition = await userManager.getAllUsers();
-    const filteredEmployees = usersWithPosition.filter(user => user.puesto === position);
-    const employeeOptions = filteredEmployees.map(serializeUserToEmployeeOption);
+    const empleados = await empleadoManager.getAllEmpleados();
+    const filteredEmployees = empleados.filter(emp => emp.puesto === position); // Compare with Empleado.puesto
+    const employeeOptions = filteredEmployees.map(serializeEmpleadoToEmployeeOption);
     return { success: true, data: employeeOptions };
   } catch (error) {
     console.error(`Server action getEmployeesByPosition (${position}) error:`, error);
@@ -177,7 +184,7 @@ export async function getEmployeesByPosition(position: string): Promise<ActionRe
 export async function updateOrderAction(
   id: string,
   updateData: UpdateOrderData,
-  userId?: number // This is idEmpleado for logging
+  empleadoLogId?: string // This is Empleado._id for logging
 ): Promise<ActionResult<null>> {
   const orderManager = new OrderManager();
   try {
@@ -188,7 +195,7 @@ export async function updateOrderAction(
       fechaEntrega: updateData.fechaEntrega ? new Date(updateData.fechaEntrega) : undefined,
       fechaPromesa: updateData.fechaPromesa ? new Date(updateData.fechaPromesa) : undefined,
     };
-    const success = await orderManager.updateOrder(id, dataWithDates, userId);
+    const success = await orderManager.updateOrder(id, dataWithDates, empleadoLogId);
     if (success) {
       return { success: true, message: 'Orden actualizada exitosamente.' };
     } else {
@@ -218,4 +225,3 @@ export async function deleteOrderAction(id: string): Promise<ActionResult<null>>
         return { success: false, error: errorMessage };
     }
   }
-

@@ -4,9 +4,9 @@
  * @fileOverview Manages service order (Order) operations with MongoDB.
  */
 
-import type { Collection, ObjectId, InsertOneResult, Filter } from 'mongodb';
+import type { Collection, ObjectId, InsertOneResult, Filter, UpdateResult, DeleteResult } from 'mongodb'; // Added UpdateResult, DeleteResult
 import { connectDB } from './db';
-import type { Order, NewOrderData, UpdateOrderData, LogEntry } from '@/lib/types'; // Import from new types file
+import type { Order, NewOrderData, UpdateOrderData, LogEntry } from '@/lib/types'; 
 
 
 class OrderManager {
@@ -18,7 +18,7 @@ class OrderManager {
       const countersCollection = db.collection<{ _id: string; sequence_value: number }>('counters');
       countersCollection.updateOne(
         { _id: 'orderIdSequence' },
-        { $setOnInsert: { sequence_value: 1000 } }, // Start custom ID from 1000
+        { $setOnInsert: { sequence_value: 1000 } }, 
         { upsert: true }
       ).catch(console.warn);
       ordersCollection.createIndex({ idOrder: 1 }, { unique: true }).catch(console.warn);
@@ -42,8 +42,6 @@ class OrderManager {
       { returnDocument: 'after', upsert: true }
     );
     if (!sequenceDocument || sequenceDocument.sequence_value === null || sequenceDocument.sequence_value === undefined) {
-      // This case should be rare due to constructor setup
-      // Ensure the sequence starts at the desired value if it's somehow lost/reset
       const initialValue = sequenceName === 'orderIdSequence' ? 1000 : 0;
       await countersCollection.updateOne({ _id: sequenceName }, { $setOnInsert: { sequence_value: initialValue } }, { upsert: true });
       const newSequenceDoc = await countersCollection.findOneAndUpdate(
@@ -57,18 +55,18 @@ class OrderManager {
     return sequenceDocument.sequence_value;
   }
 
-  async createOrder(orderData: NewOrderData, userId?: number): Promise<ObjectId | null> {
+  async createOrder(orderData: NewOrderData, empleadoLogId?: string): Promise<ObjectId | null> { // empleadoLogId is Empleado._id (string)
     const collection = await this.getCollection();
     const nextIdOrder = await this.getNextSequenceValue('orderIdSequence');
 
     const newOrderDocument: Omit<Order, '_id'> = {
       ...orderData,
       idOrder: nextIdOrder,
-      proceso: orderData.proceso || 'pendiente', // Default to 'pendiente' if not provided
-      fechaRegistro: new Date(), // Current date as registration date
+      proceso: orderData.proceso || 'pendiente', 
+      fechaRegistro: new Date(), 
       log: [{
         timestamp: new Date(),
-        userId: userId,
+        userId: empleadoLogId, // Empleado._id
         action: 'Orden Creada',
         details: `ID Orden: OT-${String(nextIdOrder).padStart(4, '0')}`
       }],
@@ -95,7 +93,7 @@ class OrderManager {
     }
   }
 
-  async getOrderById(id: string): Promise<Order | null> { // Gets by MongoDB _id
+  async getOrderById(id: string): Promise<Order | null> { 
     const collection = await this.getCollection();
     try {
       if (!ObjectId.isValid(id)) {
@@ -121,18 +119,18 @@ class OrderManager {
     }
   }
 
-  async updateOrderProceso(id: string, proceso: Order['proceso'], userId?: number): Promise<boolean> {
+  async updateOrderProceso(id: string, proceso: Order['proceso'], empleadoLogId?: string): Promise<boolean> {
     const collection = await this.getCollection();
     try {
         if (!ObjectId.isValid(id)) {
           console.warn('Invalid ObjectId for updateOrderProceso:', id);
           return false;
         }
-        const result = await collection.updateOne(
+        const result: UpdateResult = await collection.updateOne( // Added type
             { _id: new ObjectId(id) },
             {
                 $set: { proceso: proceso },
-                $push: { log: { timestamp: new Date(), userId, action: `Proceso cambiado a: ${proceso}` } as LogEntry }
+                $push: { log: { timestamp: new Date(), userId: empleadoLogId, action: `Proceso cambiado a: ${proceso}` } as LogEntry }
             }
         );
         return result.modifiedCount > 0;
@@ -143,7 +141,7 @@ class OrderManager {
 }
 
 
-  async updateOrder(id: string, updateData: UpdateOrderData, userId?: number): Promise<boolean> {
+  async updateOrder(id: string, updateData: UpdateOrderData, empleadoLogId?: string): Promise<boolean> { // empleadoLogId is Empleado._id
     const collection = await this.getCollection();
     try {
       if (!ObjectId.isValid(id)) {
@@ -151,10 +149,9 @@ class OrderManager {
         return false;
       }
       if (Object.keys(updateData).length === 0) {
-        return true; // No changes needed
+        return true; 
       }
       
-      // Construct a more detailed log message
       let logDetails = "Campos actualizados: ";
       const changedFields: string[] = [];
       for (const key in updateData) {
@@ -167,12 +164,12 @@ class OrderManager {
 
       const logEntry: LogEntry = {
         timestamp: new Date(),
-        userId,
+        userId: empleadoLogId,
         action: 'Orden Actualizada',
         details: logDetails
       };
 
-      const result = await collection.updateOne(
+      const result: UpdateResult = await collection.updateOne( // Added type
         { _id: new ObjectId(id) },
         {
           $set: updateData,
@@ -187,14 +184,14 @@ class OrderManager {
     }
   }
 
-  async deleteOrder(id: string): Promise<boolean> { // Deletes by MongoDB _id
+  async deleteOrder(id: string): Promise<boolean> { 
     const collection = await this.getCollection();
     try {
       if (!ObjectId.isValid(id)) {
         console.warn('Invalid ObjectId format for deleteOrder:', id);
         return false;
       }
-      const result = await collection.deleteOne({ _id: new ObjectId(id) });
+      const result: DeleteResult = await collection.deleteOne({ _id: new ObjectId(id) }); // Added type
       console.log('Orden eliminada:', result.deletedCount);
       return result.deletedCount > 0;
     } catch (error) {

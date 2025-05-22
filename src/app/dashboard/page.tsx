@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, CalendarDays, Wrench, Package, PlusCircle, Edit, Trash2, EyeIcon, Car, Shield, Users, Settings, Building } from 'lucide-react';
+import { LogOut, CalendarDays, Wrench, Package, PlusCircle, Edit, Trash2, EyeIcon, Car, Shield, Users, Settings, Building, UserX } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,7 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 
 import { 
   UserRole, 
-  type User,
+  type Empleado, // Changed from User
+  type SystemUserCredentials,
   type Order,
   type NewOrderData,
   type UpdateOrderData,
@@ -39,9 +40,9 @@ import {
   updateOrderAction,
   deleteOrderAction,
   getOrderByIdAction,
-  getAsesores,
-  getValuadores,
-  getEmployeesByPosition,
+  getAsesores, // Will now fetch Empleados with rol ASESOR
+  getValuadores, // Will now fetch Empleados with rol VALUADOR
+  getEmployeesByPosition, // Will now fetch Empleados by puesto
 } from './service-orders/actions';
 
 import {
@@ -69,29 +70,43 @@ import {
 import { getClients } from './admin/clients/actions';
 
 import {
-  getAllUsersAction,
-  createUserAction,
-  getUserByIdAction as getUserForEditAction, 
-  updateUserAction,
-  deleteUserAction as deleteUserAdminAction,
-} from './admin/users/actions';
+  getAllEmpleadosAction, // Changed from getAllUsersAction
+  createEmpleadoAction,  // Changed from createUserAction
+  getEmpleadoByIdAction as getEmpleadoForEditAction, // Changed
+  updateEmpleadoAction,  // Changed
+  deleteEmpleadoAction,  // Changed
+  removeSystemUserFromEmpleadoAction,
+} from './admin/empleados/actions'; // Changed path
 
 type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log'>>;
 type MarcaFormDataType = Partial<Omit<MarcaVehiculo, '_id' | 'idMarca' | 'modelos'>>;
 type ModeloFormDataType = Partial<ModeloVehiculo>;
 type AseguradoraFormDataType = Partial<Omit<Aseguradora, '_id' | 'idAseguradora' | 'ajustadores'>>;
 type AjustadorFormDataType = Partial<Ajustador>;
-type UserFormDataType = Partial<Pick<User, 'idEmpleado' | 'usuario' | 'contraseña' | 'rol' | 'nombre' | 'puesto'>>;
-type EditUserFormDataType = Partial<Pick<User, 'usuario' | 'contraseña' | 'rol' | 'nombre' | 'puesto'>>;
+
+// Form data types for Empleado
+type EmpleadoFormDataType = Omit<Empleado, '_id' | 'fechaRegistro' | 'user'> & {
+  createSystemUser?: boolean;
+  systemUserUsuario?: string;
+  systemUserContraseña?: string;
+  systemUserConfirmContraseña?: string;
+  systemUserRol?: UserRole;
+};
+type EditEmpleadoFormDataType = Omit<Empleado, '_id' | 'fechaRegistro' | 'user'> & {
+  systemUserUsuario?: string; // For display, not edit directly here
+  systemUserRol?: UserRole; // For display, not edit directly here
+  newSystemUserContraseña?: string;
+  newSystemUserConfirmContraseña?: string;
+  createSystemUser?: boolean; // To enable creating user if not exists
+};
 
 
 export default function DashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userName, setUserName] = useState<string | null>(null);
-  const [userIdEmpleado, setUserIdEmpleado] = useState<string | null>(null); 
+  const [empleadoId, setEmpleadoId] = useState<string | null>(null); // Changed from userIdEmpleado / userId
   const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
 
 
   // --- Orders State ---
@@ -114,11 +129,11 @@ export default function DashboardPage() {
   
   const [clients, setClients] = useState<Cliente[]>([]); 
   const [isLoadingClients, setIsLoadingClients] = useState(true);
-  const [asesores, setAsesores] = useState<{ _id: string; nombre: string }[]>([]);
+  const [asesores, setAsesores] = useState<{ _id: string; nombre: string }[]>([]); // Empleado IDs
   const [isLoadingAsesores, setIsLoadingAsesores] = useState(true);
-  const [valuadores, setValuadores] = useState<{ _id: string; nombre: string }[]>([]);
-  const [hojalateros, setHojalateros] = useState<{ _id: string; nombre: string }[]>([]);
-  const [pintores, setPintores] = useState<{ _id: string; nombre: string }[]>([]);
+  const [valuadores, setValuadores] = useState<{ _id: string; nombre: string }[]>([]); // Empleado IDs
+  const [hojalateros, setHojalateros] = useState<{ _id: string; nombre: string }[]>([]); // Empleado IDs
+  const [pintores, setPintores] = useState<{ _id: string; nombre: string }[]>([]); // Empleado IDs
 
 
   // --- Admin: Marcas State ---
@@ -159,35 +174,36 @@ export default function DashboardPage() {
   const [newAjustadorData, setNewAjustadorData] = useState<AjustadorFormDataType>({ nombre: '', telefono: '', correo: '' });
   const [editAjustadorData, setEditAjustadorData] = useState<AjustadorFormDataType>({});
 
-  // --- Admin: Users State ---
-  const [usersList, setUsersList] = useState<User[]>([]);
-  const [isLoadingUsersList, setIsLoadingUsersList] = useState(true);
-  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
-  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
-  const [isDeleteUserDialogOpen, setIsDeleteUserDialogOpen] = useState(false);
-  const [currentUserToEdit, setCurrentUserToEdit] = useState<User | null>(null);
-  const [newUserData, setNewUserData] = useState<UserFormDataType>({ idEmpleado: undefined, usuario: '', contraseña: '', rol: UserRole.ASESOR, nombre: '', puesto: '' });
-  const [editUserData, setEditUserData] = useState<EditUserFormDataType>({});
-  const [userToDeleteId, setUserToDeleteId] = useState<string | null>(null);
+  // --- Admin: Empleados State ---
+  const [empleadosList, setEmpleadosList] = useState<Empleado[]>([]);
+  const [isLoadingEmpleadosList, setIsLoadingEmpleadosList] = useState(true);
+  const [isCreateEmpleadoDialogOpen, setIsCreateEmpleadoDialogOpen] = useState(false);
+  const [isEditEmpleadoDialogOpen, setIsEditEmpleadoDialogOpen] = useState(false);
+  const [isDeleteEmpleadoDialogOpen, setIsDeleteEmpleadoDialogOpen] = useState(false);
+  const [currentEmpleadoToEdit, setCurrentEmpleadoToEdit] = useState<Empleado | null>(null);
+  const initialNewEmpleadoData: EmpleadoFormDataType = {
+    nombre: '', puesto: '', createSystemUser: false, systemUserUsuario: '', systemUserContraseña: '', systemUserConfirmContraseña: '', systemUserRol: UserRole.ASESOR,
+  };
+  const [newEmpleadoData, setNewEmpleadoData] = useState<EmpleadoFormDataType>(initialNewEmpleadoData);
+  const [editEmpleadoData, setEditEmpleadoData] = useState<EditEmpleadoFormDataType>({});
+  const [empleadoToDeleteId, setEmpleadoToDeleteId] = useState<string | null>(null);
 
 
   useEffect(() => {
     const loggedIn = localStorage.getItem('isLoggedIn');
-    const storedUser = localStorage.getItem('username');
-    const storedIdEmpleado = localStorage.getItem('idEmpleado'); 
+    const storedUserName = localStorage.getItem('username'); // This is user.usuario
+    const storedEmpleadoId = localStorage.getItem('empleadoId'); // This is empleado._id
     const storedUserRole = localStorage.getItem('userRole') as UserRole;
-    const storedUserId = localStorage.getItem('userId'); 
 
-    if (loggedIn !== 'true' || !storedUser) {
+    if (loggedIn !== 'true' || !storedUserName || !storedEmpleadoId) {
       router.replace('/');
     } else {
-      setUserName(storedUser);
+      setUserName(storedUserName);
       setUserRole(storedUserRole);
-      setUserIdEmpleado(storedIdEmpleado);
-      setUserId(storedUserId);
+      setEmpleadoId(storedEmpleadoId);
 
-      if (storedUserId && storedUserRole === UserRole.ASESOR) {
-        setNewOrderData(prev => ({ ...prev, idAsesor: storedUserId }));
+      if (storedEmpleadoId && storedUserRole === UserRole.ASESOR) {
+        setNewOrderData(prev => ({ ...prev, idAsesor: storedEmpleadoId }));
       }
       fetchInitialData(storedUserRole);
     }
@@ -203,22 +219,22 @@ export default function DashboardPage() {
     fetchHojalateros();
     fetchPintores();
     if (role === UserRole.ADMIN) {
-      fetchUsers();
+      fetchEmpleados(); // Changed from fetchUsers
     }
   };
 
   const fetchValuadores = async () => {
-    const result = await getValuadores();
+    const result = await getValuadores(); // Fetches Empleados with rol VALUADOR
     if (result.success && result.data) setValuadores(result.data);
   };
 
   const fetchHojalateros = async () => {
-    const result = await getEmployeesByPosition('hojalatero');
+    const result = await getEmployeesByPosition('Hojalatero'); // Case sensitive with 'puesto'
     if (result.success && result.data) setHojalateros(result.data);
   };
 
   const fetchPintores = async () => {
-    const result = await getEmployeesByPosition('pintor');
+    const result = await getEmployeesByPosition('Pintor'); // Case sensitive with 'puesto'
     if (result.success && result.data) setPintores(result.data);
   };
 
@@ -236,7 +252,7 @@ export default function DashboardPage() {
 
   const fetchAsesores = async () => {
     setIsLoadingAsesores(true);
-    const result = await getAsesores();
+    const result = await getAsesores(); // Fetches Empleados with rol ASESOR
     if (result.success && result.data) setAsesores(result.data);
     setIsLoadingAsesores(false);
   };
@@ -265,20 +281,19 @@ export default function DashboardPage() {
     setIsLoadingAseguradoras(false);
   };
 
-  const fetchUsers = async () => {
-    setIsLoadingUsersList(true);
-    const result = await getAllUsersAction();
-    if (result.success && result.data) setUsersList(result.data);
-    else toast({ title: "Error Usuarios", description: result.error || "No se pudieron cargar los usuarios.", variant: "destructive" });
-    setIsLoadingUsersList(false);
+  const fetchEmpleados = async () => { // Changed from fetchUsers
+    setIsLoadingEmpleadosList(true);
+    const result = await getAllEmpleadosAction(); // Changed from getAllUsersAction
+    if (result.success && result.data) setEmpleadosList(result.data);
+    else toast({ title: "Error Empleados", description: result.error || "No se pudieron cargar los empleados.", variant: "destructive" });
+    setIsLoadingEmpleadosList(false);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('username');
-    localStorage.removeItem('idEmpleado');
+    localStorage.removeItem('empleadoId'); // Changed from idEmpleado / userId
     localStorage.removeItem('userRole');
-    localStorage.removeItem('userId'); 
     router.replace('/');
   };
 
@@ -315,8 +330,8 @@ export default function DashboardPage() {
       return;
     }
 
-    const currentUserIdEmpleado = localStorage.getItem('idEmpleado');
-    if (!currentUserIdEmpleado) {
+    const currentEmpleadoIdForLog = localStorage.getItem('empleadoId'); // This is Empleado._id
+    if (!currentEmpleadoIdForLog) {
         toast({ title: "Error de Autenticación", description: "No se pudo identificar al usuario para el registro de log.", variant: "destructive" });
         return;
     }
@@ -326,10 +341,10 @@ export default function DashboardPage() {
       idCliente: newOrderData.idCliente, 
       idMarca: newOrderData.idMarca, 
       idAseguradora: newOrderData.idAseguradora, 
-      idValuador: newOrderData.idValuador, 
-      idAsesor: newOrderData.idAsesor, 
-      idHojalatero: newOrderData.idHojalatero, 
-      idPintor: newOrderData.idPintor, 
+      idValuador: newOrderData.idValuador, // This is Empleado._id
+      idAsesor: newOrderData.idAsesor,     // This is Empleado._id
+      idHojalatero: newOrderData.idHojalatero, // This is Empleado._id
+      idPintor: newOrderData.idPintor,       // This is Empleado._id
       idPresupuesto: newOrderData.idPresupuesto,
 
       idModelo: newOrderData.idModelo ? Number(newOrderData.idModelo) : undefined,
@@ -358,10 +373,10 @@ export default function DashboardPage() {
       proceso: newOrderData.proceso || 'pendiente',
     };
 
-    const result = await createOrderAction(orderToCreate, Number(currentUserIdEmpleado));
+    const result = await createOrderAction(orderToCreate, currentEmpleadoIdForLog); // Pass Empleado._id as string
     if (result.success && result.data) {
       toast({ title: "Éxito", description: `Orden OT-${String(result.data.customOrderId || '').padStart(4, '0')} creada.` });
-      setIsCreateOrderDialogOpen(false); fetchOrders(); setNewOrderData({ ...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR && userId ? userId : undefined, proceso: 'pendiente' });
+      setIsCreateOrderDialogOpen(false); fetchOrders(); setNewOrderData({ ...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR && empleadoId ? empleadoId : undefined, proceso: 'pendiente' });
     } else {
       toast({ title: "Error al Crear", description: result.error || "No se pudo crear la orden.", variant: "destructive" });
     }
@@ -375,8 +390,8 @@ export default function DashboardPage() {
       
       const formatDateForInput = (date?: Date | string): string | undefined => {
         if (!date) return undefined;
-        const d = new Date(date); // Handles both Date objects and valid date strings
-        if (isNaN(d.getTime())) return undefined; // Invalid date
+        const d = new Date(date); 
+        if (isNaN(d.getTime())) return undefined;
         const year = d.getFullYear();
         const month = (d.getMonth() + 1).toString().padStart(2, '0');
         const day = d.getDate().toString().padStart(2, '0');
@@ -412,8 +427,8 @@ export default function DashboardPage() {
   const handleUpdateOrder = async () => {
     if (!currentOrder || !currentOrder._id) return;
 
-    const currentUserIdEmpleado = localStorage.getItem('idEmpleado');
-    if (!currentUserIdEmpleado) {
+    const currentEmpleadoIdForLog = localStorage.getItem('empleadoId');
+    if (!currentEmpleadoIdForLog) {
         toast({ title: "Error de Autenticación", description: "No se pudo identificar al usuario para el registro de log.", variant: "destructive" });
         return;
     }
@@ -447,7 +462,7 @@ export default function DashboardPage() {
       }
     });
 
-    const result = await updateOrderAction(currentOrder._id.toString(), dataToUpdate, Number(currentUserIdEmpleado));
+    const result = await updateOrderAction(currentOrder._id.toString(), dataToUpdate, currentEmpleadoIdForLog); // Pass Empleado._id as string
     if (result.success) {
       toast({ title: "Éxito", description: result.message });
       setIsEditOrderDialogOpen(false); fetchOrders(); setCurrentOrder(null); setEditOrderData({});
@@ -632,117 +647,193 @@ export default function DashboardPage() {
     }
   };
 
-  // --- User (Admin) Management Functions ---
-  const handleCreateUser = async () => {
-    if (newUserData.idEmpleado == null || String(newUserData.idEmpleado).trim() === '' || !newUserData.usuario?.trim() || !newUserData.contraseña?.trim() || !newUserData.rol || !newUserData.nombre?.trim()) {
-      toast({ title: "Error de Validación", description: "ID Empleado, Usuario, Contraseña, Rol y Nombre son obligatorios.", variant: "destructive" });
+  // --- Empleado (Admin) Management Functions ---
+  const handleCreateEmpleado = async () => {
+    if (!newEmpleadoData.nombre?.trim() || !newEmpleadoData.puesto?.trim()) {
+      toast({ title: "Error de Validación", description: "Nombre y Puesto son obligatorios.", variant: "destructive" });
       return;
     }
-    const userToCreate = {
-      idEmpleado: Number(newUserData.idEmpleado), 
-      usuario: newUserData.usuario,
-      contraseña: newUserData.contraseña,
-      rol: newUserData.rol,
-      nombre: newUserData.nombre,
-      puesto: newUserData.puesto,
+    
+    let systemUserDetails: Omit<SystemUserCredentials, 'permisos' | '_id'> | undefined = undefined;
+    if (newEmpleadoData.createSystemUser) {
+      if (!newEmpleadoData.systemUserUsuario?.trim() || !newEmpleadoData.systemUserContraseña?.trim() || !newEmpleadoData.systemUserRol) {
+        toast({ title: "Error de Validación de Usuario", description: "Usuario, Contraseña y Rol son obligatorios si se crea acceso al sistema.", variant: "destructive" });
+        return;
+      }
+      if (newEmpleadoData.systemUserContraseña !== newEmpleadoData.systemUserConfirmContraseña) {
+        toast({ title: "Error de Contraseña", description: "Las contraseñas no coinciden.", variant: "destructive" });
+        return;
+      }
+      systemUserDetails = {
+        usuario: newEmpleadoData.systemUserUsuario,
+        contraseña: newEmpleadoData.systemUserContraseña,
+        rol: newEmpleadoData.systemUserRol,
+      };
+    }
+
+    const empleadoToCreate: Omit<Empleado, '_id' | 'fechaRegistro' | 'user'> = {
+      nombre: newEmpleadoData.nombre,
+      puesto: newEmpleadoData.puesto,
+      telefono: newEmpleadoData.telefono,
+      correo: newEmpleadoData.correo,
+      sueldo: newEmpleadoData.sueldo ? Number(newEmpleadoData.sueldo) : undefined,
+      comision: newEmpleadoData.comision ? Number(newEmpleadoData.comision) : undefined,
     };
 
-    const result = await createUserAction(userToCreate as User);
+    const result = await createEmpleadoAction(empleadoToCreate, systemUserDetails);
     if (result.success) {
       toast({ title: "Éxito", description: result.message });
-      setIsCreateUserDialogOpen(false); fetchUsers(); setNewUserData({ idEmpleado: undefined, usuario: '', contraseña: '', rol: UserRole.ASESOR, nombre:'', puesto:'' });
+      setIsCreateEmpleadoDialogOpen(false); fetchEmpleados(); setNewEmpleadoData(initialNewEmpleadoData);
     } else {
-      toast({ title: "Error al Crear Usuario", description: result.error || "No se pudo crear el usuario", variant: "destructive" });
+      toast({ title: "Error al Crear Empleado", description: result.error || "No se pudo crear el empleado", variant: "destructive" });
     }
   };
 
-  const openEditUserDialog = async (userId: string) => {
-    const result = await getUserForEditAction(userId);
+  const openEditEmpleadoDialog = async (empleadoId: string) => {
+    const result = await getEmpleadoForEditAction(empleadoId);
     if (result.success && result.data) {
-      setCurrentUserToEdit(result.data);
-      setEditUserData({
-        usuario: result.data.usuario,
-        rol: result.data.rol,
+      setCurrentEmpleadoToEdit(result.data);
+      setEditEmpleadoData({
         nombre: result.data.nombre,
         puesto: result.data.puesto,
-        contraseña: '' 
+        telefono: result.data.telefono,
+        correo: result.data.correo,
+        sueldo: result.data.sueldo,
+        comision: result.data.comision,
+        systemUserUsuario: result.data.user?.usuario, // For display
+        systemUserRol: result.data.user?.rol, // For display
+        newSystemUserContraseña: '',
+        newSystemUserConfirmContraseña: '',
+        createSystemUser: !!result.data.user // Check this to enable system user creation if not exists
       });
-      setIsEditUserDialogOpen(true);
+      setIsEditEmpleadoDialogOpen(true);
     } else {
-      toast({ title: "Error", description: result.error || "No se pudo cargar el usuario para editar.", variant: "destructive" });
+      toast({ title: "Error", description: result.error || "No se pudo cargar el empleado para editar.", variant: "destructive" });
     }
   };
 
-  const handleUpdateUser = async () => {
-    if (!currentUserToEdit || !currentUserToEdit._id) return;
-    if (!editUserData.usuario?.trim() || !editUserData.rol || !editUserData.nombre?.trim()) {
-       toast({ title: "Error de Validación", description: "Usuario, Rol y Nombre son obligatorios.", variant: "destructive" });
+  const handleUpdateEmpleado = async () => {
+    if (!currentEmpleadoToEdit || !currentEmpleadoToEdit._id) return;
+    if (!editEmpleadoData.nombre?.trim() || !editEmpleadoData.puesto?.trim()) {
+       toast({ title: "Error de Validación", description: "Nombre y Puesto son obligatorios.", variant: "destructive" });
        return;
     }
-    const dataToUpdate: EditUserFormDataType = {
-        usuario: editUserData.usuario,
-        rol: editUserData.rol,
-        nombre: editUserData.nombre,
-        puesto: editUserData.puesto,
+    const empleadoDetailsToUpdate: Partial<Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>> = {
+        nombre: editEmpleadoData.nombre,
+        puesto: editEmpleadoData.puesto,
+        telefono: editEmpleadoData.telefono,
+        correo: editEmpleadoData.correo,
+        sueldo: editEmpleadoData.sueldo ? Number(editEmpleadoData.sueldo) : undefined,
+        comision: editEmpleadoData.comision ? Number(editEmpleadoData.comision) : undefined,
     };
-    if (editUserData.contraseña && editUserData.contraseña.trim() !== '') {
-        dataToUpdate.contraseña = editUserData.contraseña;
+
+    let systemUserDetailsToUpdate: Partial<Omit<SystemUserCredentials, 'permisos' | '_id'>> | undefined = undefined;
+    
+    // Logic if creating a new system user for an existing employee
+    if (editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user) {
+        if (!editEmpleadoData.systemUserUsuario?.trim() || !editEmpleadoData.newSystemUserContraseña?.trim() || !editEmpleadoData.systemUserRol) {
+            toast({ title: "Error de Validación de Usuario", description: "Usuario, Nueva Contraseña y Rol son obligatorios para crear acceso al sistema.", variant: "destructive" });
+            return;
+        }
+        if (editEmpleadoData.newSystemUserContraseña !== editEmpleadoData.newSystemUserConfirmContraseña) {
+            toast({ title: "Error de Contraseña", description: "Las nuevas contraseñas no coinciden.", variant: "destructive" });
+            return;
+        }
+        systemUserDetailsToUpdate = {
+            usuario: editEmpleadoData.systemUserUsuario,
+            contraseña: editEmpleadoData.newSystemUserContraseña,
+            rol: editEmpleadoData.systemUserRol,
+        };
+    } 
+    // Logic if only updating password for an existing system user
+    else if (currentEmpleadoToEdit.user && editEmpleadoData.newSystemUserContraseña?.trim()) {
+        if (editEmpleadoData.newSystemUserContraseña !== editEmpleadoData.newSystemUserConfirmContraseña) {
+            toast({ title: "Error de Contraseña", description: "Las nuevas contraseñas no coinciden.", variant: "destructive" });
+            return;
+        }
+        systemUserDetailsToUpdate = { // Only pass password if it's being changed
+            contraseña: editEmpleadoData.newSystemUserContraseña,
+        };
     }
 
-    const result = await updateUserAction(currentUserToEdit._id.toString(), dataToUpdate);
+
+    const result = await updateEmpleadoAction(currentEmpleadoToEdit._id.toString(), empleadoDetailsToUpdate, systemUserDetailsToUpdate);
     if (result.success) {
       toast({ title: "Éxito", description: result.message });
-      setIsEditUserDialogOpen(false); fetchUsers(); setCurrentUserToEdit(null); setEditUserData({});
+      setIsEditEmpleadoDialogOpen(false); fetchEmpleados(); setCurrentEmpleadoToEdit(null); setEditEmpleadoData({});
     } else {
-      toast({ title: "Error al Actualizar Usuario", description: result.error || "No se pudo actualizar", variant: "destructive" });
+      toast({ title: "Error al Actualizar Empleado", description: result.error || "No se pudo actualizar", variant: "destructive" });
     }
   };
 
-  const openDeleteUserDialog = (userId: string) => {
-    setUserToDeleteId(userId);
-    setIsDeleteUserDialogOpen(true);
+  const openDeleteEmpleadoDialog = (empleadoId: string) => {
+    setEmpleadoToDeleteId(empleadoId);
+    setIsDeleteEmpleadoDialogOpen(true);
   };
 
-  const handleDeleteUser = async () => {
-    if (!userToDeleteId) return;
-    const result = await deleteUserAdminAction(userToDeleteId);
+  const handleDeleteEmpleado = async () => {
+    if (!empleadoToDeleteId) return;
+    const result = await deleteEmpleadoAction(empleadoToDeleteId);
     if (result.success) {
       toast({ title: "Éxito", description: result.message });
-      fetchUsers();
+      fetchEmpleados();
     } else {
-      toast({ title: "Error al Eliminar Usuario", description: result.error || "Error al eliminar", variant: "destructive" });
+      toast({ title: "Error al Eliminar Empleado", description: result.error || "Error al eliminar", variant: "destructive" });
     }
-    setIsDeleteUserDialogOpen(false);
-    setUserToDeleteId(null);
+    setIsDeleteEmpleadoDialogOpen(false);
+    setEmpleadoToDeleteId(null);
   };
+  
+  const handleRemoveSystemUser = async (empleadoId: string) => {
+    if (!empleadoId) return;
+    const result = await removeSystemUserFromEmpleadoAction(empleadoId);
+    if (result.success) {
+        toast({title: "Éxito", description: result.message});
+        fetchEmpleados(); // Refresh list
+        // If current edited employee is this one, update its state
+        if (currentEmpleadoToEdit?._id === empleadoId) {
+            setCurrentEmpleadoToEdit(prev => prev ? ({...prev, user: undefined}) : null);
+            setEditEmpleadoData(prev => ({...prev, systemUserUsuario: undefined, systemUserRol: undefined, createSystemUser: true}));
+        }
+    } else {
+        toast({title: "Error", description: result.error || "No se pudo remover el acceso.", variant: "destructive"});
+    }
+  };
+
 
   const formatDate = (dateInput?: Date | string | number): string => {
     if (!dateInput) return 'N/A';
     let date: Date;
   
     if (typeof dateInput === 'string') {
-      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}\.\d{3}Z?)?$/.test(dateInput)) { // ISO String with or without Z
+      // Try to parse ISO string (potentially from DB) or YYYY-MM-DD (from date input)
+      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3}Z?)?)?$/.test(dateInput)) {
         date = new Date(dateInput);
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) { // YYYY-MM-DD
+      } else { // Fallback for other string formats or direct Date constructor
         const parts = dateInput.split('-');
-        date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-      } else { // Try to parse directly, might be other formats or invalid
-        date = new Date(dateInput);
+        if (parts.length === 3 && !isNaN(Number(parts[0])) && !isNaN(Number(parts[1])) && !isNaN(Number(parts[2]))) {
+          // Assuming YYYY-MM-DD, create date in UTC to avoid timezone shifts from local interpretation of YYYY-MM-DD
+          date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+        } else {
+          date = new Date(dateInput); // General fallback
+        }
       }
-    } else if (typeof dateInput === 'number') { // Timestamp
+    } else if (typeof dateInput === 'number') {
       date = new Date(dateInput);
-    } else { // Date object
+    } else { 
       date = dateInput;
     }
   
     if (isNaN(date.getTime())) {
       return 'Fecha Inválida';
     }
-    // Using UTC methods to get year, month, day to avoid timezone shifts from constructor
+    // Use UTC methods to ensure consistency if the date was UTC, or local if it was local.
+    // For YYYY-MM-DD from input, we created it as UTC to display it as such.
+    // For ISO strings with Z, they are already UTC.
     const year = date.getUTCFullYear();
     const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
     const day = date.getUTCDate().toString().padStart(2, '0');
-    return `${day}/${month}/${year}`; // DD/MM/YYYY format
+    return `${day}/${month}/${year}`;
   };
   
   const formatDateTime = (dateInput?: Date | string | number): string => {
@@ -754,13 +845,15 @@ export default function DashboardPage() {
         date = dateInput;
     }
     if (isNaN(date.getTime())) return 'Fecha Inválida';
+    // Use toLocaleString for user-friendly local time formatting,
+    // but be aware it uses the client's local timezone. If UTC is strict, adjust.
     return date.toLocaleString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   };
   
   const getProcesoVariant = (proceso?: Order['proceso']): "default" | "secondary" | "outline" | "destructive" => {
     switch (proceso) {
       case 'entregado': case 'facturado': case 'listo_entrega': return 'default'; 
-      case 'hojalateria': case 'pintura': case 'mecanica': case 'armado': case 'detallado_lavado': case 'refacciones_listas': case 'preparacion_pintura': return 'secondary';
+      case 'hojalateria': case 'pintura': case 'mecanica': case 'armado': case 'detallado_lavado': case 'refacciones_listas': case 'preparacion_pintura': case 'control_calidad': return 'secondary';
       case 'espera_refacciones': case 'valuacion': case 'garantia': case 'pendiente': return 'outline'; 
       case 'cancelado': return 'destructive';
       default: return 'secondary';
@@ -781,7 +874,7 @@ export default function DashboardPage() {
 
   const renderDialogField = (
       label: string, name: any, type: string = "text", placeholder?: string,
-      formType: 'newOrder' | 'editOrder' | 'newMarca' | 'editMarca' | 'newModelo' | 'editModelo' | 'newAseguradora' | 'editAseguradora' | 'newAjustador' | 'editAjustador' | 'newUser' | 'editUser' = 'newOrder',
+      formType: 'newOrder' | 'editOrder' | 'newMarca' | 'editMarca' | 'newModelo' | 'editModelo' | 'newAseguradora' | 'editAseguradora' | 'newAjustador' | 'editAjustador' | 'newEmpleado' | 'editEmpleado' = 'newOrder',
       options?: { value: string | number; label: string }[], isCheckbox?: boolean, isTextarea?: boolean, isDisabled?: boolean
     ) => {
     let data: any;
@@ -799,8 +892,9 @@ export default function DashboardPage() {
         case 'editAseguradora': data = editAseguradoraData; handler = (e:any) => handleInputChangeGeneric(e, setEditAseguradoraData); break;
         case 'newAjustador': data = newAjustadorData; handler = (e:any) => handleInputChangeGeneric(e, setNewAjustadorData); break;
         case 'editAjustador': data = editAjustadorData; handler = (e:any) => handleInputChangeGeneric(e, setEditAjustadorData); break;
-        case 'newUser': data = newUserData; handler = (e:any) => handleInputChangeGeneric(e, setNewUserData); selectHandler = (n:any,v:any) => handleSelectChangeGeneric(n,v, setNewUserData); break;
-        case 'editUser': data = editUserData; handler = (e:any) => handleInputChangeGeneric(e, setEditUserData); selectHandler = (n:any,v:any) => handleSelectChangeGeneric(n,v, setEditUserData); break;
+        case 'newEmpleado': data = newEmpleadoData; handler = (e:any) => handleInputChangeGeneric(e, setNewEmpleadoData); selectHandler = (n:any,v:any) => handleSelectChangeGeneric(n,v, setNewEmpleadoData); break;
+        case 'editEmpleado': data = editEmpleadoData; handler = (e:any) => handleInputChangeGeneric(e, setEditEmpleadoData); selectHandler = (n:any,v:any) => handleSelectChangeGeneric(n,v, setEditEmpleadoData); break;
+
         default: data = {}; handler = () => {}; selectHandler = () => {};
     }
     const value = data[name] as any;
@@ -841,7 +935,7 @@ export default function DashboardPage() {
           value={type === 'date' ? (value || '') : (value ?? '')} 
           onChange={(e) => handler(e, currentFormTypeForHandler)}
           className="col-span-3" placeholder={placeholder} 
-          disabled={isDisabled || (formType === 'editUser' && name === 'idEmpleado') }
+          disabled={isDisabled }
         />
       </div>
     );
@@ -874,7 +968,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold text-foreground">Panel del Taller Automotriz</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:inline">
-              Bienvenido, <span className="font-medium text-foreground">{userName} (ID Emp: {userIdEmpleado}, Rol: {userRole})</span>
+              Bienvenido, <span className="font-medium text-foreground">{userName} (ID Emp: {empleadoId}, Rol: {userRole})</span> {/* Updated to empleadoId */}
             </span>
             <Button onClick={handleLogout} variant="outline" size="sm"><LogOut className="mr-2 h-4 w-4" />Cerrar Sesión</Button>
           </div>
@@ -938,7 +1032,7 @@ export default function DashboardPage() {
              <Card className="shadow-lg border-border/50">
                 <CardHeader className="flex flex-row items-center justify-between pb-4">
                     <div><CardTitle className="text-xl">Órdenes de Servicio</CardTitle><CardDescription>Administra todas las órdenes de trabajo.</CardDescription></div>
-                    <Button size="sm" onClick={() => { setNewOrderData({...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR && userId ? userId : undefined, proceso: 'pendiente' }); setIsCreateOrderDialogOpen(true);}}><PlusCircle className="mr-2 h-4 w-4" /> Nueva Orden</Button>
+                    <Button size="sm" onClick={() => { setNewOrderData({...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR && empleadoId ? empleadoId : undefined, proceso: 'pendiente' }); setIsCreateOrderDialogOpen(true);}}><PlusCircle className="mr-2 h-4 w-4" /> Nueva Orden</Button>
                 </CardHeader>
                 <CardContent>
                     {isLoadingOrders ? <p>Cargando órdenes...</p> : orders.length === 0 ?
@@ -1001,16 +1095,16 @@ export default function DashboardPage() {
 
           {userRole === UserRole.ADMIN && (
             <TabsContent value="admin">
-              <Tabs defaultValue="marcas" className="w-full">
+              <Tabs defaultValue="empleados" className="w-full"> {/* Default to empleados */}
                 <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-4 rounded-md p-1 bg-muted/70">
                   <TabsTrigger value="marcas" className="data-[state=active]:bg-background data-[state=active]:shadow-sm"><Car className="mr-2 h-4 w-4" />Marcas/Modelos</TabsTrigger>
                   <TabsTrigger value="aseguradoras" className="data-[state=active]:bg-background data-[state=active]:shadow-sm"><Shield className="mr-2 h-4 w-4"/>Aseguradoras</TabsTrigger>
-                  <TabsTrigger value="usuarios" className="data-[state=active]:bg-background data-[state=active]:shadow-sm"><Users className="mr-2 h-4 w-4"/>Usuarios</TabsTrigger>
+                  <TabsTrigger value="empleados" className="data-[state=active]:bg-background data-[state=active]:shadow-sm"><Users className="mr-2 h-4 w-4"/>Empleados</TabsTrigger> {/* Changed from Usuarios */}
                 </TabsList>
                 <TabsContent value="marcas">
                   <Card className="shadow-lg border-border/50">
                     <CardHeader className="flex flex-row items-center justify-between pb-4">
-                      <div><CardTitle className="text-xl">Gestión de Marcas y Modelos</CardTitle><CardDescription>Añade, edita o elimina marcas de vehículos y sus modelos.</CardDescription></div>
+                      <div><CardTitle className="text-xl">Gestión de Marcas y Modelos</CardTitle></div>
                       <Button size="sm" onClick={() => { setNewMarcaData({marca: ''}); setIsCreateMarcaDialogOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" /> Nueva Marca</Button>
                     </CardHeader>
                     <CardContent>
@@ -1041,7 +1135,7 @@ export default function DashboardPage() {
                 <TabsContent value="aseguradoras">
                     <Card className="shadow-lg border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-4">
-                        <div><CardTitle className="text-xl">Gestión de Aseguradoras</CardTitle><CardDescription>Administra compañías aseguradoras y sus ajustadores.</CardDescription></div>
+                        <div><CardTitle className="text-xl">Gestión de Aseguradoras</CardTitle></div>
                         <Button size="sm" onClick={() => { setNewAseguradoraData({nombre: '', telefono: ''}); setIsCreateAseguradoraDialogOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" /> Nueva Aseguradora</Button>
                         </CardHeader>
                         <CardContent>
@@ -1070,29 +1164,28 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
-                <TabsContent value="usuarios">
+                <TabsContent value="empleados"> {/* Changed from usuarios */}
                     <Card className="shadow-lg border-border/50">
                         <CardHeader className="flex flex-row items-center justify-between pb-4">
-                        <div><CardTitle className="text-xl">Gestión de Usuarios</CardTitle><CardDescription>Administra los usuarios del sistema.</CardDescription></div>
-                        <Button size="sm" onClick={() => { setNewUserData({idEmpleado: undefined, usuario: '', contraseña: '', rol: UserRole.ASESOR, nombre:'', puesto:'' }); setIsCreateUserDialogOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" /> Nuevo Usuario</Button>
+                        <div><CardTitle className="text-xl">Gestión de Empleados</CardTitle></div> {/* Changed title */}
+                        <Button size="sm" onClick={() => { setNewEmpleadoData(initialNewEmpleadoData); setIsCreateEmpleadoDialogOpen(true); }}><PlusCircle className="mr-2 h-4 w-4" /> Nuevo Empleado</Button> {/* Changed label */}
                         </CardHeader>
                         <CardContent>
-                        {isLoadingUsersList ? <p>Cargando usuarios...</p> : usersList.length === 0 ?
-                            <div className="mt-4 flex h-40 items-center justify-center rounded-lg border-2 border-dashed border-border bg-background/50"><p className="text-muted-foreground">No hay usuarios registrados.</p></div>
+                        {isLoadingEmpleadosList ? <p>Cargando empleados...</p> : empleadosList.length === 0 ?
+                            <div className="mt-4 flex h-40 items-center justify-center rounded-lg border-2 border-dashed border-border bg-background/50"><p className="text-muted-foreground">No hay empleados registrados.</p></div>
                             : (
                             <Table>
-                                <TableHeader><TableRow><TableHead>ID Empleado</TableHead><TableHead>Nombre</TableHead><TableHead>Usuario</TableHead><TableHead>Rol</TableHead><TableHead>Puesto</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
+                                <TableHeader><TableRow><TableHead>Nombre</TableHead><TableHead>Puesto</TableHead><TableHead>Usuario Sistema</TableHead><TableHead>Rol Sistema</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
                                 <TableBody>
-                                {usersList.map((user) => (
-                                    <TableRow key={user._id?.toString()}>
-                                    <TableCell>{user.idEmpleado}</TableCell>
-                                    <TableCell>{user.nombre}</TableCell>
-                                    <TableCell className="font-medium">{user.usuario}</TableCell>
-                                    <TableCell>{user.rol}</TableCell>
-                                    <TableCell>{user.puesto || 'N/A'}</TableCell>
+                                {empleadosList.map((emp) => (
+                                    <TableRow key={emp._id?.toString()}>
+                                    <TableCell>{emp.nombre}</TableCell>
+                                    <TableCell>{emp.puesto || 'N/A'}</TableCell>
+                                    <TableCell className="font-medium">{emp.user?.usuario || 'No tiene'}</TableCell>
+                                    <TableCell>{emp.user?.rol || 'N/A'}</TableCell>
                                     <TableCell className="text-right space-x-1">
-                                        <Button variant="ghost" size="icon" onClick={() => openEditUserDialog(user._id!.toString())}><Edit className="h-4 w-4" /></Button>
-                                        <Button variant="ghost" size="icon" onClick={() => openDeleteUserDialog(user._id!.toString())}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                        <Button variant="ghost" size="icon" onClick={() => openEditEmpleadoDialog(emp._id!.toString())}><Edit className="h-4 w-4" /></Button>
+                                        <Button variant="ghost" size="icon" onClick={() => openDeleteEmpleadoDialog(emp._id!.toString())}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                                     </TableCell>
                                     </TableRow>
                                 ))}
@@ -1112,7 +1205,7 @@ export default function DashboardPage() {
       <Dialog open={isCreateOrderDialogOpen} onOpenChange={setIsCreateOrderDialogOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"> 
           <DialogHeader><DialogTitle>Crear Nueva Orden de Servicio</DialogTitle></DialogHeader>
-          <DialogDescription>Formulario para registrar una nueva orden de servicio.</DialogDescription>
+          {/* <DialogDescription>Formulario para registrar una nueva orden de servicio.</DialogDescription> */}
           <div className="grid gap-4 py-4">
             <h3 className="font-semibold text-lg border-b pb-2 mb-2">Datos del Cliente y Vehículo</h3>
             {renderDialogField("Cliente*", "idCliente", "select", isLoadingClients ? "Cargando..." : "Seleccionar cliente", "newOrder", clients.map(c => ({ value: c._id!, label: c.nombre || c.razonSocial || `ID: ${c.idCliente}` })))}
@@ -1139,7 +1232,7 @@ export default function DashboardPage() {
             {renderDialogField("URL Archivos", "urlArchivos", "text", "Link a carpeta de archivos", "newOrder")}
             {renderDialogField("Proceso Inicial", "proceso", "select", "Seleccionar proceso", "newOrder", procesoOptions.map(p => ({value: p.value, label: p.label})), false, false, false)}
             {renderDialogField("Valuador", "idValuador", "select", valuadores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar valuador", "newOrder", valuadores.map(v => ({ value: v._id, label: v.nombre })))}
-            {renderDialogField("Asesor", "idAsesor", "select", asesores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar asesor", "newOrder", asesores.map(a => ({ value: a._id, label: a.nombre })), undefined, false, false, userRole === UserRole.ASESOR && !!userId)}
+            {renderDialogField("Asesor", "idAsesor", "select", asesores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar asesor", "newOrder", asesores.map(a => ({ value: a._id, label: a.nombre })), undefined, false, false, userRole === UserRole.ASESOR && !!empleadoId)}
             {renderDialogField("Hojalatero", "idHojalatero", "select", hojalateros.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar hojalatero", "newOrder", hojalateros.map(h => ({ value: h._id, label: h.nombre })))}
             {renderDialogField("Pintor", "idPintor", "select", pintores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar pintor", "newOrder", pintores.map(p => ({ value: p._id, label: p.nombre })))}
             {renderDialogField("ID Presupuesto", "idPresupuesto", "text", "ID del presupuesto asociado", "newOrder")}
@@ -1156,7 +1249,7 @@ export default function DashboardPage() {
       <Dialog open={isEditOrderDialogOpen} onOpenChange={(open) => { setIsEditOrderDialogOpen(open); if (!open) setCurrentOrder(null); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"> 
           <DialogHeader><DialogTitle>Editar Orden: OT-{String(currentOrder?.idOrder || '').padStart(4, '0')}</DialogTitle></DialogHeader>
-           <DialogDescription>Formulario para editar los detalles de la orden de servicio seleccionada.</DialogDescription>
+           {/* <DialogDescription>Formulario para editar los detalles de la orden de servicio seleccionada.</DialogDescription> */}
           {currentOrder && <div className="grid gap-4 py-4">
             <h3 className="font-semibold text-lg border-b pb-2 mb-2">Datos del Cliente y Vehículo</h3>
             {renderDialogField("Cliente*", "idCliente", "select", isLoadingClients ? "Cargando..." : "Seleccionar cliente", "editOrder", clients.map(c => ({ value: c._id!, label: c.nombre || c.razonSocial || `ID: ${c.idCliente}` })))}
@@ -1251,7 +1344,7 @@ export default function DashboardPage() {
                     <div className="col-span-1 md:col-span-2 max-h-32 overflow-y-auto bg-muted/50 p-2 rounded-md">
                         {currentOrder.log && currentOrder.log.length > 0 ? currentOrder.log.map((entry, index) => (
                             <p key={index} className="text-xs mb-1">
-                                <span className="font-medium">{formatDateTime(entry.timestamp)}</span> (Usr: {entry.userId?.toString() || 'Sis'}): {entry.action} {entry.details && `- ${entry.details}`}
+                                <span className="font-medium">{formatDateTime(entry.timestamp)}</span> (Usr: {empleadosList.find(e => e._id === entry.userId)?.nombre || entry.userId || 'Sis'}): {entry.action} {entry.details && `- ${entry.details}`}
                             </p>
                         )) : <p className="text-xs text-muted-foreground">No hay logs.</p>}
                     </div>
@@ -1290,7 +1383,7 @@ export default function DashboardPage() {
       </Dialog>
       <Dialog open={isManageModelosDialogOpen} onOpenChange={(open) => { setIsManageModelosDialogOpen(open); if (!open) setCurrentMarca(null); }}>
         <DialogContent className="sm:max-w-lg"> 
-          <DialogHeader><DialogTitle>Gestionar Modelos para: {currentMarca?.marca}</DialogTitle><DialogDescription>Añade, edita o elimina modelos para esta marca.</DialogDescription></DialogHeader> 
+          <DialogHeader><DialogTitle>Gestionar Modelos para: {currentMarca?.marca}</DialogTitle></DialogHeader> 
           <div className="my-4"><Button size="sm" onClick={() => { setNewModeloData({idModelo: undefined, modelo: ''}); setIsCreateModeloDialogOpen(true);}}><PlusCircle className="mr-2 h-4 w-4" /> Nuevo Modelo</Button></div> 
           {currentMarca?.modelos && currentMarca.modelos.length > 0 ? (
             <Table>
@@ -1359,7 +1452,7 @@ export default function DashboardPage() {
       </Dialog>
       <Dialog open={isManageAjustadoresDialogOpen} onOpenChange={(open) => { setIsManageAjustadoresDialogOpen(open); if (!open) setCurrentAseguradora(null); }}>
         <DialogContent className="sm:max-w-lg"> 
-          <DialogHeader><DialogTitle>Gestionar Ajustadores para: {currentAseguradora?.nombre}</DialogTitle><DialogDescription>Añade, edita o elimina ajustadores para esta aseguradora.</DialogDescription></DialogHeader> 
+          <DialogHeader><DialogTitle>Gestionar Ajustadores para: {currentAseguradora?.nombre}</DialogTitle></DialogHeader> 
           <div className="my-4"><Button size="sm" onClick={() => { setNewAjustadorData({nombre: '', telefono: '', correo: ''}); setIsCreateAjustadorDialogOpen(true);}}><PlusCircle className="mr-2 h-4 w-4" /> Nuevo Ajustador</Button></div> 
           {currentAseguradora?.ajustadores && currentAseguradora.ajustadores.length > 0 ? (
             <Table>
@@ -1405,45 +1498,82 @@ export default function DashboardPage() {
       </Dialog>
 
 
-      {/* --- User (Admin) Dialogs --- */}
-      <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Crear Nuevo Usuario</DialogTitle></DialogHeader>
+      {/* --- Empleado (Admin) Dialogs --- */}
+      <Dialog open={isCreateEmpleadoDialogOpen} onOpenChange={setIsCreateEmpleadoDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Crear Nuevo Empleado</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
-            {renderDialogField("ID Empleado*", "idEmpleado", "number", "Ej: 101", "newUser")}
-            {renderDialogField("Nombre Completo*", "nombre", "text", "Ej: Juan Pérez", "newUser")}
-            {renderDialogField("Nombre de Usuario*", "usuario", "text", "Ej: juan.perez", "newUser")}
-            {renderDialogField("Contraseña*", "contraseña", "password", "Mínimo 6 caracteres", "newUser")}
-            {renderDialogField("Rol*", "rol", "select", "Seleccionar rol", "newUser", userRoleOptions)}
-            {renderDialogField("Puesto", "puesto", "text", "Ej: Hojalatero", "newUser")}
+            {renderDialogField("Nombre Completo*", "nombre", "text", "Ej: Juan Pérez García", "newEmpleado")}
+            {renderDialogField("Puesto*", "puesto", "text", "Ej: Hojalatero Líder", "newEmpleado")}
+            {renderDialogField("Teléfono", "telefono", "tel", "Ej: 5512345678", "newEmpleado")}
+            {renderDialogField("Correo", "correo", "email", "Ej: juan.perez@taller.com", "newEmpleado")}
+            {renderDialogField("Sueldo", "sueldo", "number", "Ej: 15000", "newEmpleado")}
+            {renderDialogField("Comisión (%)", "comision", "number", "Ej: 5", "newEmpleado")}
+            
+            <div className="col-span-4 my-2 border-t pt-4">
+                {renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "", "newEmpleado", undefined, true)}
+            </div>
+
+            {newEmpleadoData.createSystemUser && (
+                <>
+                    {renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "Ej: juan.perez", "newEmpleado")}
+                    {renderDialogField("Contraseña*", "systemUserContraseña", "password", "Mínimo 6 caracteres", "newEmpleado")}
+                    {renderDialogField("Confirmar Contraseña*", "systemUserConfirmContraseña", "password", "Repetir contraseña", "newEmpleado")}
+                    {renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Seleccionar rol", "newEmpleado", userRoleOptions)}
+                </>
+            )}
           </div>
-          <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateUser}>Crear Usuario</Button></DialogFooter>
+          <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateEmpleado}>Crear Empleado</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={isEditUserDialogOpen} onOpenChange={(open) => { setIsEditUserDialogOpen(open); if (!open) setCurrentUserToEdit(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Editar Usuario: {currentUserToEdit?.usuario}</DialogTitle></DialogHeader>
-          {currentUserToEdit && (
+      <Dialog open={isEditEmpleadoDialogOpen} onOpenChange={(open) => { setIsEditEmpleadoDialogOpen(open); if (!open) setCurrentEmpleadoToEdit(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Editar Empleado: {currentEmpleadoToEdit?.nombre}</DialogTitle></DialogHeader>
+          {currentEmpleadoToEdit && (
             <div className="grid gap-4 py-4">
-              {renderDialogField("ID Empleado", "idEmpleado", "number", "", "editUser", undefined, false, false, true)} 
-              {renderDialogField("Nombre Completo*", "nombre", "text", "Ej: Juan Pérez", "editUser")}
-              {renderDialogField("Nombre de Usuario*", "usuario", "text", "Ej: juan.perez", "editUser")}
-              {renderDialogField("Nueva Contraseña", "contraseña", "password", "Dejar en blanco para no cambiar", "editUser")}
-              {renderDialogField("Rol*", "rol", "select", "Seleccionar rol", "editUser", userRoleOptions)}
-              {renderDialogField("Puesto", "puesto", "text", "Ej: Hojalatero", "editUser")}
+              {renderDialogField("Nombre Completo*", "nombre", "text", "", "editEmpleado")}
+              {renderDialogField("Puesto*", "puesto", "text", "", "editEmpleado")}
+              {renderDialogField("Teléfono", "telefono", "tel", "", "editEmpleado")}
+              {renderDialogField("Correo", "correo", "email", "", "editEmpleado")}
+              {renderDialogField("Sueldo", "sueldo", "number", "", "editEmpleado")}
+              {renderDialogField("Comisión (%)", "comision", "number", "", "editEmpleado")}
+              
+              <div className="col-span-4 my-2 border-t pt-4">
+                <h4 className="font-medium mb-2">Acceso al Sistema</h4>
+                {!currentEmpleadoToEdit.user && (
+                     renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "", "editEmpleado", undefined, true)
+                )}
+                {(currentEmpleadoToEdit.user || editEmpleadoData.createSystemUser) && (
+                    <>
+                        {renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "Ej: juan.perez", "editEmpleado", undefined, false, false, !!currentEmpleadoToEdit.user)}
+                        {renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Seleccionar rol", "editEmpleado", userRoleOptions, false, false, !!currentEmpleadoToEdit.user)}
+                        {renderDialogField("Nueva Contraseña", "newSystemUserContraseña", "password", "Dejar en blanco para no cambiar", "editEmpleado")}
+                        {renderDialogField("Confirmar Nueva Contraseña", "newSystemUserConfirmContraseña", "password", "", "editEmpleado")}
+                        {currentEmpleadoToEdit.user && (
+                            <div className="col-span-4 mt-2 text-right">
+                                <Button variant="destructive" size="sm" onClick={() => handleRemoveSystemUser(currentEmpleadoToEdit._id!)}>
+                                    <UserX className="mr-2 h-4 w-4"/>Remover Acceso
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                )}
+              </div>
             </div>
           )}
-          <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleUpdateUser}>Actualizar Usuario</Button></DialogFooter>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+            <Button onClick={handleUpdateEmpleado}>Actualizar Empleado</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={isDeleteUserDialogOpen} onOpenChange={(open) => { setIsDeleteUserDialogOpen(open); if(!open) setUserToDeleteId(null); }}>
+      <Dialog open={isDeleteEmpleadoDialogOpen} onOpenChange={(open) => { setIsDeleteEmpleadoDialogOpen(open); if(!open) setEmpleadoToDeleteId(null); }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Confirmar Eliminación</DialogTitle><DialogDescription>¿Seguro que deseas eliminar al usuario {usersList.find(u => u._id?.toString() === userToDeleteId)?.usuario} (ID Emp: {usersList.find(u => u._id?.toString() === userToDeleteId)?.idEmpleado})? Esta acción no se puede deshacer.</DialogDescription></DialogHeader>
-          <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button variant="destructive" onClick={handleDeleteUser}>Eliminar Usuario</Button></DialogFooter>
+          <DialogHeader><DialogTitle>Confirmar Eliminación</DialogTitle><DialogDescription>¿Seguro que deseas eliminar al empleado {empleadosList.find(e => e._id === empleadoToDeleteId)?.nombre}? Esta acción no se puede deshacer.</DialogDescription></DialogHeader>
+          <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button variant="destructive" onClick={handleDeleteEmpleado}>Eliminar Empleado</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
     </div>
   );
 }
-
