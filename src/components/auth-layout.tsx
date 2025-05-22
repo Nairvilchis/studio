@@ -8,7 +8,7 @@ interface AuthLayoutProps {
   children: ReactNode;
 }
 
-export function AuthLayout({ title, description, children }: AuthLayoutProps) {
+export function AuthLayout({ title, children }: AuthLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-background to-muted/30 p-4 selection:bg-primary/40 selection:text-primary-foreground">
       <div className="w-full max-w-md space-y-8">
@@ -21,9 +21,6 @@ export function AuthLayout({ title, description, children }: AuthLayoutProps) {
             <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl">
               {title}
             </h1>
-          )}
-          {description && (
-            <p className="mt-4 text-lg text-muted-foreground">{description}</p>
           )}
         </div>
         {children}
