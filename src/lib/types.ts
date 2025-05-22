@@ -1,6 +1,6 @@
 
 // --- User & Employee Types ---
-import type { ObjectId } from 'mongodb';
+import type { ObjectId as MongoObjectId } from 'mongodb'; // Solo para referencia de tipo en managers
 
 /**
  * Enum para los roles de usuario en el sistema.
@@ -44,11 +44,10 @@ export interface UserPermissions {
  * @property {UserPermissions} [permisos] - Permisos específicos.
  */
 export interface SystemUserCredentials {
-  // _id no es necesario aquí si es un subdocumento y no se consulta por él directamente.
-  usuario: string; 
-  contraseña?: string; 
-  rol: UserRole; 
-  permisos?: UserPermissions; 
+  usuario: string;
+  contraseña?: string; // Contraseña es opcional al mostrar, pero requerida al crear/actualizar si se cambia.
+  rol: UserRole;
+  permisos?: UserPermissions;
 }
 
 /**
@@ -67,16 +66,16 @@ export interface SystemUserCredentials {
  * @property {SystemUserCredentials} [user] - Credenciales de acceso al sistema (opcional).
  */
 export interface Empleado {
-  _id: string; 
-  nombre: string; 
-  telefono?: string; 
-  correo?: string; 
-  puesto?: string; 
-  sueldo?: number; 
-  comision?: number; 
-  fechaRegistro?: Date; 
-  fechaBaja?: Date; 
-  user?: SystemUserCredentials; 
+  _id: string;
+  nombre: string;
+  telefono?: string;
+  correo?: string;
+  puesto?: string;
+  sueldo?: number;
+  comision?: number;
+  fechaRegistro?: Date;
+  fechaBaja?: Date;
+  user?: SystemUserCredentials;
 }
 
 
@@ -88,9 +87,9 @@ export interface Empleado {
  * @property {string} action - Descripción de la acción realizada.
  */
 export interface LogEntry {
-  timestamp: Date; 
-  userId?: string; 
-  action: string; 
+  timestamp: Date;
+  userId?: string; // _id del Empleado
+  action: string;
 }
 
 /**
@@ -107,16 +106,16 @@ export interface LogEntry {
  * @property {string} [idRefaccion] - ObjectId (string) de la refacción, si aplica (de la colección `refacciones`).
  */
 export interface PresupuestoItem {
-  _id?: string; 
-  concepto: string; 
+  _id?: string;
+  concepto: string;
   cantidad: number;
   precioPublico?: number;
-  costoPintura?: number; // Corregido de costopintura
+  costoPintura?: number;
   costoManoObra?: number;
   costoRefaccion?: number;
-  pintura?: boolean; 
-  procedimiento?: string; 
-  idRefaccion?: string; // Corregido de Refaccion
+  pintura?: boolean;
+  procedimiento?: string;
+  idRefaccion?: string;
 }
 
 
@@ -153,56 +152,58 @@ export interface PresupuestoItem {
  * @property {Date} [fechaEntrega] - Fecha de entrega al cliente.
  * @property {Date} [fechaPromesa] - Fecha promesa de entrega.
  * @property {Date} [fechaBaja] - Fecha de baja de la orden (si se cancela o similar).
+ * @property {string} [idPresupuesto] - _id (string ObjectId) de un presupuesto principal asociado (si aplica).
  * @property {string} [urlArchivos] - URL a carpeta de fotos/documentos (se manejará externamente).
  * @property {LogEntry[]} [Log] - Historial de cambios de la orden.
  * @property {PresupuestoItem[]} [presupuestos] - Array de ítems del presupuesto.
  */
 export interface Order {
-  _id: string; 
-  idOrder: number; 
-  
-  idAseguradora?: string; 
-  idAjustador?: string; 
+  _id: string;
+  idOrder: number;
+
+  idAseguradora?: string;
+  idAjustador?: string;
   poliza?: string;
   folio?: string;
   siniestro?: string;
-  piso?: boolean; 
-  grua?: boolean; 
+  piso?: boolean;
+  grua?: boolean;
   deducible?: number;
-  aseguradoTercero: boolean; 
+  aseguradoTercero: boolean;
 
-  idMarca?: string; 
-  idModelo?: string; 
+  idMarca?: string;
+  idModelo?: string;
   año?: number;
   vin?: string;
   placas?: string;
   color?: string;
   kilometraje?: string;
-  
-  idCliente?: string; 
 
-  idValuador?: string; 
-  idAsesor?: string; 
+  idCliente?: string;
+
+  idValuador?: string;
+  idAsesor?: string;
   idHojalatero?: string;
-  idPintor?: string; 
-  
+  idPintor?: string;
+
   proceso: 'pendiente' | 'valuacion' | 'espera_refacciones' | 'refacciones_listas' | 'hojalateria' | 'preparacion_pintura' | 'pintura' | 'mecanica' | 'armado' | 'detallado_lavado' | 'control_calidad' | 'listo_entrega' | 'entregado' | 'facturado' | 'garantia' | 'cancelado' | string;
-  
+
   fechaRegistro: Date;
   fechaValuacion?: Date;
-  fechaReingreso?: Date; // Corregido de fechaRengreso
+  fechaReingreso?: Date;
   fechaEntrega?: Date;
   fechaPromesa?: Date;
   fechaBaja?: Date;
 
+  idPresupuesto?: string; // Referencia a un _id de una colección de presupuestos (si se decide separar)
   urlArchivos?: string;
-  Log?: LogEntry[]; 
-  presupuestos?: PresupuestoItem[]; 
+  Log?: LogEntry[];
+  presupuestos?: PresupuestoItem[];
 }
 
 /** Tipo de datos para crear una nueva orden. `_id` y `idOrder` se generan automáticamente. */
 export type NewOrderData = Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'Log' | 'presupuestos'> & {
-  presupuestos?: Omit<PresupuestoItem, '_id'>[]; // Al crear, los _id de PresupuestoItem no existen
+  presupuestos?: Omit<PresupuestoItem, '_id'>[];
 };
 /** Tipo de datos para actualizar una orden existente. */
 export type UpdateOrderData = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'Log'>>;
@@ -215,8 +216,8 @@ export type UpdateOrderData = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegi
  * @property {string} modelo - Nombre del modelo (ej. "Corolla"), único dentro de la marca.
  */
 export interface ModeloVehiculo {
-  idModelo: string; 
-  modelo: string; 
+  idModelo: string;
+  modelo: string;
 }
 
 /**
@@ -226,11 +227,11 @@ export interface ModeloVehiculo {
  * @property {ModeloVehiculo[]} [modelos] - Array de modelos de esta marca.
  */
 export interface MarcaVehiculo {
-  _id: string; 
-  marca: string; 
-  modelos?: ModeloVehiculo[]; 
+  _id: string;
+  marca: string;
+  modelos?: ModeloVehiculo[];
 }
-/** Tipo de datos para crear una nueva marca. `_id` es generado automáticamente. */
+/** Tipo de datos para crear una nueva marca. `_id` es generado automáticamente. `modelos` son opcionales al crear. */
 export type NewMarcaData = Pick<MarcaVehiculo, 'marca'> & { modelos?: Omit<ModeloVehiculo, 'idModelo'>[] };
 /** Tipo de datos para actualizar una marca (solo el nombre). */
 export type UpdateMarcaData = Pick<MarcaVehiculo, 'marca'>;
@@ -245,8 +246,8 @@ export type UpdateMarcaData = Pick<MarcaVehiculo, 'marca'>;
  * @property {string} [correo] - Correo electrónico del ajustador.
  */
 export interface Ajustador {
-  idAjustador: string; 
-  nombre: string; 
+  idAjustador: string;
+  nombre: string;
   telefono?: string;
   correo?: string;
 }
@@ -259,14 +260,14 @@ export interface Ajustador {
  * @property {Ajustador[]} [ajustadores] - Array de ajustadores de esta aseguradora.
  */
 export interface Aseguradora {
-  _id: string; 
-  nombre: string; 
+  _id: string;
+  nombre: string;
   telefono?: string;
-  ajustadores?: Ajustador[]; 
+  ajustadores?: Ajustador[];
 }
-/** Tipo de datos para crear una nueva aseguradora. `_id` es generado automáticamente. */
+/** Tipo de datos para crear una nueva aseguradora. `_id` es generado automáticamente. `ajustadores` son opcionales al crear. */
 export type NewAseguradoraData = Pick<Aseguradora, 'nombre' | 'telefono'> & { ajustadores?: Omit<Ajustador, 'idAjustador'>[] };
-/** Tipo de datos para actualizar una aseguradora. */
+/** Tipo de datos para actualizar una aseguradora (nombre y/o teléfono). */
 export type UpdateAseguradoraData = Partial<Pick<Aseguradora, 'nombre' | 'telefono'>>;
 
 
@@ -281,12 +282,12 @@ export type UpdateAseguradoraData = Partial<Pick<Aseguradora, 'nombre' | 'telefo
  * @property {{ orderId: string }[]} [ordenes] - Array de referencias a órdenes asociadas (almacena el _id de la orden).
  */
 export interface Cliente {
-  _id: string; 
-  nombre: string; 
+  _id: string;
+  nombre: string;
   telefono?: string;
   correo?: string;
-  rfc?: string; 
-  ordenes?: { orderId: string }[]; 
+  rfc?: string;
+  ordenes?: { orderId: string }[]; // Aquí orderId es el _id (string ObjectId) de la Order
 }
 /** Tipo de datos para crear un nuevo cliente. `_id` y `ordenes` son generados/manejados automáticamente. */
 export type NewClienteData = Pick<Cliente, 'nombre' | 'telefono' | 'correo' | 'rfc'>;
@@ -294,17 +295,17 @@ export type NewClienteData = Pick<Cliente, 'nombre' | 'telefono' | 'correo' | 'r
 export type UpdateClienteData = Partial<NewClienteData>;
 
 
-// --- Refaccion Types --- (Placeholder, no implementada completamente aún)
+// --- Refaccion Types --- (Placeholder)
 /**
  * Representa una refacción o parte de repuesto.
  */
 export interface Refaccion {
-  _id: string; // ID principal (MongoDB ObjectId como string).
-  idOrder?: string; // _id (string ObjectId) de la Order a la que pertenece.
-  refaccion: string; // Nombre o descripción.
+  _id: string;
+  idOrder?: string;
+  refaccion: string;
   cantidad: number;
-  idMarca?: string; // _id (string ObjectId) de la MarcaVehiculo.
-  idModelo?: string; // idModelo (string ObjectId) del ModeloVehiculo.
+  idMarca?: string;
+  idModelo?: string;
   año?: number;
   proveedor?: string;
   precio?: number;
@@ -325,10 +326,25 @@ export interface Refaccion {
  * @property {string} nombre - Nombre del puesto, debe ser único.
  */
 export interface Puesto {
-  _id: string; 
-  nombre: string; 
+  _id: string;
+  nombre: string;
 }
 /** Tipo de datos para crear un nuevo Puesto. `_id` es generado automáticamente. */
 export type NewPuestoData = Pick<Puesto, 'nombre'>;
 /** Tipo de datos para actualizar un Puesto (solo el nombre). */
 export type UpdatePuestoData = Partial<Pick<Puesto, 'nombre'>>;
+
+// --- ColorVehiculo Types ---
+/**
+ * Representa un color de vehículo configurable en el sistema.
+ * @property {string} _id - ObjectId de MongoDB, como string.
+ * @property {string} nombre - Nombre del color, debe ser único (ej. "Rojo Brillante", "Azul Metálico").
+ */
+export interface ColorVehiculo {
+  _id: string;
+  nombre: string;
+}
+/** Tipo de datos para crear un nuevo Color de Vehículo. `_id` es generado automáticamente. */
+export type NewColorVehiculoData = Pick<ColorVehiculo, 'nombre'>;
+/** Tipo de datos para actualizar un Color de Vehículo (solo el nombre). */
+export type UpdateColorVehiculoData = Partial<Pick<ColorVehiculo, 'nombre'>>;
