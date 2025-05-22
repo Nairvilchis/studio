@@ -89,8 +89,10 @@ export default function DashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userName, setUserName] = useState<string | null>(null);
-  const [userIdEmpleado, setUserIdEmpleado] = useState<string | null>(null); // Store as string from localStorage
+  const [userIdEmpleado, setUserIdEmpleado] = useState<string | null>(null); 
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
 
   // --- Orders State ---
   const [orders, setOrders] = useState<Order[]>([]);
@@ -172,24 +174,20 @@ export default function DashboardPage() {
   useEffect(() => {
     const loggedIn = localStorage.getItem('isLoggedIn');
     const storedUser = localStorage.getItem('username');
-    const storedIdEmpleado = localStorage.getItem('idEmpleado'); // This is idEmpleado (number like)
+    const storedIdEmpleado = localStorage.getItem('idEmpleado'); 
     const storedUserRole = localStorage.getItem('userRole') as UserRole;
-    const storedUserId = localStorage.getItem('userId'); // This is User._id (MongoDB string) - may not be stored yet
+    const storedUserId = localStorage.getItem('userId'); 
 
     if (loggedIn !== 'true' || !storedUser) {
       router.replace('/');
     } else {
       setUserName(storedUser);
       setUserRole(storedUserRole);
-      if (storedUserId) { // Prefer MongoDB _id for selections
-         setUserIdEmpleado(storedUserId); // Temporarily using userIdEmpleado state for User._id for select prefill
-         if (storedUserRole === UserRole.ASESOR) {
-           setNewOrderData(prev => ({ ...prev, idAsesor: storedUserId }));
-         }
-      } else if (storedIdEmpleado) { // Fallback if User._id is not available
-        // This case needs careful handling if idAsesor expects User._id
-        // For now, let's assume idEmpleado from localStorage is numeric string
-        // And idAsesor in NewOrderData should be User._id (string)
+      setUserIdEmpleado(storedIdEmpleado);
+      setUserId(storedUserId);
+
+      if (storedUserId && storedUserRole === UserRole.ASESOR) {
+        setNewOrderData(prev => ({ ...prev, idAsesor: storedUserId }));
       }
       fetchInitialData(storedUserRole);
     }
@@ -197,9 +195,9 @@ export default function DashboardPage() {
 
   const fetchInitialData = async (role: UserRole | null) => {
     fetchOrders();
-    fetchMarcas(); // Also used in Order forms
-    fetchAseguradoras(); // Also used in Order forms
-    fetchClients(); // Used in Order forms
+    fetchMarcas(); 
+    fetchAseguradoras(); 
+    fetchClients(); 
     fetchAsesores();
     fetchValuadores();
     fetchHojalateros();
@@ -231,7 +229,7 @@ export default function DashboardPage() {
       setClients(result.data);
     } else {
       toast({ title: "Error Clientes", description: result.error || "No se pudo cargar clientes.", variant: "destructive" });
-      setClients([]); // Ensure it's an array
+      setClients([]); 
     }
     setIsLoadingClients(false);
   };
@@ -280,7 +278,7 @@ export default function DashboardPage() {
     localStorage.removeItem('username');
     localStorage.removeItem('idEmpleado');
     localStorage.removeItem('userRole');
-    localStorage.removeItem('userId'); // Clear MongoDB user ID as well
+    localStorage.removeItem('userId'); 
     router.replace('/');
   };
 
@@ -290,14 +288,14 @@ export default function DashboardPage() {
   ) => {
     const { name, value, type } = e.target;
     let processedValue: any = value;
-    if (type === 'number') processedValue = value === '' ? undefined : parseFloat(value); // Keep as string for controlled input, convert on submit
+    if (type === 'number') processedValue = value === '' ? undefined : value; 
     if (type === 'checkbox') processedValue = (e.target as HTMLInputElement).checked;
-    // Date input value is already in 'YYYY-MM-DD' string format, no further processing here
+    
     setState((prev: any) => ({ ...prev, [name]: processedValue }));
   };
 
   const handleSelectChangeGeneric = (
-    name: string, value: string, // value from Select is always string
+    name: string, value: string, 
     setState: React.Dispatch<React.SetStateAction<any>>
   ) => {
     setState((prev: any) => ({ ...prev, [name]: value }));
@@ -317,31 +315,28 @@ export default function DashboardPage() {
       return;
     }
 
-    const loggedInUserIdEmpleado = localStorage.getItem('idEmpleado');
-    if (!loggedInUserIdEmpleado) {
+    const currentUserIdEmpleado = localStorage.getItem('idEmpleado');
+    if (!currentUserIdEmpleado) {
         toast({ title: "Error de Autenticación", description: "No se pudo identificar al usuario para el registro de log.", variant: "destructive" });
         return;
     }
 
     const orderToCreate: NewOrderData = {
       ...newOrderData,
-      // IDs from Selects are already strings
-      idCliente: newOrderData.idCliente, // String
-      idMarca: newOrderData.idMarca, // String
-      idAseguradora: newOrderData.idAseguradora, // String
-      idValuador: newOrderData.idValuador, // String
-      idAsesor: newOrderData.idAsesor, // String, pre-filled if asesor
-      idHojalatero: newOrderData.idHojalatero, // String
-      idPintor: newOrderData.idPintor, // String
-      idPresupuesto: newOrderData.idPresupuesto, // String
+      idCliente: newOrderData.idCliente, 
+      idMarca: newOrderData.idMarca, 
+      idAseguradora: newOrderData.idAseguradora, 
+      idValuador: newOrderData.idValuador, 
+      idAsesor: newOrderData.idAsesor, 
+      idHojalatero: newOrderData.idHojalatero, 
+      idPintor: newOrderData.idPintor, 
+      idPresupuesto: newOrderData.idPresupuesto,
 
-      // Numeric fields from text inputs
       idModelo: newOrderData.idModelo ? Number(newOrderData.idModelo) : undefined,
       año: newOrderData.año ? Number(newOrderData.año) : undefined,
       ajustador: newOrderData.ajustador ? Number(newOrderData.ajustador) : undefined,
       deducible: newOrderData.deducible ? Number(newOrderData.deducible) : undefined,
       
-      // String fields
       vin: newOrderData.vin,
       placas: newOrderData.placas,
       color: newOrderData.color,
@@ -352,11 +347,9 @@ export default function DashboardPage() {
       aseguradoTercero: newOrderData.aseguradoTercero,
       urlArchivos: newOrderData.urlArchivos,
       
-      // Boolean fields
       piso: !!newOrderData.piso,
       grua: !!newOrderData.grua,
       
-      // Dates - convert string from date input to Date object
       fechaValuacion: newOrderData.fechaValuacion ? new Date(newOrderData.fechaValuacion as string) : undefined,
       fechaRengreso: newOrderData.fechaRengreso ? new Date(newOrderData.fechaRengreso as string) : undefined,
       fechaEntrega: newOrderData.fechaEntrega ? new Date(newOrderData.fechaEntrega as string) : undefined,
@@ -365,10 +358,10 @@ export default function DashboardPage() {
       proceso: newOrderData.proceso || 'pendiente',
     };
 
-    const result = await createOrderAction(orderToCreate, Number(loggedInUserIdEmpleado));
+    const result = await createOrderAction(orderToCreate, Number(currentUserIdEmpleado));
     if (result.success && result.data) {
       toast({ title: "Éxito", description: `Orden OT-${String(result.data.customOrderId || '').padStart(4, '0')} creada.` });
-      setIsCreateOrderDialogOpen(false); fetchOrders(); setNewOrderData({ ...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR ? userIdEmpleado : undefined });
+      setIsCreateOrderDialogOpen(false); fetchOrders(); setNewOrderData({ ...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR && userId ? userId : undefined, proceso: 'pendiente' });
     } else {
       toast({ title: "Error al Crear", description: result.error || "No se pudo crear la orden.", variant: "destructive" });
     }
@@ -379,10 +372,11 @@ export default function DashboardPage() {
     if (result.success && result.data) {
       const order = result.data;
       setCurrentOrder(order);
-      // Convert Date objects to 'YYYY-MM-DD' strings for date inputs
-      const formatDateForInput = (date?: Date): string | undefined => {
+      
+      const formatDateForInput = (date?: Date | string): string | undefined => {
         if (!date) return undefined;
-        const d = new Date(date);
+        const d = new Date(date); // Handles both Date objects and valid date strings
+        if (isNaN(d.getTime())) return undefined; // Invalid date
         const year = d.getFullYear();
         const month = (d.getMonth() + 1).toString().padStart(2, '0');
         const day = d.getDate().toString().padStart(2, '0');
@@ -390,7 +384,6 @@ export default function DashboardPage() {
       }
       setEditOrderData({
         ...order,
-        // Ensure string IDs are used for Selects if they exist
         idCliente: order.idCliente?.toString(),
         idMarca: order.idMarca?.toString(),
         idAseguradora: order.idAseguradora?.toString(),
@@ -399,17 +392,17 @@ export default function DashboardPage() {
         idHojalatero: order.idHojalatero?.toString(),
         idPintor: order.idPintor?.toString(),
         idPresupuesto: order.idPresupuesto?.toString(),
-        // Numeric fields
+        
         idModelo: order.idModelo,
         año: order.año,
         ajustador: order.ajustador,
         deducible: order.deducible,
-        // Dates
+        
         fechaValuacion: formatDateForInput(order.fechaValuacion),
         fechaRengreso: formatDateForInput(order.fechaRengreso),
         fechaEntrega: formatDateForInput(order.fechaEntrega),
         fechaPromesa: formatDateForInput(order.fechaPromesa),
-      } as OrderFormDataType); // Cast because dates are now strings for form
+      } as OrderFormDataType); 
       setIsEditOrderDialogOpen(true);
     } else {
       toast({ title: "Error", description: "No se pudo cargar la orden para editar.", variant: "destructive" });
@@ -419,33 +412,28 @@ export default function DashboardPage() {
   const handleUpdateOrder = async () => {
     if (!currentOrder || !currentOrder._id) return;
 
-    const loggedInUserIdEmpleado = localStorage.getItem('idEmpleado');
-    if (!loggedInUserIdEmpleado) {
+    const currentUserIdEmpleado = localStorage.getItem('idEmpleado');
+    if (!currentUserIdEmpleado) {
         toast({ title: "Error de Autenticación", description: "No se pudo identificar al usuario para el registro de log.", variant: "destructive" });
         return;
     }
     
     const dataToUpdate: UpdateOrderData = { 
         ...editOrderData,
-        // Ensure numeric fields are numbers
         idModelo: editOrderData.idModelo ? Number(editOrderData.idModelo) : undefined,
         año: editOrderData.año ? Number(editOrderData.año) : undefined,
         ajustador: editOrderData.ajustador ? Number(editOrderData.ajustador) : undefined,
         deducible: editOrderData.deducible ? Number(editOrderData.deducible) : undefined,
 
-        // Dates: convert 'YYYY-MM-DD' string from form back to Date objects
         fechaValuacion: editOrderData.fechaValuacion ? new Date(editOrderData.fechaValuacion as string) : undefined,
         fechaRengreso: editOrderData.fechaRengreso ? new Date(editOrderData.fechaRengreso as string) : undefined,
         fechaEntrega: editOrderData.fechaEntrega ? new Date(editOrderData.fechaEntrega as string) : undefined,
         fechaPromesa: editOrderData.fechaPromesa ? new Date(editOrderData.fechaPromesa as string) : undefined,
 
-        // Booleans
         piso: !!editOrderData.piso,
         grua: !!editOrderData.grua,
     };
     
-    // Clean up undefined or empty string fields that should not be sent if they are optional strings
-    // For example, if idAseguradora is an empty string from select, it should be undefined
     const optionalStringIds: (keyof UpdateOrderData)[] = ['idMarca', 'idAseguradora', 'idCliente', 'idValuador', 'idAsesor', 'idHojalatero', 'idPintor', 'idPresupuesto'];
     optionalStringIds.forEach(key => {
       if (dataToUpdate[key] === '') {
@@ -459,7 +447,7 @@ export default function DashboardPage() {
       }
     });
 
-    const result = await updateOrderAction(currentOrder._id.toString(), dataToUpdate, Number(loggedInUserIdEmpleado));
+    const result = await updateOrderAction(currentOrder._id.toString(), dataToUpdate, Number(currentUserIdEmpleado));
     if (result.success) {
       toast({ title: "Éxito", description: result.message });
       setIsEditOrderDialogOpen(false); fetchOrders(); setCurrentOrder(null); setEditOrderData({});
@@ -519,7 +507,7 @@ export default function DashboardPage() {
   // --- Modelo Management ---
   const openManageModelosDialog = (marca: MarcaVehiculo) => { setCurrentMarca(marca); setIsManageModelosDialogOpen(true); };
   const handleCreateModelo = async () => {
-    if (!currentMarca || !currentMarca._id || newModeloData.idModelo == null || !newModeloData.modelo?.trim()) {
+    if (!currentMarca || !currentMarca._id || newModeloData.idModelo == null || String(newModeloData.idModelo).trim() === '' || !newModeloData.modelo?.trim()) {
       toast({ title: "Error", description: "ID Modelo y Nombre son requeridos.", variant: "destructive" }); return;
     }
     const result = await addModeloToMarcaAction(currentMarca._id.toString(), { ...newModeloData, idModelo: Number(newModeloData.idModelo) } as ModeloVehiculo);
@@ -527,7 +515,7 @@ export default function DashboardPage() {
       toast({ title: "Éxito", description: "Modelo añadido." });
       const marcaRes = await getMarcaForModelosAction(currentMarca._id);
       if (marcaRes.success && marcaRes.data) setCurrentMarca(marcaRes.data);
-      else fetchMarcas(); // Fallback to refetch all
+      else fetchMarcas(); 
       setNewModeloData({ idModelo: undefined, modelo: '' });
       setIsCreateModeloDialogOpen(false);
     } else {
@@ -646,12 +634,12 @@ export default function DashboardPage() {
 
   // --- User (Admin) Management Functions ---
   const handleCreateUser = async () => {
-    if (newUserData.idEmpleado == null || !newUserData.usuario?.trim() || !newUserData.contraseña?.trim() || !newUserData.rol || !newUserData.nombre?.trim()) {
+    if (newUserData.idEmpleado == null || String(newUserData.idEmpleado).trim() === '' || !newUserData.usuario?.trim() || !newUserData.contraseña?.trim() || !newUserData.rol || !newUserData.nombre?.trim()) {
       toast({ title: "Error de Validación", description: "ID Empleado, Usuario, Contraseña, Rol y Nombre son obligatorios.", variant: "destructive" });
       return;
     }
     const userToCreate = {
-      idEmpleado: Number(newUserData.idEmpleado), // Ensure idEmpleado is number
+      idEmpleado: Number(newUserData.idEmpleado), 
       usuario: newUserData.usuario,
       contraseña: newUserData.contraseña,
       rol: newUserData.rol,
@@ -662,7 +650,7 @@ export default function DashboardPage() {
     const result = await createUserAction(userToCreate as User);
     if (result.success) {
       toast({ title: "Éxito", description: result.message });
-      setIsCreateUserDialogOpen(false); fetchUsers(); setNewUserData({ idEmpleado: undefined, usuario: '', contraseña: '', rol: UserRole.ASESOR, nombre: '', puesto: '' });
+      setIsCreateUserDialogOpen(false); fetchUsers(); setNewUserData({ idEmpleado: undefined, usuario: '', contraseña: '', rol: UserRole.ASESOR, nombre:'', puesto:'' });
     } else {
       toast({ title: "Error al Crear Usuario", description: result.error || "No se pudo crear el usuario", variant: "destructive" });
     }
@@ -731,29 +719,36 @@ export default function DashboardPage() {
   const formatDate = (dateInput?: Date | string | number): string => {
     if (!dateInput) return 'N/A';
     let date: Date;
-    if (typeof dateInput === 'string' || typeof dateInput === 'number') {
+  
+    if (typeof dateInput === 'string') {
+      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}\.\d{3}Z?)?$/.test(dateInput)) { // ISO String with or without Z
         date = new Date(dateInput);
-    } else {
-        date = dateInput;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) { // YYYY-MM-DD
+        const parts = dateInput.split('-');
+        date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      } else { // Try to parse directly, might be other formats or invalid
+        date = new Date(dateInput);
+      }
+    } else if (typeof dateInput === 'number') { // Timestamp
+      date = new Date(dateInput);
+    } else { // Date object
+      date = dateInput;
     }
-
+  
     if (isNaN(date.getTime())) {
-        // Handle specific string format 'YYYY-MM-DD' if new Date() fails due to timezone interpretation
-        if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-             const parts = dateInput.split('-');
-             date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-             if (isNaN(date.getTime())) return 'Fecha Inválida';
-        } else {
-            return 'Fecha Inválida';
-        }
+      return 'Fecha Inválida';
     }
-    return date.toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'UTC' });
+    // Using UTC methods to get year, month, day to avoid timezone shifts from constructor
+    const year = date.getUTCFullYear();
+    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    const day = date.getUTCDate().toString().padStart(2, '0');
+    return `${day}/${month}/${year}`; // DD/MM/YYYY format
   };
   
   const formatDateTime = (dateInput?: Date | string | number): string => {
     if (!dateInput) return 'N/A';
     let date: Date;
-     if (typeof dateInput === 'string' || typeof dateInput === 'number') {
+    if (typeof dateInput === 'string' || typeof dateInput === 'number') {
         date = new Date(dateInput);
     } else {
         date = dateInput;
@@ -765,7 +760,7 @@ export default function DashboardPage() {
   const getProcesoVariant = (proceso?: Order['proceso']): "default" | "secondary" | "outline" | "destructive" => {
     switch (proceso) {
       case 'entregado': case 'facturado': case 'listo_entrega': return 'default'; 
-      case 'hojalateria': case 'pintura': case 'mecanica': case 'armado': case 'detallado_lavado': case 'control_calidad': case 'refacciones_listas': case 'preparacion_pintura': return 'secondary';
+      case 'hojalateria': case 'pintura': case 'mecanica': case 'armado': case 'detallado_lavado': case 'refacciones_listas': case 'preparacion_pintura': return 'secondary';
       case 'espera_refacciones': case 'valuacion': case 'garantia': case 'pendiente': return 'outline'; 
       case 'cancelado': return 'destructive';
       default: return 'secondary';
@@ -843,7 +838,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor={`${formType}_${name}`} className="text-right">{label}</Label>
         <Input id={`${formType}_${name}`} name={name} type={type}
-          value={type === 'date' ? (value || '') : (value ?? '')} // value can be undefined for number inputs initially
+          value={type === 'date' ? (value || '') : (value ?? '')} 
           onChange={(e) => handler(e, currentFormTypeForHandler)}
           className="col-span-3" placeholder={placeholder} 
           disabled={isDisabled || (formType === 'editUser' && name === 'idEmpleado') }
@@ -867,6 +862,10 @@ export default function DashboardPage() {
     { id: 'INV-003', name: 'Líquido Refrigerante (1L)', quantity: 20, category: 'Fluidos', supplier: 'Proveedor A', price: 120.00 },
   ];
 
+  const mainTabsListClassName = userRole === UserRole.ADMIN
+    ? "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" 
+    : "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted";
+
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/30 dark:bg-muted/10">
@@ -875,7 +874,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold text-foreground">Panel del Taller Automotriz</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground hidden sm:inline">
-              Bienvenido, <span className="font-medium text-foreground">{userName} (ID Emp: {localStorage.getItem('idEmpleado')}, Rol: {userRole})</span>
+              Bienvenido, <span className="font-medium text-foreground">{userName} (ID Emp: {userIdEmpleado}, Rol: {userRole})</span>
             </span>
             <Button onClick={handleLogout} variant="outline" size="sm"><LogOut className="mr-2 h-4 w-4" />Cerrar Sesión</Button>
           </div>
@@ -884,7 +883,7 @@ export default function DashboardPage() {
 
       <main className="flex-1 p-4 sm:p-6 space-y-6">
         <Tabs defaultValue="ordenes" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 mb-6 rounded-lg p-1 bg-muted">
+          <TabsList className={mainTabsListClassName}>
             <TabsTrigger value="citas" className="flex items-center gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <CalendarDays className="h-5 w-5" /> Citas
             </TabsTrigger>
@@ -939,7 +938,7 @@ export default function DashboardPage() {
              <Card className="shadow-lg border-border/50">
                 <CardHeader className="flex flex-row items-center justify-between pb-4">
                     <div><CardTitle className="text-xl">Órdenes de Servicio</CardTitle><CardDescription>Administra todas las órdenes de trabajo.</CardDescription></div>
-                    <Button size="sm" onClick={() => { setNewOrderData({...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR ? userIdEmpleado! : undefined, proceso: 'pendiente' }); setIsCreateOrderDialogOpen(true);}}><PlusCircle className="mr-2 h-4 w-4" /> Nueva Orden</Button>
+                    <Button size="sm" onClick={() => { setNewOrderData({...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR && userId ? userId : undefined, proceso: 'pendiente' }); setIsCreateOrderDialogOpen(true);}}><PlusCircle className="mr-2 h-4 w-4" /> Nueva Orden</Button>
                 </CardHeader>
                 <CardContent>
                     {isLoadingOrders ? <p>Cargando órdenes...</p> : orders.length === 0 ?
@@ -1139,8 +1138,8 @@ export default function DashboardPage() {
             {renderDialogField("¿Llegó en grúa?", "grua", "checkbox", "", "newOrder", undefined, true)}
             {renderDialogField("URL Archivos", "urlArchivos", "text", "Link a carpeta de archivos", "newOrder")}
             {renderDialogField("Proceso Inicial", "proceso", "select", "Seleccionar proceso", "newOrder", procesoOptions.map(p => ({value: p.value, label: p.label})), false, false, false)}
-            {renderDialogField("Valuador", "idValuador", "select", valuadores.length === 0 && isLoadingAsesores /* check any loading state for users */ ? "Cargando..." : "Seleccionar valuador", "newOrder", valuadores.map(v => ({ value: v._id, label: v.nombre })))}
-            {renderDialogField("Asesor", "idAsesor", "select", asesores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar asesor", "newOrder", asesores.map(a => ({ value: a._id, label: a.nombre })), undefined, false, false, userRole === UserRole.ASESOR)}
+            {renderDialogField("Valuador", "idValuador", "select", valuadores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar valuador", "newOrder", valuadores.map(v => ({ value: v._id, label: v.nombre })))}
+            {renderDialogField("Asesor", "idAsesor", "select", asesores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar asesor", "newOrder", asesores.map(a => ({ value: a._id, label: a.nombre })), undefined, false, false, userRole === UserRole.ASESOR && !!userId)}
             {renderDialogField("Hojalatero", "idHojalatero", "select", hojalateros.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar hojalatero", "newOrder", hojalateros.map(h => ({ value: h._id, label: h.nombre })))}
             {renderDialogField("Pintor", "idPintor", "select", pintores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar pintor", "newOrder", pintores.map(p => ({ value: p._id, label: p.nombre })))}
             {renderDialogField("ID Presupuesto", "idPresupuesto", "text", "ID del presupuesto asociado", "newOrder")}
@@ -1184,7 +1183,7 @@ export default function DashboardPage() {
             {renderDialogField("URL Archivos", "urlArchivos", "text", "Link a carpeta de archivos", "editOrder")}
             {renderDialogField("Proceso Actual", "proceso", "select", "Seleccionar proceso", "editOrder", procesoOptions.map(p => ({value: p.value, label: p.label})))}
             {renderDialogField("Valuador", "idValuador", "select", valuadores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar valuador", "editOrder", valuadores.map(v => ({ value: v._id, label: v.nombre })))}
-            {renderDialogField("Asesor", "idAsesor", "select", asesores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar asesor", "editOrder", asesores.map(a => ({ value: a._id, label: a.nombre })), undefined, false, false, true)} {/* Asesor usually not editable or only by admin */}
+            {renderDialogField("Asesor", "idAsesor", "select", asesores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar asesor", "editOrder", asesores.map(a => ({ value: a._id, label: a.nombre })), undefined, false, false, true)} 
             {renderDialogField("Hojalatero", "idHojalatero", "select", hojalateros.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar hojalatero", "editOrder", hojalateros.map(h => ({ value: h._id, label: h.nombre })))}
             {renderDialogField("Pintor", "idPintor", "select", pintores.length === 0 && isLoadingAsesores ? "Cargando..." : "Seleccionar pintor", "editOrder", pintores.map(p => ({ value: p._id, label: p.nombre })))}
             {renderDialogField("ID Presupuesto", "idPresupuesto", "text", "ID presupuesto asociado", "editOrder")}
@@ -1272,14 +1271,14 @@ export default function DashboardPage() {
       <Dialog open={isCreateMarcaDialogOpen} onOpenChange={setIsCreateMarcaDialogOpen}>
         <DialogContent className="sm:max-w-md"> 
           <DialogHeader><DialogTitle>Crear Nueva Marca</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4">{renderDialogField("Nombre Marca", "marca", "text", "Ej: Toyota", "newMarca")}</div> 
+          <div className="grid gap-4 py-4">{renderDialogField("Nombre Marca*", "marca", "text", "Ej: Toyota", "newMarca")}</div> 
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleCreateMarca}>Crear Marca</Button></DialogFooter> 
         </DialogContent>
       </Dialog>
       <Dialog open={isEditMarcaDialogOpen} onOpenChange={(open) => { setIsEditMarcaDialogOpen(open); if (!open) setCurrentMarca(null); }}>
         <DialogContent className="sm:max-w-md"> 
           <DialogHeader><DialogTitle>Editar Marca: {currentMarca?.marca}</DialogTitle></DialogHeader> 
-          {currentMarca && <div className="grid gap-4 py-4">{renderDialogField("Nombre Marca", "marca", "text", "Ej: Toyota", "editMarca")}</div>} 
+          {currentMarca && <div className="grid gap-4 py-4">{renderDialogField("Nombre Marca*", "marca", "text", "Ej: Toyota", "editMarca")}</div>} 
           <DialogFooter><DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose><Button onClick={handleUpdateMarca}>Actualizar Marca</Button></DialogFooter> 
         </DialogContent>
       </Dialog>
@@ -1426,7 +1425,7 @@ export default function DashboardPage() {
           <DialogHeader><DialogTitle>Editar Usuario: {currentUserToEdit?.usuario}</DialogTitle></DialogHeader>
           {currentUserToEdit && (
             <div className="grid gap-4 py-4">
-              {renderDialogField("ID Empleado", "idEmpleado", "number", "", "editUser", undefined, false, false, true)} {/* Not editable */}
+              {renderDialogField("ID Empleado", "idEmpleado", "number", "", "editUser", undefined, false, false, true)} 
               {renderDialogField("Nombre Completo*", "nombre", "text", "Ej: Juan Pérez", "editUser")}
               {renderDialogField("Nombre de Usuario*", "usuario", "text", "Ej: juan.perez", "editUser")}
               {renderDialogField("Nueva Contraseña", "contraseña", "password", "Dejar en blanco para no cambiar", "editUser")}
