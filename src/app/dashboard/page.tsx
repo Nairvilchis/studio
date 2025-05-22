@@ -80,18 +80,22 @@ import {
 } from './admin/empleados/actions';
 
 type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'log'>> & {
+  // IDs from related collections will be strings (MongoDB _id)
   idMarca?: string;
   idAseguradora?: string;
-  idCliente?: string;
-  idValuador?: string;
-  idAsesor?: string;
-  idHojalatero?: string;
-  idPintor?: string;
-  idPresupuesto?: string;
-  idModelo?: string | number;
-  año?: string | number;
-  ajustador?: string | number;
-  deducible?: string | number;
+  idCliente?: string; 
+  idValuador?: string; 
+  idAsesor?: string; 
+  idHojalatero?: string; 
+  idPintor?: string; 
+  idPresupuesto?: string; 
+  // Numeric specific IDs within those related documents (if applicable)
+  idModelo?: number | string; // string from input, number for DB
+  ajustador?: number | string; // string from input, number for DB
+  // Other fields that might be numbers but come from text inputs
+  año?: number | string;
+  deducible?: number | string;
+  kilometraje?: string; // Keep as string as it might contain "km"
 };
 
 type MarcaFormDataType = Partial<Omit<MarcaVehiculo, '_id' | 'idMarca' | 'modelos'>>;
@@ -111,7 +115,7 @@ type EditEmpleadoFormDataType = Partial<Omit<Empleado, '_id' | 'fechaRegistro' |
   systemUserRol?: UserRoleType;
   newSystemUserContraseña?: string;
   newSystemUserConfirmContraseña?: string;
-  createSystemUser?: boolean; // To enable system user creation during edit if not present
+  createSystemUser?: boolean; 
 };
 
 
@@ -120,7 +124,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [userName, setUserName] = useState<string | null>(null);
-  const [empleadoId, setEmpleadoId] = useState<string | null>(null);
+  const [empleadoId, setEmpleadoId] = useState<string | null>(null); // This is Empleado._id
   const [userRole, setUserRole] = useState<UserRoleType | null>(null);
 
 
@@ -145,7 +149,7 @@ export default function DashboardPage() {
   const [clients, setClients] = useState<Cliente[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [asesores, setAsesores] = useState<{ _id: string; nombre: string }[]>([]);
-  const [isLoadingAsesores, setIsLoadingAsesores] = useState(true); // Single loader for all employee types
+  const [isLoadingAsesores, setIsLoadingAsesores] = useState(true); 
   const [valuadores, setValuadores] = useState<{ _id: string; nombre: string }[]>([]);
   const [hojalateros, setHojalateros] = useState<{ _id: string; nombre: string }[]>([]);
   const [pintores, setPintores] = useState<{ _id: string; nombre: string }[]>([]);
@@ -201,7 +205,7 @@ export default function DashboardPage() {
   };
   const [newEmpleadoData, setNewEmpleadoData] = useState<EmpleadoFormDataType>(initialNewEmpleadoData);
   const [editEmpleadoData, setEditEmpleadoData] = useState<EditEmpleadoFormDataType>({
-    nombre: '', puesto: '', createSystemUser: false // default to false if editing existing employee who might not have user
+    nombre: '', puesto: '', createSystemUser: false 
   });
   const [empleadoToDeleteId, setEmpleadoToDeleteId] = useState<string | null>(null);
 
@@ -209,9 +213,9 @@ export default function DashboardPage() {
   useEffect(() => {
     console.log("Dashboard useEffect: Verificando sesión...");
     const loggedIn = localStorage.getItem('isLoggedIn');
-    const storedUserName = localStorage.getItem('username');
-    const storedEmpleadoId = localStorage.getItem('empleadoId');
-    const storedUserRole = localStorage.getItem('userRole') as UserRoleType | null;
+    const storedUserName = localStorage.getItem('username'); // This is Empleado.user.usuario
+    const storedEmpleadoId = localStorage.getItem('empleadoId'); // This is Empleado._id
+    const storedUserRole = localStorage.getItem('userRole') as UserRoleType | null; // This is Empleado.user.rol
 
     console.log("Dashboard useEffect: Valores RAW de localStorage:", {
       loggedIn,
@@ -221,7 +225,7 @@ export default function DashboardPage() {
     });
 
     const isEmpleadoIdValid = storedEmpleadoId && storedEmpleadoId !== 'null' && storedEmpleadoId !== 'undefined' && storedEmpleadoId.trim() !== '';
-    const isUserRoleValid = storedUserRole && storedUserRole !== 'null' && storedUserRole !== 'undefined' && storedUserRole.trim() !== '';
+    const isUserRoleValid = storedUserRole && storedUserRole !== 'null' && storedUserRole !== 'undefined' && Object.values(UserRole).includes(storedUserRole as UserRole);
 
     console.log("Dashboard useEffect: Validaciones de sesión:", {
         isLoggedIn: loggedIn === 'true',
@@ -229,7 +233,7 @@ export default function DashboardPage() {
         isEmpleadoIdValid,
         isUserRoleValid
     });
-
+    
     if (loggedIn === 'true' && storedUserName && isEmpleadoIdValid && isUserRoleValid) {
       console.log("Dashboard useEffect: Usuario logueado y datos válidos. Configurando estado y cargando datos iniciales.");
       setUserName(storedUserName);
@@ -237,7 +241,7 @@ export default function DashboardPage() {
       setUserRole(storedUserRole as UserRoleType);
 
       if (storedUserRole === UserRole.ASESOR) {
-        console.log("Dashboard useEffect: Es ASESOR. Pre-llenando idAsesor en newOrderData.");
+        console.log("Dashboard useEffect: Es ASESOR. Pre-llenando idAsesor en newOrderData con Empleado._id:", storedEmpleadoId);
         setNewOrderData(prev => ({ ...prev, idAsesor: storedEmpleadoId }));
       }
       console.log("Dashboard useEffect: Llamando a fetchInitialData...");
@@ -249,14 +253,19 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  const fetchInitialData = async (role: UserRoleType | null, currentEmpleadoId: string | null) => {
-    console.log("fetchInitialData: Iniciando carga de datos...", { role, currentEmpleadoId });
-    setNewOrderData(prev => ({ ...prev, idAsesor: role === UserRole.ASESOR && currentEmpleadoId ? currentEmpleadoId : undefined, proceso: 'pendiente' }));
+  const fetchInitialData = async (role: UserRoleType | null, currentEmpleadoLogId: string | null) => {
+    console.log("fetchInitialData: Iniciando carga de datos...", { role, currentEmpleadoId: currentEmpleadoLogId });
+    
+    setNewOrderData(prev => ({ 
+        ...initialNewOrderData, // Reset to initial defaults
+        idAsesor: role === UserRole.ASESOR && currentEmpleadoLogId ? currentEmpleadoLogId : undefined,
+    }));
+
     setIsLoadingOrders(true);
     setIsLoadingMarcas(true);
     setIsLoadingAseguradoras(true);
     setIsLoadingClients(true);
-    setIsLoadingAsesores(true);
+    setIsLoadingAsesores(true); 
     if (role === UserRole.ADMIN) setIsLoadingEmpleadosList(true);
 
     try {
@@ -419,15 +428,24 @@ export default function DashboardPage() {
     router.replace('/');
   };
 
- const handleInputChangeGeneric = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  const handleInputChangeGeneric = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { name: string; value: any; type: string } },
     setState: React.Dispatch<React.SetStateAction<any>>
   ) => {
-    const { name, value, type } = e.target;
-    let processedValue: any = value;
-    if (type === 'number') processedValue = value === '' ? undefined : value; // No convertir a Number aquí, hacerlo al enviar
-    if (type === 'checkbox') processedValue = (e.target as HTMLInputElement).checked;
-
+    const target = e.target as { name: string; value: any; type: string }; // Simplified target type based on usage
+    const { name, value, type } = target;
+    let processedValue: any;
+  
+    if (type === 'checkbox') {
+      processedValue = value; // `value` is already the boolean state for checkboxes from our synthetic event passed by renderDialogField
+    } else if (type === 'number') {
+      // For number inputs, we store the string value, or undefined if empty.
+      // Conversion to actual Number type happens during form submission.
+      processedValue = value === '' ? undefined : value; 
+    } else {
+      processedValue = value;
+    }
+    
     setState((prev: any) => ({ ...prev, [name]: processedValue }));
   };
 
@@ -452,13 +470,14 @@ export default function DashboardPage() {
       return;
     }
 
-    const currentEmpleadoLogId = empleadoId; // This is Empleado._id (string)
+    const currentEmpleadoLogId = empleadoId; 
     if (!currentEmpleadoLogId) {
         toast({ title: "Error de Autenticación", description: "No se pudo identificar al usuario para el registro de log.", variant: "destructive" });
         return;
     }
 
     const orderToCreate: NewOrderData = {
+      // IDs from Selects (already strings or undefined)
       idCliente: newOrderData.idCliente,
       idMarca: newOrderData.idMarca,
       idAseguradora: newOrderData.idAseguradora,
@@ -468,11 +487,13 @@ export default function DashboardPage() {
       idPintor: newOrderData.idPintor,
       idPresupuesto: newOrderData.idPresupuesto,
 
+      // Numeric fields from string inputs (convert or pass undefined)
       idModelo: newOrderData.idModelo ? Number(newOrderData.idModelo) : undefined,
       año: newOrderData.año ? Number(newOrderData.año) : undefined,
       ajustador: newOrderData.ajustador ? Number(newOrderData.ajustador) : undefined,
       deducible: newOrderData.deducible ? Number(newOrderData.deducible) : undefined,
-
+      
+      // String fields
       vin: newOrderData.vin,
       placas: newOrderData.placas,
       color: newOrderData.color,
@@ -480,24 +501,30 @@ export default function DashboardPage() {
       siniestro: newOrderData.siniestro,
       poliza: newOrderData.poliza,
       folio: newOrderData.folio,
-      aseguradoTercero: newOrderData.aseguradoTercero as Order['aseguradoTercero'],
       urlArchivos: newOrderData.urlArchivos,
 
+      // Enum/Boolean fields
+      aseguradoTercero: newOrderData.aseguradoTercero as Order['aseguradoTercero'],
       piso: !!newOrderData.piso,
       grua: !!newOrderData.grua,
+      proceso: newOrderData.proceso as Order['proceso'] || 'pendiente',
 
+      // Date fields (convert from string 'YYYY-MM-DD' or pass undefined)
       fechaValuacion: newOrderData.fechaValuacion ? new Date(newOrderData.fechaValuacion as string) : undefined,
       fechaRengreso: newOrderData.fechaRengreso ? new Date(newOrderData.fechaRengreso as string) : undefined,
       fechaEntrega: newOrderData.fechaEntrega ? new Date(newOrderData.fechaEntrega as string) : undefined,
       fechaPromesa: newOrderData.fechaPromesa ? new Date(newOrderData.fechaPromesa as string) : undefined,
-
-      proceso: newOrderData.proceso as Order['proceso'] || 'pendiente',
     };
 
     const result = await createOrderAction(orderToCreate, currentEmpleadoLogId);
     if (result.success && result.data) {
       toast({ title: "Éxito", description: `Orden OT-${String(result.data.customOrderId || '').padStart(4, '0')} creada.` });
-      setIsCreateOrderDialogOpen(false); fetchOrders(); setNewOrderData({ ...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR && empleadoId ? empleadoId : undefined, proceso: 'pendiente' });
+      setIsCreateOrderDialogOpen(false); 
+      fetchOrders(); 
+      setNewOrderData({ 
+        ...initialNewOrderData, 
+        idAsesor: userRole === UserRole.ASESOR && empleadoId ? empleadoId : undefined,
+      });
     } else {
       toast({ title: "Error al Crear", description: result.error || "No se pudo crear la orden.", variant: "destructive" });
     }
@@ -513,11 +540,17 @@ export default function DashboardPage() {
         if (!date) return undefined;
         const d = new Date(date);
         if (isNaN(d.getTime())) return undefined;
-        return d.toISOString().split('T')[0];
+        // Ensure it's formatted as YYYY-MM-DD for date input
+        const year = d.getUTCFullYear();
+        const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
       }
+
       setEditOrderData({
+        // Spread all fields first
         ...order,
-        // Ensure IDs are strings for Select components
+        // Ensure IDs are strings for Select components or inputs
         idCliente: order.idCliente?.toString(),
         idMarca: order.idMarca?.toString(),
         idAseguradora: order.idAseguradora?.toString(),
@@ -527,11 +560,13 @@ export default function DashboardPage() {
         idPintor: order.idPintor?.toString(),
         idPresupuesto: order.idPresupuesto?.toString(),
 
-        idModelo: order.idModelo,
-        año: order.año,
-        ajustador: order.ajustador,
-        deducible: order.deducible,
-
+        // Numeric fields likely coming from number inputs, ensure they are strings for form state
+        idModelo: order.idModelo?.toString(),
+        año: order.año?.toString(),
+        ajustador: order.ajustador?.toString(),
+        deducible: order.deducible?.toString(),
+        
+        // Dates need to be in 'yyyy-MM-dd' format for <input type="date">
         fechaValuacion: formatDateForInput(order.fechaValuacion),
         fechaRengreso: formatDateForInput(order.fechaRengreso),
         fechaEntrega: formatDateForInput(order.fechaEntrega),
@@ -546,43 +581,68 @@ export default function DashboardPage() {
   const handleUpdateOrder = async () => {
     if (!currentOrder || !currentOrder._id) return;
 
-    const currentEmpleadoLogId = empleadoId; // Empleado._id (string)
+    const currentEmpleadoLogId = empleadoId; 
     if (!currentEmpleadoLogId) {
         toast({ title: "Error de Autenticación", description: "No se pudo identificar al usuario para el registro de log.", variant: "destructive" });
         return;
     }
 
     const dataToUpdate: UpdateOrderData = {
-        ...editOrderData,
+        // IDs from Selects (will be strings or undefined)
+        idCliente: editOrderData.idCliente,
+        idMarca: editOrderData.idMarca,
+        idAseguradora: editOrderData.idAseguradora,
+        idValuador: editOrderData.idValuador,
+        idAsesor: editOrderData.idAsesor,
+        idHojalatero: editOrderData.idHojalatero,
+        idPintor: editOrderData.idPintor,
+        idPresupuesto: editOrderData.idPresupuesto,
+
+        // Numeric fields from string inputs (convert or pass undefined)
         idModelo: editOrderData.idModelo ? Number(editOrderData.idModelo) : undefined,
         año: editOrderData.año ? Number(editOrderData.año) : undefined,
         ajustador: editOrderData.ajustador ? Number(editOrderData.ajustador) : undefined,
         deducible: editOrderData.deducible ? Number(editOrderData.deducible) : undefined,
+        
+        // String fields
+        vin: editOrderData.vin,
+        placas: editOrderData.placas,
+        color: editOrderData.color,
+        kilometraje: editOrderData.kilometraje,
+        siniestro: editOrderData.siniestro,
+        poliza: editOrderData.poliza,
+        folio: editOrderData.folio,
+        urlArchivos: editOrderData.urlArchivos,
 
+        // Enum/Boolean fields
+        aseguradoTercero: editOrderData.aseguradoTercero as Order['aseguradoTercero'],
+        piso: !!editOrderData.piso,
+        grua: !!editOrderData.grua,
+        proceso: editOrderData.proceso as Order['proceso'],
+
+        // Date fields (convert from string 'YYYY-MM-DD' or pass undefined)
         fechaValuacion: editOrderData.fechaValuacion ? new Date(editOrderData.fechaValuacion as string) : undefined,
         fechaRengreso: editOrderData.fechaRengreso ? new Date(editOrderData.fechaRengreso as string) : undefined,
         fechaEntrega: editOrderData.fechaEntrega ? new Date(editOrderData.fechaEntrega as string) : undefined,
         fechaPromesa: editOrderData.fechaPromesa ? new Date(editOrderData.fechaPromesa as string) : undefined,
-
-        piso: !!editOrderData.piso,
-        grua: !!editOrderData.grua,
-        proceso: editOrderData.proceso as Order['proceso'],
-        aseguradoTercero: editOrderData.aseguradoTercero as Order['aseguradoTercero'],
     };
-
-    const optionalStringIds: (keyof UpdateOrderData)[] = ['idMarca', 'idAseguradora', 'idCliente', 'idValuador', 'idAsesor', 'idHojalatero', 'idPintor', 'idPresupuesto'];
-    optionalStringIds.forEach(key => {
-      if (dataToUpdate[key] === '') {
-        (dataToUpdate as any)[key] = undefined; // Set to undefined if empty string to remove field or handle as null in DB
+    
+    // Clean up undefined optional string ID fields (to prevent sending empty strings if Select is cleared)
+    const optionalStringIdKeys: (keyof UpdateOrderData)[] = ['idCliente', 'idMarca', 'idAseguradora', 'idValuador', 'idAsesor', 'idHojalatero', 'idPintor', 'idPresupuesto'];
+    optionalStringIdKeys.forEach(key => {
+      if (dataToUpdate[key] === '' || dataToUpdate[key] === 'null_value_placeholder') { // 'null_value_placeholder' is from our Select helper
+        (dataToUpdate as any)[key] = undefined; 
       }
     });
 
+    // Remove any top-level undefined properties to avoid sending them in $set
     Object.keys(dataToUpdate).forEach(keyStr => {
-      const key = keyStr as keyof UpdateOrderData;
-      if ((dataToUpdate as any)[key] === undefined) {
-        delete (dataToUpdate as any)[key];
-      }
+        const key = keyStr as keyof UpdateOrderData;
+        if ((dataToUpdate as any)[key] === undefined) {
+            delete (dataToUpdate as any)[key];
+        }
     });
+
 
     const result = await updateOrderAction(currentOrder._id.toString(), dataToUpdate, currentEmpleadoLogId);
     if (result.success) {
@@ -826,7 +886,7 @@ export default function DashboardPage() {
         systemUserRol: result.data.user?.rol,
         newSystemUserContraseña: '',
         newSystemUserConfirmContraseña: '',
-        createSystemUser: !!result.data.user // If user object exists, checkbox should reflect that (though it's for enabling creation if not present)
+        createSystemUser: !!result.data.user 
       });
       setIsEditEmpleadoDialogOpen(true);
     } else {
@@ -919,8 +979,7 @@ export default function DashboardPage() {
     const result = await removeSystemUserFromEmpleadoAction(empleadoId);
     if (result.success) {
         toast({title: "Éxito", description: result.message});
-        fetchEmpleados(); // Refetch to update list
-        // Also update current editing state if it's the same employee
+        fetchEmpleados(); 
         if (currentEmpleadoToEdit?._id === empleadoId) {
             setCurrentEmpleadoToEdit(prev => prev ? ({...prev, user: undefined}) : null);
             setEditEmpleadoData(prev => ({...prev, systemUserUsuario: undefined, systemUserRol: undefined, createSystemUser: false}));
@@ -935,16 +994,18 @@ export default function DashboardPage() {
     if (!dateInput) return 'N/A';
     let date: Date;
 
-    if (typeof dateInput === 'string') {
-      if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3}Z?)?)?$/.test(dateInput)) {
-        date = new Date(dateInput);
-      } else {
-        return 'Fecha Inválida (str)';
-      }
+    if (dateInput instanceof Date) {
+        date = dateInput;
+    } else if (typeof dateInput === 'string') {
+        // Handles 'YYYY-MM-DD' or full ISO string by ensuring it's treated as UTC then formatted
+        const parts = dateInput.split('T')[0].split('-');
+        if (parts.length === 3) {
+            date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+        } else {
+            date = new Date(dateInput); // Fallback for other string formats
+        }
     } else if (typeof dateInput === 'number') {
       date = new Date(dateInput);
-    } else if (dateInput instanceof Date){
-      date = dateInput;
     } else {
         return 'Tipo de Fecha Inválido';
     }
@@ -952,23 +1013,23 @@ export default function DashboardPage() {
     if (isNaN(date.getTime())) {
       return 'Fecha Inválida';
     }
-    // For dates coming from date inputs (like '2024-07-29'), they are UTC. 
-    // To display correctly in local time, we might need to adjust or ensure server stores them consistently.
-    // For now, using toLocaleDateString with timeZone UTC to be consistent with how server might store them.
     return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
   };
 
   const formatDateTime = (dateInput?: Date | string | number): string => {
     if (!dateInput) return 'N/A';
     let date: Date;
-    if (typeof dateInput === 'string' || typeof dateInput === 'number') {
-        date = new Date(dateInput);
-    } else if (dateInput instanceof Date) {
+    if (dateInput instanceof Date) {
         date = dateInput;
+    } else if (typeof dateInput === 'string' || typeof dateInput === 'number') {
+        date = new Date(dateInput); // Standard Date constructor handles ISO strings and timestamps
     } else {
         return 'Tipo de Fecha/Hora Inválido';
     }
     if (isNaN(date.getTime())) return 'Fecha/Hora Inválida';
+    // Display in local time, assuming server stores in UTC. For display, toLocaleString without timeZone uses browser local.
+    // If you want to force display in a specific zone, add timeZone: 'America/Mexico_City' or similar.
+    // For consistency with how dates might be stored/retrieved, often UTC is preferred.
     return date.toLocaleString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   };
 
@@ -1023,8 +1084,13 @@ export default function DashboardPage() {
 
     if (isCheckbox) {
       return (
-        <div className="flex items-center space-x-2">
-          <Checkbox id={`${formType}_${name}`} name={name} checked={!!value} onCheckedChange={(checked) => handler({ target: { name, value: checked, type: 'checkbox' } })} disabled={isDisabled} />
+        <div className="flex items-center space-x-2 py-1">
+          <Checkbox 
+            id={`${formType}_${name}`} 
+            name={name} 
+            checked={!!value} 
+            onCheckedChange={(checked) => handler({ target: { name, value: checked, type: 'checkbox' } })} 
+            disabled={isDisabled} />
           <Label htmlFor={`${formType}_${name}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{label}{isRequired && <span className="text-destructive">*</span>}</Label>
         </div>
       );
@@ -1037,11 +1103,15 @@ export default function DashboardPage() {
         </div>
       );
     }
-    if (options) {
+    if (options) { // This is for Select component
       return (
         <div className="space-y-1">
           <Label htmlFor={`${formType}_${name}`}>{label}{isRequired && <span className="text-destructive">*</span>}</Label>
-          <Select name={name} value={String(value || '')} onValueChange={(val) => selectHandler(name, val === 'null_value_placeholder' ? undefined : val )} disabled={isDisabled}>
+          <Select 
+            name={name} 
+            value={String(value || '')} // Ensure value is a string for Select
+            onValueChange={(val) => selectHandler(name, val === 'null_value_placeholder' ? undefined : val )} 
+            disabled={isDisabled}>
             <SelectTrigger className="w-full"><SelectValue placeholder={placeholder || "Seleccionar..."} /></SelectTrigger>
             <SelectContent>
               <SelectItem value="null_value_placeholder" className="text-muted-foreground italic">-- {placeholder || "Seleccionar..."} --</SelectItem>
@@ -1051,22 +1121,24 @@ export default function DashboardPage() {
         </div>
       );
     }
+    // Default to Input component
     return (
       <div className="space-y-1">
         <Label htmlFor={`${formType}_${name}`}>{label}{isRequired && <span className="text-destructive">*</span>}</Label>
         <Input id={`${formType}_${name}`} name={name} type={type}
-          value={type === 'date' ? (value || '') : (value ?? '')}
+          value={type === 'date' ? (value || '') : (value ?? '')} // Ensure date inputs handle undefined/null correctly
           onChange={handler}
           className="w-full" placeholder={placeholder}
           disabled={isDisabled }
+          required={isRequired} // Add native required attribute if specified
         />
       </div>
     );
   };
 
 
-  if (!userName || !userRole) {
-    console.log("DashboardPage: userName o userRole faltan. Mostrando 'Cargando...'");
+  if (!userName || !userRole || (userRole && !Object.values(UserRole).includes(userRole))) {
+    console.log("DashboardPage: userName o userRole faltan o son inválidos. Mostrando 'Cargando...' Detalles:", { userName, userRole });
     return <div className="flex min-h-screen items-center justify-center bg-background"><p>Cargando...</p></div>;
   }
 
@@ -1156,7 +1228,15 @@ export default function DashboardPage() {
              <Card className="shadow-lg border-border/50">
                 <CardHeader className="flex flex-row items-center justify-between pb-4">
                     <div><CardTitle className="text-xl">Órdenes de Servicio</CardTitle><CardDescription>Administra todas las órdenes de trabajo.</CardDescription></div>
-                    <Button size="sm" onClick={() => { setNewOrderData({...initialNewOrderData, idAsesor: userRole === UserRole.ASESOR && empleadoId ? empleadoId : undefined, proceso: 'pendiente' }); setIsCreateOrderDialogOpen(true);}}><PlusCircle className="mr-2 h-4 w-4" /> Nueva Orden</Button>
+                    <Button size="sm" onClick={() => { 
+                        setNewOrderData({
+                            ...initialNewOrderData, 
+                            idAsesor: userRole === UserRole.ASESOR && empleadoId ? empleadoId : undefined
+                        }); 
+                        setIsCreateOrderDialogOpen(true);
+                    }}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Nueva Orden
+                    </Button>
                 </CardHeader>
                 <CardContent>
                     {isLoadingOrders ? <p>Cargando órdenes...</p> : orders.length === 0 ?
@@ -1625,23 +1705,43 @@ export default function DashboardPage() {
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Crear Nuevo Empleado</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            {renderDialogField("Nombre Completo", "nombre", "text", "Ej: Juan Pérez García", "newEmpleado",undefined,false,false,false,true)}
-            {renderDialogField("Puesto", "puesto", "text", "Ej: Hojalatero Líder", "newEmpleado",undefined,false,false,false,true)}
-            {renderDialogField("Teléfono", "telefono", "tel", "Ej: 5512345678", "newEmpleado")}
-            {renderDialogField("Correo", "correo", "email", "Ej: juan.perez@taller.com", "newEmpleado")}
-            {renderDialogField("Sueldo", "sueldo", "number", "Ej: 15000", "newEmpleado")}
-            {renderDialogField("Comisión (%)", "comision", "number", "Ej: 5", "newEmpleado")}
-
+            <div className="space-y-1">
+                {renderDialogField("Nombre Completo", "nombre", "text", "Ej: Juan Pérez García", "newEmpleado",undefined,false,false,false,true)}
+            </div>
+            <div className="space-y-1">
+                {renderDialogField("Puesto", "puesto", "text", "Ej: Hojalatero Líder", "newEmpleado",undefined,false,false,false,true)}
+            </div>
+            <div className="space-y-1">
+                {renderDialogField("Teléfono", "telefono", "tel", "Ej: 5512345678", "newEmpleado")}
+            </div>
+            <div className="space-y-1">
+                {renderDialogField("Correo", "correo", "email", "Ej: juan.perez@taller.com", "newEmpleado")}
+            </div>
+            <div className="space-y-1">
+                {renderDialogField("Sueldo", "sueldo", "number", "Ej: 15000", "newEmpleado")}
+            </div>
+            <div className="space-y-1">
+                {renderDialogField("Comisión (%)", "comision", "number", "Ej: 5", "newEmpleado")}
+            </div>
+            
             <div className="my-2 border-t pt-4">
                 {renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "", "newEmpleado", undefined, true)}
             </div>
 
             {newEmpleadoData.createSystemUser && (
                 <>
-                    {renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", "Ej: juan.perez", "newEmpleado",undefined,false,false,false,true)}
-                    {renderDialogField("Contraseña", "systemUserContraseña", "password", "Mínimo 6 caracteres", "newEmpleado",undefined,false,false,false,true)}
-                    {renderDialogField("Confirmar Contraseña", "systemUserConfirmContraseña", "password", "Repetir contraseña", "newEmpleado",undefined,false,false,false,true)}
-                    {renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol", "newEmpleado", userRoleOptions,undefined,false,false,true)}
+                    <div className="space-y-1">
+                        {renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", "Ej: juan.perez", "newEmpleado",undefined,false,false,false,true)}
+                    </div>
+                    <div className="space-y-1">
+                        {renderDialogField("Contraseña", "systemUserContraseña", "password", "Mínimo 6 caracteres", "newEmpleado",undefined,false,false,false,true)}
+                    </div>
+                    <div className="space-y-1">
+                        {renderDialogField("Confirmar Contraseña", "systemUserConfirmContraseña", "password", "Repetir contraseña", "newEmpleado",undefined,false,false,false,true)}
+                    </div>
+                    <div className="space-y-1">
+                        {renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol", "newEmpleado", userRoleOptions,undefined,false,false,true)}
+                    </div>
                 </>
             )}
           </div>
@@ -1653,27 +1753,47 @@ export default function DashboardPage() {
           <DialogHeader><DialogTitle>Editar Empleado: {currentEmpleadoToEdit?.nombre}</DialogTitle></DialogHeader>
           {currentEmpleadoToEdit && (
             <div className="space-y-4 py-4">
-              {renderDialogField("Nombre Completo", "nombre", "text", "", "editEmpleado",undefined,false,false,false,true)}
-              {renderDialogField("Puesto", "puesto", "text", "", "editEmpleado",undefined,false,false,false,true)}
-              {renderDialogField("Teléfono", "telefono", "tel", "", "editEmpleado")}
-              {renderDialogField("Correo", "correo", "email", "", "editEmpleado")}
-              {renderDialogField("Sueldo", "sueldo", "number", "", "editEmpleado")}
-              {renderDialogField("Comisión (%)", "comision", "number", "", "editEmpleado")}
+              <div className="space-y-1">
+                {renderDialogField("Nombre Completo", "nombre", "text", "", "editEmpleado",undefined,false,false,false,true)}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Puesto", "puesto", "text", "", "editEmpleado",undefined,false,false,false,true)}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Teléfono", "telefono", "tel", "", "editEmpleado")}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Correo", "correo", "email", "", "editEmpleado")}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Sueldo", "sueldo", "number", "", "editEmpleado")}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Comisión (%)", "comision", "number", "", "editEmpleado")}
+              </div>
 
               <div className="my-2 border-t pt-4">
                 <h4 className="font-medium mb-2 text-base">Acceso al Sistema</h4>
-                {!currentEmpleadoToEdit.user && ( // Si no tiene usuario de sistema
+                {!currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser && ( 
                      renderDialogField("Crear nuevo acceso al sistema", "createSystemUser", "checkbox", "", "editEmpleado", undefined, true)
                 )}
                 
-                {(currentEmpleadoToEdit.user || editEmpleadoData.createSystemUser) && ( // Si tiene usuario o se va a crear
+                {(currentEmpleadoToEdit.user || editEmpleadoData.createSystemUser) && ( 
                     <>
-                        {renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", "Ej: juan.perez", "editEmpleado", undefined, false, false, !!currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser, true)}
-                        {renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol", "editEmpleado", userRoleOptions, false, false, !!currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser, true)}
+                        <div className="space-y-1">
+                        {renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", "Ej: juan.perez", "editEmpleado", undefined, false, false, !!(currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser), true)}
+                        </div>
+                        <div className="space-y-1">
+                        {renderDialogField("Rol en Sistema", "systemUserRol", "select", "Seleccionar rol", "editEmpleado", userRoleOptions, false, false, !!(currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser), true)}
+                        </div>
                         
                         <h5 className="font-medium mt-3 text-sm">{(currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser) ? 'Cambiar Contraseña (Opcional)' : 'Establecer Contraseña*'}</h5>
+                        <div className="space-y-1">
                         {renderDialogField("Nueva Contraseña", "newSystemUserContraseña", "password", "Dejar en blanco para no cambiar", "editEmpleado", undefined, false, false, false, editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user)}
+                        </div>
+                        <div className="space-y-1">
                         {renderDialogField("Confirmar Nueva Contraseña", "newSystemUserConfirmContraseña", "password", "", "editEmpleado", undefined, false, false, false, editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user)}
+                        </div>
                         
                         {currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser && (
                             <div className="mt-2 text-right">
