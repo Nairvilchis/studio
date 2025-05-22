@@ -21,11 +21,11 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { loginUser } from '@/app/auth/actions'; // Import the server action
+import { loginUser } from '@/app/auth/actions';
 
 const formSchema = z.object({
-  usuario: z.string().min(3, { message: "El usuario debe tener al menos 3 caracteres." }), // Cambiado de username a usuario
-  contraseña: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }), // Cambiado de password a contraseña
+  usuario: z.string().min(3, { message: "El usuario debe tener al menos 3 caracteres." }),
+  contraseña: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
   rememberMe: z.boolean().optional(),
 });
 
@@ -51,19 +51,67 @@ export function LoginForm() {
     console.log("LoginForm: Resultado de loginUser:", result);
 
     if (result.success && result.user) {
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('username', result.user.usuario);
-      // Asegurarse de que idEmpleado se guarda como string
-      localStorage.setItem('idEmpleado', String(result.user.idEmpleado));
-      localStorage.setItem('userRole', result.user.rol); 
+      console.log("LoginForm: Datos de usuario recibidos del servidor:", JSON.stringify(result.user));
+      let sessionDataValid = true;
 
-      toast({
-        title: "Inicio de sesión exitoso",
-        description: `Bienvenido de nuevo, ${result.user.usuario}. Redirigiendo...`,
-        variant: "default",
-      });
-      router.push('/dashboard');
+      // Username
+      if (result.user.usuario && typeof result.user.usuario === 'string' && result.user.usuario.trim() !== '') {
+        localStorage.setItem('username', result.user.usuario);
+        console.log(`LoginForm: username guardado en localStorage: ${localStorage.getItem('username')}`);
+      } else {
+        console.error("LoginForm: result.user.usuario es inválido:", result.user.usuario);
+        sessionDataValid = false;
+      }
+
+      // Empleado ID - DETAILED LOGGING HERE
+      const empIdFromServer = result.user.empleadoId;
+      console.log(`LoginForm: Chequeando empIdFromServer: '${empIdFromServer}' (tipo: ${typeof empIdFromServer})`);
+
+      const checkEmpIdExists = !!empIdFromServer;
+      const checkEmpIdIsString = typeof empIdFromServer === 'string';
+      const checkEmpIdIsNotBlank = typeof empIdFromServer === 'string' && empIdFromServer.trim() !== '' && empIdFromServer !== 'null' && empIdFromServer !== 'undefined';
+
+      console.log(`LoginForm: empIdFromServer - checkExists: ${checkEmpIdExists}, checkIsString: ${checkEmpIdIsString}, checkIsNotBlank: ${checkEmpIdIsNotBlank}`);
+
+      if (checkEmpIdExists && checkEmpIdIsString && checkEmpIdIsNotBlank) {
+        localStorage.setItem('empleadoId', empIdFromServer);
+        const storedEmpId = localStorage.getItem('empleadoId');
+        console.log(`LoginForm: empleadoId guardado en localStorage: ${storedEmpId}`);
+        if (storedEmpId !== empIdFromServer) {
+            console.error(`LoginForm: DISCREPANCIA! empIdFromServer era '${empIdFromServer}', pero localStorage.getItem('empleadoId') devolvió '${storedEmpId}'`);
+        }
+      } else {
+        console.error("LoginForm: empleadoId NO VÁLIDO O NO ES UNA CADENA NO VACÍA. Valor:", empIdFromServer);
+        sessionDataValid = false;
+      }
+
+      // User Role
+      if (result.user.rol && typeof result.user.rol === 'string' && result.user.rol.trim() !== '') {
+        localStorage.setItem('userRole', result.user.rol);
+        console.log(`LoginForm: userRole guardado en localStorage: ${localStorage.getItem('userRole')}`);
+      } else {
+        console.error("LoginForm: result.user.rol es inválido:", result.user.rol);
+        sessionDataValid = false;
+      }
+
+      if (sessionDataValid) {
+        localStorage.setItem('isLoggedIn', 'true');
+        console.log("LoginForm: Todos los datos de sesión validados. Redirigiendo al dashboard...");
+        toast({
+          title: "Inicio de sesión exitoso",
+          description: `Bienvenido de nuevo, ${result.user.usuario}. Redirigiendo...`,
+        });
+        router.push('/dashboard');
+      } else {
+        console.error("LoginForm: Uno o más datos de sesión son inválidos. No se redirigirá. Por favor, revisa los logs anteriores.");
+        toast({
+          title: "Error de Configuración de Sesión",
+          description: "No se pudieron guardar los datos de sesión necesarios. Por favor, inténtalo de nuevo o contacta a soporte.",
+          variant: "destructive",
+        });
+      }
     } else {
+      console.log("LoginForm: Inicio de sesión fallido o result.user no existe. Mensaje del servidor:", result.message);
       toast({
         title: "Error de inicio de sesión",
         description: result.message || "Usuario o contraseña incorrectos. Por favor, inténtalo de nuevo.",
@@ -87,7 +135,7 @@ export function LoginForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="usuario" 
+              name="usuario"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-muted-foreground">Usuario</FormLabel>
@@ -108,7 +156,7 @@ export function LoginForm() {
             />
             <FormField
               control={form.control}
-              name="contraseña" 
+              name="contraseña"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-muted-foreground">Contraseña</FormLabel>
