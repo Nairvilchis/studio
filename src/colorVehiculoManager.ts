@@ -4,9 +4,11 @@
  * @fileOverview Manages "ColorVehiculo" (Vehicle Color) operations with MongoDB.
  * Colores are used to populate select options in order forms.
  * Each ColorVehiculo has a unique name.
+ * @remarks
+ * Esta clase utiliza la directiva 'use server' para indicar que solo debe ejecutarse en el servidor.
  */
 
-import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult } from 'mongodb';
+import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult } from './db';
 import { connectDB } from './db';
 import type { ColorVehiculo, NewColorVehiculoData, UpdateColorVehiculoData } from '@/lib/types';
 
@@ -34,6 +36,7 @@ class ColorVehiculoManager {
   /**
    * Retrieves the MongoDB collection for coloresVehiculos.
    * @returns {Promise<Collection<ColorVehiculo>>} The color collection.
+   * @private
    */
   private async getCollection(): Promise<Collection<ColorVehiculo>> {
     return this.collectionPromise;

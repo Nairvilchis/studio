@@ -4,10 +4,10 @@
 import OrderManager from '@/serviceOrderManager';
 import type { Order, NewOrderData, UpdateOrderData, Empleado, Ajustador } from '@/lib/types'; 
 import { UserRole } from '@/lib/types';
-import type { Filter, ObjectId as MongoObjectIdType } from 'mongodb'; // For MongoDB ObjectId type
-import { ObjectId } from 'mongodb'; // For ObjectId validation and construction
+// No longer importing ObjectId or MongoObjectIdType from 'mongodb'
 import EmpleadoManager from '@/empleadoManager'; 
 import AseguradoraManager from '@/aseguradoraManager'; 
+import type { Filter } from 'mongodb'; // Still needed for Filter type if used in function signatures
 
 /**
  * Interface for the result of server actions.
@@ -33,14 +33,16 @@ interface EmployeeOption {
  * Serializes an Order object from the database format (with MongoDB ObjectId for _id and Date objects)
  * to a client-friendly format (with _id as string and dates as Date objects or undefined).
  * The log entries and presupuesto items are also processed.
- * @param {any} orderFromDb - Raw Order object from MongoDB.
+ * Assumes manager methods have already converted the main `_id` to string.
+ * @param {any} orderFromDb - Raw Order object from MongoDB (or already partially serialized).
  * @returns {Order} Serialized Order object.
  */
 function serializeOrder(orderFromDb: any): Order {
   const serialized: Order = { 
     ...orderFromDb,
-    _id: orderFromDb._id ? (orderFromDb._id instanceof ObjectId ? orderFromDb._id.toHexString() : orderFromDb._id) : undefined,
+    _id: orderFromDb._id, // Assumed to be string from manager
     // Convert all ObjectId-string fields to ensure they are strings
+    // (some might be ObjectIds if not pre-processed by manager in all cases)
     idAseguradora: orderFromDb.idAseguradora?.toString(),
     idAjustador: orderFromDb.idAjustador?.toString(),
     idMarca: orderFromDb.idMarca?.toString(),
@@ -88,7 +90,7 @@ function serializeOrders(ordersFromDb: any[]): Order[] {
  */
 function serializeEmpleadoToEmployeeOption(empleado: Empleado): EmployeeOption {
  return {
-    _id: empleado._id!, // _id is already string from Empleado type def
+    _id: empleado._id!, 
     nombre: empleado.nombre
  };
 }
@@ -101,8 +103,9 @@ function serializeEmpleadoToEmployeeOption(empleado: Empleado): EmployeeOption {
 export async function getAllOrdersAction(filter?: Filter<Order>): Promise<ActionResult<Order[]>> {
   const orderManager = new OrderManager();
   try {
-    const ordersFromDBRaw = await orderManager.getAllOrders(filter);
-    const ordersForClient = serializeOrders(ordersFromDBRaw);
+    // OrderManager.getAllOrders() now returns orders with _id as string.
+    const ordersFromDB = await orderManager.getAllOrders(filter);
+    const ordersForClient = serializeOrders(ordersFromDB); // Further serializes dates and nested IDs
     return { success: true, data: ordersForClient };
   } catch (error) {
     console.error("Server action getAllOrdersAction error:", error);
@@ -115,7 +118,7 @@ export async function getAllOrdersAction(filter?: Filter<Order>): Promise<Action
  * Server Action to create a new service order.
  * @param {NewOrderData} orderData - Data for the new order.
  * @param {string} [empleadoLogId] - _id (string ObjectId) of the employee performing the action for the log.
- * @returns {Promise<ActionResult<{ orderId: string | null, customOrderId?: number }>>} Result with the MongoDB _id of the new order and its custom idOrder, or an error.
+ * @returns {Promise<ActionResult<{ orderId: string | null, customOrderId?: number }>>} Result with the MongoDB _id (string) of the new order and its custom idOrder, or an error.
  */
 export async function createOrderAction(
   orderData: NewOrderData,
@@ -123,7 +126,6 @@ export async function createOrderAction(
 ): Promise<ActionResult<{ orderId: string | null, customOrderId?: number }>> {
   const orderManager = new OrderManager();
   try {
-    // Convert date strings from form to Date objects if necessary
     const dataWithDates: NewOrderData = {
       ...orderData,
       fechaValuacion: orderData.fechaValuacion ? new Date(orderData.fechaValuacion) : undefined,
@@ -131,19 +133,21 @@ export async function createOrderAction(
       fechaEntrega: orderData.fechaEntrega ? new Date(orderData.fechaEntrega) : undefined,
       fechaPromesa: orderData.fechaPromesa ? new Date(orderData.fechaPromesa) : undefined,
       fechaBaja: orderData.fechaBaja ? new Date(orderData.fechaBaja) : undefined,
-      // Ensure boolean for aseguradoTercero if it's coming from a select that might send string 'true'/'false'
       aseguradoTercero: typeof orderData.aseguradoTercero === 'string' ? orderData.aseguradoTercero === 'true' : orderData.aseguradoTercero,
     };
 
-    const newMongoIdObject: MongoObjectIdType | null = await orderManager.createOrder(dataWithDates, empleadoLogId);
-    if (newMongoIdObject) {
-      const createdOrderRaw = await orderManager.getOrderById(newMongoIdObject.toHexString()); // Fetch by string _id
+    // orderManager.createOrder now returns the _id as a string or null.
+    const newOrderIdString: string | null = await orderManager.createOrder(dataWithDates, empleadoLogId);
+    
+    if (newOrderIdString) {
+      // orderManager.getOrderById now expects a string _id and returns order with _id as string.
+      const createdOrder = await orderManager.getOrderById(newOrderIdString); 
       return {
         success: true,
-        message: `Orden OT-${createdOrderRaw?.idOrder} creada exitosamente.`,
+        message: `Orden OT-${createdOrder?.idOrder} creada exitosamente.`,
         data: {
-          orderId: newMongoIdObject.toHexString(), // MongoDB _id as string
-          customOrderId: createdOrderRaw?.idOrder // Custom numeric idOrder
+          orderId: newOrderIdString, // This is the MongoDB _id as string
+          customOrderId: createdOrder?.idOrder // Custom numeric idOrder
         }
       };
     } else {
@@ -164,9 +168,10 @@ export async function createOrderAction(
 export async function getOrderByIdAction(id: string): Promise<ActionResult<Order | null>> {
   const orderManager = new OrderManager();
   try {
-    const orderFromDBRaw = await orderManager.getOrderById(id); 
-    if (orderFromDBRaw) {
-      return { success: true, data: serializeOrder(orderFromDBRaw) };
+    // OrderManager.getOrderById() now returns order with _id as string.
+    const orderFromDB = await orderManager.getOrderById(id); 
+    if (orderFromDB) {
+      return { success: true, data: serializeOrder(orderFromDB) }; // Further serializes dates and nested IDs
     }
     return { success: true, data: null, message: "Orden no encontrada." };
   } catch (error) {
@@ -192,7 +197,6 @@ export async function updateOrderProcesoAction(id: string, proceso: Order['proce
         } else {
             const exists = await orderManager.getOrderById(id);
             if (!exists) return { success: false, error: 'No se pudo actualizar: Orden no encontrada.'};
-            // If it exists but modifiedCount was 0, it means no actual data changed.
             return { success: true, message: 'Ningún cambio detectado en el proceso de la orden.' };
         }
     } catch (error) {
@@ -209,11 +213,10 @@ export async function updateOrderProcesoAction(id: string, proceso: Order['proce
 export async function getValuadores(): Promise<ActionResult<EmployeeOption[]>> {
   const empleadoManager = new EmpleadoManager(); 
   try {
-    const empleados = await empleadoManager.getAllEmpleados(); // Returns Empleado[] with _id as string.
-    // Filter employees who have a 'user' object and whose role is VALUADOR.
+    const empleados = await empleadoManager.getAllEmpleados(); 
     const valuadores = empleados
       .filter(emp => emp.user?.rol === UserRole.VALUADOR)
-      .map(serializeEmpleadoToEmployeeOption); // _id is already string here
+      .map(serializeEmpleadoToEmployeeOption); 
     return { success: true, data: valuadores };
   } catch (error) {
     console.error("Server action getValuadores error:", error);
@@ -230,10 +233,9 @@ export async function getAsesores(): Promise<ActionResult<EmployeeOption[]>> {
   const empleadoManager = new EmpleadoManager(); 
   try {
     const empleados = await empleadoManager.getAllEmpleados();
-    // Filter employees who have a 'user' object and whose role is ASESOR.
     const asesores = empleados
         .filter(emp => emp.user?.rol === UserRole.ASESOR)
-        .map(serializeEmpleadoToEmployeeOption); // _id is already string
+        .map(serializeEmpleadoToEmployeeOption); 
     return { success: true, data: asesores };
   } catch (error) {
     console.error("Server action getAsesores error:", error);
@@ -250,9 +252,9 @@ export async function getAsesores(): Promise<ActionResult<EmployeeOption[]>> {
 export async function getEmployeesByPosition(position: string): Promise<ActionResult<EmployeeOption[]>> {
   const empleadoManager = new EmpleadoManager(); 
   try {
-    const empleados = await empleadoManager.getAllEmpleados(); // Empleado[] with _id as string
+    const empleados = await empleadoManager.getAllEmpleados(); 
     const filteredEmployees = empleados.filter(emp => emp.puesto === position); 
-    const employeeOptions = filteredEmployees.map(serializeEmpleadoToEmployeeOption); // _id is string
+    const employeeOptions = filteredEmployees.map(serializeEmpleadoToEmployeeOption); 
     return { success: true, data: employeeOptions };
   } catch (error) {
     console.error(`Server action getEmployeesByPosition (${position}) error:`, error);
@@ -275,7 +277,6 @@ export async function updateOrderAction(
 ): Promise<ActionResult<null>> {
   const orderManager = new OrderManager();
   try {
-    // Convert date strings from form to Date objects if necessary
     const dataWithDates: UpdateOrderData = {
       ...updateData,
       fechaValuacion: updateData.fechaValuacion ? new Date(updateData.fechaValuacion) : undefined,
@@ -283,7 +284,6 @@ export async function updateOrderAction(
       fechaEntrega: updateData.fechaEntrega ? new Date(updateData.fechaEntrega) : undefined,
       fechaPromesa: updateData.fechaPromesa ? new Date(updateData.fechaPromesa) : undefined,
       fechaBaja: updateData.fechaBaja ? new Date(updateData.fechaBaja) : undefined,
-      // Ensure boolean for aseguradoTercero
       aseguradoTercero: typeof updateData.aseguradoTercero === 'string' ? updateData.aseguradoTercero === 'true' : updateData.aseguradoTercero,
     };
 
@@ -293,7 +293,6 @@ export async function updateOrderAction(
     } else {
       const existsResult = await orderManager.getOrderById(id);
       if (!existsResult) return { success: false, error: 'No se pudo actualizar: Orden no encontrada.'};
-      // If it exists but modifiedCount was 0 (or success was false for other reasons like no change)
       return { success: true, message: 'Ningún cambio detectado en la orden o la orden no fue encontrada.' };
     }
   } catch (error) {
@@ -315,7 +314,6 @@ export async function deleteOrderAction(id: string): Promise<ActionResult<null>>
         if (success) {
             return { success: true, message: 'Orden eliminada exitosamente.' };
         } else {
-            // Could mean not found or other deletion failure.
             return { success: false, error: 'No se pudo eliminar la orden o no se encontró.' };
         }
     } catch (error) {
@@ -337,10 +335,8 @@ export async function getAjustadoresByAseguradora(aseguradoraId: string): Promis
     if (!aseguradoraId) {
         return { success: false, error: "Se requiere el ID de la aseguradora." };
     }
-    // The manager's method returns the Aseguradora object with _id as string and ajustadores with idAjustador as string.
     const aseguradora = await aseguradoraManager.getAseguradoraById(aseguradoraId); 
     if (aseguradora && aseguradora.ajustadores) {
-        // Map to the desired structure for the select component.
         return { success: true, data: aseguradora.ajustadores.map(adj => ({ idAjustador: adj.idAjustador, nombre: adj.nombre })) };
     }
     return { success: true, data: [], message: "Aseguradora no encontrada o sin ajustadores." };
@@ -349,4 +345,3 @@ export async function getAjustadoresByAseguradora(aseguradoraId: string): Promis
     return { success: false, error: error instanceof Error ? error.message : "Error desconocido al obtener ajustadores." };
  }
 }
-

@@ -1,9 +1,14 @@
 
 'use server';
+/**
+ * @fileOverview Server Actions for managing Aseguradora (insurance company) operations.
+ * These actions interact with AseguradoraManager to perform CRUD operations.
+ * They ensure data is properly serialized for client consumption, especially ObjectIds.
+ */
 
 import AseguradoraManager from '@/aseguradoraManager';
 import type { Aseguradora, NewAseguradoraData, UpdateAseguradoraData, Ajustador } from '@/lib/types';
-import { ObjectId } from 'mongodb'; // Import ObjectId for validation and new creation
+// Eliminamos la importación directa de ObjectId de mongodb, ya que el manager se encarga de la conversión.
 
 /**
  * Interface for the result of server actions.
@@ -17,28 +22,25 @@ interface ActionResult<T> {
 }
 
 /**
- * Serializes an Aseguradora object from the database format to a client-friendly format.
- * Specifically, it ensures the MongoDB _id (ObjectId) is a hex string.
- * It also ensures that idAjustador within the ajustadores array are strings.
- * @param {any} aseguradoraFromDb - The raw aseguradora object from MongoDB.
+ * Serializes an Aseguradora object to ensure it matches the client-side expected type.
+ * Assumes that the manager methods have already converted MongoDB ObjectIds to strings.
+ * @param {any} aseguradoraFromDb - The raw aseguradora object, ideally with _id already as a string.
  * @returns {Aseguradora} The serialized aseguradora object.
+ * @remarks The main purpose here is type assertion and structure conformity.
  */
-function serializeAseguradora(aseguradoraFromDb: any): Aseguradora { 
+function serializeAseguradora(aseguradoraFromDb: any): Aseguradora {
+  // El manager ya debería haber convertido _id a string y los idAjustador también.
+  // Esta función ahora sirve más como una afirmación de tipo y para asegurar la estructura.
   return {
     ...aseguradoraFromDb,
-    // Ensure _id is a string. If it's already a string (from manager), it's fine.
-    // If it's an ObjectId (e.g., if raw doc was fetched differently), convert it.
-    _id: aseguradoraFromDb._id ? (aseguradoraFromDb._id instanceof ObjectId ? aseguradoraFromDb._id.toHexString() : aseguradoraFromDb._id) : undefined,
-    ajustadores: aseguradoraFromDb.ajustadores?.map((ajustador: any) => ({ 
-        ...ajustador,
-        // idAjustador should already be a string (ObjectId hex string) from the manager methods.
-    })) || [],
+    // _id ya debería ser un string desde el manager.
+    // ajustadores ya debería tener idAjustador como string desde el manager.
   } as Aseguradora;
 }
 
 /**
  * Serializes an array of Aseguradora objects.
- * @param {any[]} aseguradorasFromDb - Array of raw aseguradora objects from MongoDB.
+ * @param {any[]} aseguradorasFromDb - Array of raw aseguradora objects.
  * @returns {Aseguradora[]} Array of serialized aseguradora objects.
  */
 function serializeAseguradoras(aseguradorasFromDb: any[]): Aseguradora[] {
@@ -48,13 +50,14 @@ function serializeAseguradoras(aseguradorasFromDb: any[]): Aseguradora[] {
 /**
  * Server Action to get all aseguradoras.
  * @returns {Promise<ActionResult<Aseguradora[]>>} Result object with an array of aseguradoras or an error.
+ * @example const { data } = await getAllAseguradorasAction();
  */
 export async function getAllAseguradorasAction(): Promise<ActionResult<Aseguradora[]>> {
   const manager = new AseguradoraManager();
   try {
-    // The manager's getAllAseguradoras method already returns _id as string.
-    const dataFromDBRaw = await manager.getAllAseguradoras(); 
-    // Serialization here primarily ensures consistency if the manager's output changes.
+    // El método getAllAseguradoras del manager ya devuelve _id como string.
+    const dataFromDBRaw = await manager.getAllAseguradoras();
+    // La serialización aquí asegura consistencia y conformidad con el tipo Aseguradora.
     const dataForClient = serializeAseguradoras(dataFromDBRaw);
     return { success: true, data: dataForClient };
   } catch (error) {
@@ -71,18 +74,17 @@ export async function getAllAseguradorasAction(): Promise<ActionResult<Asegurado
 export async function createAseguradoraAction(data: NewAseguradoraData): Promise<ActionResult<{ aseguradoraId: string | null }>> {
   const manager = new AseguradoraManager();
   try {
-    // The manager's createAseguradora method returns the MongoDB ObjectId of the new document.
-    const newMongoIdObject = await manager.createAseguradora(data); 
+    // El método createAseguradora del manager devuelve el ObjectId de MongoDB del nuevo documento.
+    const newMongoIdObject = await manager.createAseguradora(data);
     if (newMongoIdObject) {
       return {
         success: true,
         message: 'Aseguradora creada exitosamente.',
         data: {
-          aseguradoraId: newMongoIdObject.toHexString(), // Convert ObjectId to string for the client.
+          aseguradoraId: newMongoIdObject.toHexString(), // Convertir ObjectId a string para el cliente.
         }
       };
     } else {
-      // This case should ideally not be reached if manager.createAseguradora throws on failure.
       return { success: false, error: 'No se pudo crear la aseguradora.' };
     }
   } catch (error) {
@@ -99,10 +101,9 @@ export async function createAseguradoraAction(data: NewAseguradoraData): Promise
 export async function getAseguradoraByIdAction(id: string): Promise<ActionResult<Aseguradora | null>> {
   const manager = new AseguradoraManager();
   try {
-    // The manager's getAseguradoraById method expects a string _id and returns _id as string.
-    const dataFromDBRaw = await manager.getAseguradoraById(id); 
+    // El método getAseguradoraById del manager espera un _id string y devuelve _id como string.
+    const dataFromDBRaw = await manager.getAseguradoraById(id);
     if (dataFromDBRaw) {
-      // Ensure consistent serialization.
       return { success: true, data: serializeAseguradora(dataFromDBRaw) };
     }
     return { success: true, data: null, message: "Aseguradora no encontrada." };
@@ -125,10 +126,8 @@ export async function updateAseguradoraAction(id: string, updateData: UpdateAseg
     if (success) {
       return { success: true, message: 'Aseguradora actualizada exitosamente.' };
     } else {
-      // If manager.updateAseguradora returns false, it might be due to not found or no changes.
       const exists = await manager.getAseguradoraById(id);
       if (!exists) return { success: false, error: 'No se pudo actualizar: Aseguradora no encontrada.'};
-      // If it exists but modifiedCount was 0, it means no actual data changed.
       return { success: true, message: 'Ningún cambio detectado en la aseguradora.' };
     }
   } catch (error) {
@@ -149,7 +148,6 @@ export async function deleteAseguradoraAction(id: string): Promise<ActionResult<
     if (success) {
       return { success: true, message: 'Aseguradora eliminada exitosamente.' };
     } else {
-      // Could mean not found or other deletion failure.
       return { success: false, error: 'No se pudo eliminar la aseguradora o no se encontró.' };
     }
   } catch (error) {
@@ -162,22 +160,20 @@ export async function deleteAseguradoraAction(id: string): Promise<ActionResult<
 
 /**
  * Server Action to add an ajustador to an aseguradora.
- * The `idAjustador` is generated by the manager and returned.
- * @param {string} aseguradoraId - The MongoDB _id (string) of the parent aseguradora.
- * @param {Omit<Ajustador, 'idAjustador'>} ajustadorData - Data for the new ajustador (nombre, telefono, correo).
- * @returns {Promise<ActionResult<Ajustador>>} Result object with the new ajustador (including its generated `idAjustador`) or an error.
+ * El `idAjustador` es generado por el manager y devuelto como string.
+ * @param {string} aseguradoraId - El `_id` (string) de MongoDB de la aseguradora padre.
+ * @param {Omit<Ajustador, 'idAjustador'>} ajustadorData - Datos para el nuevo ajustador (nombre, telefono, correo).
+ * @returns {Promise<ActionResult<Ajustador>>} Result object con el nuevo ajustador (incluyendo su `idAjustador` generado) o un error.
  */
 export async function addAjustadorToAseguradoraAction(aseguradoraId: string, ajustadorData: Omit<Ajustador, 'idAjustador'>): Promise<ActionResult<Ajustador>> {
     const manager = new AseguradoraManager();
     try {
-        // Basic validation for ajustador name.
         if (!ajustadorData.nombre?.trim()) {
             return { success: false, error: "Nombre del ajustador es requerido."};
         }
-        // The manager's method handles ObjectId generation for idAjustador.
+        // El manager ya se encarga de la generación de ObjectId para idAjustador y lo devuelve como string.
         const newAjustador = await manager.addAjustadorToAseguradora(aseguradoraId, ajustadorData);
         if (newAjustador) {
-            // newAjustador already has idAjustador as a string (ObjectId hex string).
             return { success: true, message: "Ajustador añadido exitosamente.", data: newAjustador };
         } else {
             return { success: false, error: "No se pudo añadir el ajustador." };
@@ -190,15 +186,14 @@ export async function addAjustadorToAseguradoraAction(aseguradoraId: string, aju
 
 /**
  * Server Action to update an ajustador within an aseguradora.
- * @param {string} aseguradoraId - The MongoDB _id (string) of the parent aseguradora.
- * @param {string} idAjustador - The ObjectId string of the ajustador to update.
- * @param {Partial<Omit<Ajustador, 'idAjustador'>>} ajustadorUpdateData - Data to update (nombre, telefono, correo).
- * @returns {Promise<ActionResult<null>>} Result object indicating success or error.
+ * @param {string} aseguradoraId - El `_id` (string) de MongoDB de la aseguradora padre.
+ * @param {string} idAjustador - El `idAjustador` (string ObjectId) del ajustador a actualizar.
+ * @param {Partial<Omit<Ajustador, 'idAjustador'>>} ajustadorUpdateData - Datos a actualizar (nombre, telefono, correo).
+ * @returns {Promise<ActionResult<null>>} Result object indicando éxito o error.
  */
 export async function updateAjustadorInAseguradoraAction(aseguradoraId: string, idAjustador: string, ajustadorUpdateData: Partial<Omit<Ajustador, 'idAjustador'>>): Promise<ActionResult<null>> {
     const manager = new AseguradoraManager();
     try {
-        // Basic validation for ajustador name if provided.
         if (ajustadorUpdateData.nombre !== undefined && !ajustadorUpdateData.nombre?.trim()) {
              return { success: false, error: "El nombre del ajustador no puede estar vacío."};
         }
@@ -206,7 +201,6 @@ export async function updateAjustadorInAseguradoraAction(aseguradoraId: string, 
         if (success) {
             return { success: true, message: "Ajustador actualizado exitosamente." };
         } else {
-            // Could mean ajustador/aseguradora not found, or no actual change.
             return { success: false, error: "No se pudo actualizar el ajustador o no se encontró/modificó." };
         }
     } catch (error) {
@@ -217,9 +211,9 @@ export async function updateAjustadorInAseguradoraAction(aseguradoraId: string, 
 
 /**
  * Server Action to remove an ajustador from an aseguradora.
- * @param {string} aseguradoraId - The MongoDB _id (string) of the parent aseguradora.
- * @param {string} idAjustador - The ObjectId string of the ajustador to remove.
- * @returns {Promise<ActionResult<null>>} Result object indicating success or error.
+ * @param {string} aseguradoraId - El `_id` (string) de MongoDB de la aseguradora padre.
+ * @param {string} idAjustador - El `idAjustador` (string ObjectId) del ajustador a eliminar.
+ * @returns {Promise<ActionResult<null>>} Result object indicando éxito o error.
  */
 export async function removeAjustadorFromAseguradoraAction(aseguradoraId: string, idAjustador: string): Promise<ActionResult<null>> {
     const manager = new AseguradoraManager();
@@ -248,10 +242,10 @@ export async function getAjustadoresByAseguradora(aseguradoraId: string): Promis
  if (!aseguradoraId) {
  return { success: false, error: "Se requiere el ID de la aseguradora." };
  }
- // The manager's method returns the Aseguradora object with _id as string and ajustadores with idAjustador as string.
- const aseguradora = await manager.getAseguradoraById(aseguradoraId); 
+ // El método del manager devuelve el objeto Aseguradora con _id como string y ajustadores con idAjustador como string.
+ const aseguradora = await manager.getAseguradoraById(aseguradoraId);
  if (aseguradora && aseguradora.ajustadores) {
- // Map to the desired structure for the select component.
+ // Mapear a la estructura deseada para el componente select.
  return { success: true, data: aseguradora.ajustadores.map(adj => ({ idAjustador: adj.idAjustador, nombre: adj.nombre })) };
  }
  return { success: true, data: [], message: "Aseguradora no encontrada o sin ajustadores." };
@@ -260,4 +254,3 @@ export async function getAjustadoresByAseguradora(aseguradoraId: string): Promis
  return { success: false, error: error instanceof Error ? error.message : "Error desconocido al obtener ajustadores." };
  }
 }
-

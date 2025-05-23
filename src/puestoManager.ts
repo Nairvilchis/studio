@@ -4,9 +4,11 @@
  * @fileOverview Manages "Puesto" (Job Position) operations with MongoDB.
  * Puestos are used to populate select options in employee forms.
  * Each Puesto has a unique name.
+ * @remarks
+ * Esta clase utiliza la directiva 'use server' para indicar que solo debe ejecutarse en el servidor.
  */
 
-import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter } from 'mongodb';
+import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter } from './db';
 import { connectDB } from './db';
 import type { Puesto, NewPuestoData, UpdatePuestoData } from '@/lib/types';
 
@@ -34,6 +36,7 @@ class PuestoManager {
   /**
    * Retrieves the MongoDB collection for puestos.
    * @returns {Promise<Collection<Puesto>>} The puesto collection.
+   * @private
    */
   private async getCollection(): Promise<Collection<Puesto>> {
     return this.collectionPromise;

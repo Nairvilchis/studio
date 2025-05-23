@@ -3,24 +3,37 @@
 /**
  * @fileOverview Manages employee (Empleado) operations with MongoDB.
  * Handles CRUD for employees and their optional nested system user credentials.
+ * @remarks
+ * Esta clase utiliza la directiva 'use server' para indicar que solo debe ejecutarse en el servidor.
  */
 
-import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult } from 'mongodb';
+import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult } from './db';
 import { connectDB } from './db';
 import type { Empleado, SystemUserCredentials, UserPermissions, UserRole } from '@/lib/types';
 import { UserRole as UserRoleEnum } from '@/lib/types'; // Enum for runtime use
 
+/**
+ * Clase responsable de gestionar operaciones CRUD para Empleados
+ * y sus credenciales de usuario de sistema anidadas opcionales en la base de datos MongoDB.
+ */
 class EmpleadoManager {
   private collectionPromise: Promise<Collection<Empleado>>;
 
+  /**
+   * Constructor de EmpleadoManager.
+   * Inicializa la promesa de conexión a la colección 'empleados' en MongoDB.
+   * Crea índices en 'user.usuario' (único parcial) y 'nombre'.
+   */
   constructor() {
     this.collectionPromise = connectDB().then(db => {
       const empleadosCollection = db.collection<Empleado>('empleados');
-      // Create a unique index on 'user.usuario' if it exists.
-      // This ensures usernames are unique across employees with system access.
-      empleadosCollection.createIndex({ "user.usuario": 1 }, { unique: true, partialFilterExpression: { "user.usuario": { $exists: true } } }).catch(console.warn);
-      // Index on employee name for sorting or searching.
-      empleadosCollection.createIndex({ nombre: 1 }).catch(console.warn);
+      // Crear un índice único en 'user.usuario' si existe.
+      // Esto asegura que los nombres de usuario sean únicos entre los empleados con acceso al sistema.
+      empleadosCollection.createIndex({ "user.usuario": 1 }, { unique: true, partialFilterExpression: { "user.usuario": { $exists: true } } })
+        .catch(err => { if (err.code !== 11000) console.warn('Failed to create index on empleados.user.usuario:', err);});
+      // Índice en el nombre del empleado para ordenar o buscar.
+      empleadosCollection.createIndex({ nombre: 1 })
+        .catch(err => { if (err.code !== 11000) console.warn('Failed to create index on empleados.nombre:', err);});
       return empleadosCollection;
     }).catch(err => {
       console.error('Error al obtener la colección de empleados:', err);
@@ -29,17 +42,19 @@ class EmpleadoManager {
   }
 
   /**
-   * Retrieves the MongoDB collection for employees.
-   * @returns {Promise<Collection<Empleado>>} The employee collection.
+   * Obtiene la colección MongoDB para empleados.
+   * @returns {Promise<Collection<Empleado>>} La colección de empleados.
+   * @private
    */
   private async getCollection(): Promise<Collection<Empleado>> {
     return this.collectionPromise;
   }
 
   /**
-   * Gets default permissions based on user role.
-   * @param {UserRole} rol The role of the user.
-   * @returns {UserPermissions} The default permissions for that role.
+   * Obtiene los permisos por defecto basados en el rol del usuario.
+   * @param {UserRole} rol - El rol del usuario.
+   * @returns {UserPermissions} Los permisos por defecto para ese rol.
+   * @private
    */
   private getDefaultPermissions(rol: UserRole): UserPermissions {
     let permissions: UserPermissions = {};
@@ -53,39 +68,42 @@ class EmpleadoManager {
       case UserRoleEnum.VALUADOR:
         permissions = { verOrdenes: true, crearPresupuestos: true, editarPresupuestos: true };
         break;
-      // Add default permissions for other roles as needed.
+      // Añadir permisos por defecto para otros roles según sea necesario.
     }
     return permissions;
   }
 
   /**
-   * Creates a new employee. Optionally creates system user credentials.
-   * @param {Omit<Empleado, '_id' | 'fechaRegistro'>} empleadoData Data for the new employee.
-   * @param {Omit<SystemUserCredentials, 'permisos' | '_id'>} [systemUserData] Optional system user credentials.
-   * @returns {Promise<ObjectId | null>} The MongoDB ObjectId of the newly created employee, or null on failure.
-   * @throws Will throw an error if required fields are missing or if username is duplicate.
+   * Crea un nuevo empleado. Opcionalmente crea credenciales de usuario del sistema.
+   * @param {Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>} empleadoData - Datos básicos para el nuevo empleado.
+   * @param {Omit<SystemUserCredentials, 'permisos'>} [systemUserData] - Credenciales opcionales de usuario del sistema (usuario, contraseña, rol).
+   * @returns {Promise<ObjectId | null>} El ObjectId de MongoDB del empleado recién creado, o null en caso de fallo.
+   * @throws {Error} Si faltan campos requeridos o si el nombre de usuario está duplicado.
    */
-  async createEmpleado(empleadoData: Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>, systemUserData?: Omit<SystemUserCredentials, 'permisos' | '_id'>): Promise<ObjectId | null> {
+  async createEmpleado(
+    empleadoData: Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>, 
+    systemUserData?: Omit<SystemUserCredentials, 'permisos' | '_id'> // Se omite _id aquí porque user no lo tiene
+  ): Promise<ObjectId | null> {
     const collection = await this.getCollection();
 
     if (!empleadoData.nombre || !empleadoData.puesto) {
       throw new Error('Nombre y puesto son requeridos para crear un empleado.');
     }
 
-    // Prepare the base employee document.
+    // Preparar el documento base del empleado.
     const newEmpleadoDocument: Omit<Empleado, '_id'> = {
-      ...empleadoData, // Spread basic employee data.
-      fechaRegistro: new Date(), // Set registration date.
-      // user field will be added below if systemUserData is provided.
+      ...empleadoData, // Extender datos básicos del empleado.
+      fechaRegistro: new Date(), // Establecer fecha de registro.
+      // El campo user se añadirá a continuación si se proporcionan systemUserData.
     };
 
-    // If system user data is provided, create the nested user object.
+    // Si se proporcionan datos de usuario del sistema, crear el objeto user anidado.
     if (systemUserData && systemUserData.usuario && systemUserData.contraseña && systemUserData.rol) {
       newEmpleadoDocument.user = {
-        ...systemUserData,
-        // IMPORTANT: In a real application, the password MUST be hashed here before saving.
-        // e.g., contraseña: await hashPassword(systemUserData.contraseña), 
-        permisos: this.getDefaultPermissions(systemUserData.rol), // Assign default permissions based on role.
+        ...systemUserData, // usuario, contraseña, rol
+        // IMPORTANTE: En una aplicación real, la contraseña DEBE ser hasheada aquí antes de guardar.
+        // ej., contraseña: await hashPassword(systemUserData.contraseña), 
+        permisos: this.getDefaultPermissions(systemUserData.rol), // Asignar permisos por defecto basados en el rol.
       };
     }
 
@@ -95,30 +113,35 @@ class EmpleadoManager {
       return result.insertedId;
     } catch (error: any) {
       console.error('Error al crear empleado:', error);
-      // Handle duplicate username error.
+      // Manejar error de nombre de usuario duplicado.
       if (error.code === 11000 && error.message.includes('user.usuario_1')) {
         throw new Error(`El nombre de usuario "${systemUserData?.usuario}" ya está en uso.`);
       }
-      throw error; // Re-throw other errors.
+      throw error; // Relanzar otros errores.
     }
   }
 
   /**
-   * Retrieves all employees, sorted by name.
-   * Passwords are removed from the user details for security.
-   * @returns {Promise<Empleado[]>} A list of all employees.
+   * Obtiene todos los empleados, ordenados por nombre.
+   * Las contraseñas se eliminan de los detalles del usuario por seguridad.
+   * @returns {Promise<Empleado[]>} Una lista de todos los empleados, con _id como string.
    */
   async getAllEmpleados(): Promise<Empleado[]> {
     const collection = await this.getCollection();
     try {
       const empleados = await collection.find().sort({ nombre: 1 }).toArray();
-      // For security, always remove password from system user details when listing.
+      // Por seguridad, siempre eliminar la contraseña de los detalles del usuario del sistema al listar.
+      // Y convertir _id a string.
       return empleados.map(emp => {
-        if (emp.user) {
-          const { contraseña, ...userWithoutPassword } = emp.user; // Destructure to omit password.
-          return { ...emp, user: userWithoutPassword };
+        const empForClient: Partial<Empleado> & {_id: string} = {
+          ...emp,
+          _id: emp._id.toHexString()
+        };
+        if (empForClient.user) {
+          const { contraseña, ...userWithoutPassword } = empForClient.user; // Desestructurar para omitir contraseña.
+          empForClient.user = userWithoutPassword;
         }
-        return emp;
+        return empForClient as Empleado;
       });
     } catch (error) {
       console.error('Error al obtener empleados:', error);
@@ -127,25 +150,31 @@ class EmpleadoManager {
   }
 
   /**
-   * Retrieves a single employee by their MongoDB ObjectId.
-   * Password is removed from user details if present.
-   * @param {string} id The MongoDB ObjectId string of the employee.
-   * @returns {Promise<Empleado | null>} The employee object or null if not found or ID is invalid.
+   * Obtiene un único empleado por su `_id` de MongoDB (como string).
+   * La contraseña se elimina de los detalles del usuario si está presente.
+   * @param {string} id - La cadena hexadecimal del ObjectId de MongoDB del empleado.
+   * @returns {Promise<Empleado | null>} El objeto empleado con `_id` como string, o null si no se encuentra o el ID es inválido.
    */
   async getEmpleadoById(id: string): Promise<Empleado | null> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(id)) { // Validate ObjectId format.
+      if (!ObjectId.isValid(id)) { // Validar formato de ObjectId.
         console.warn('Formato de ObjectId inválido para getEmpleadoById:', id);
         return null;
       }
       const empleado = await collection.findOne({ _id: new ObjectId(id) });
-      // Remove password if user details exist.
-      if (empleado?.user) {
-        const { contraseña, ...userWithoutPassword } = empleado.user;
-        return { ...empleado, user: userWithoutPassword };
+      if (!empleado) return null;
+
+      const empForClient: Partial<Empleado> & {_id: string} = {
+        ...empleado,
+        _id: empleado._id.toHexString()
+      };
+      // Eliminar contraseña si existen detalles de usuario.
+      if (empForClient.user) {
+        const { contraseña, ...userWithoutPassword } = empForClient.user;
+        empForClient.user = userWithoutPassword;
       }
-      return empleado;
+      return empForClient as Empleado;
     } catch (error) {
       console.error('Error al obtener empleado por ID:', error);
       throw error;
@@ -153,17 +182,17 @@ class EmpleadoManager {
   }
   
   /**
-   * Retrieves a single employee by their system username.
-   * This method is typically used for login and returns the employee with the password.
-   * @param {string} username The system username.
-   * @returns {Promise<Empleado | null>} The employee object (including password) or null if not found.
+   * Obtiene un único empleado por su nombre de usuario del sistema.
+   * Este método se usa típicamente para el login y devuelve el empleado CON la contraseña.
+   * @param {string} username - El nombre de usuario del sistema.
+   * @returns {Promise<Empleado | null>} El objeto empleado (incluyendo contraseña), o null si no se encuentra.
    */
   async getEmpleadoByUsername(username: string): Promise<Empleado | null> {
     const collection = await this.getCollection();
     try {
-      // Query specifically for the username within the nested 'user' object.
+      // Consultar específicamente por el nombre de usuario dentro del objeto 'user' anidado.
       const empleado = await collection.findOne({ "user.usuario": username });
-      return empleado; // Return with password for login check.
+      return empleado; // Devolver con contraseña para la verificación de login.
     } catch (error) {
       console.error('Error al obtener empleado por nombre de usuario:', error);
       throw error;
@@ -171,17 +200,17 @@ class EmpleadoManager {
   }
 
   /**
-   * Updates an employee's data and/or their system user credentials.
-   * @param {string} id The MongoDB ObjectId string of the employee to update.
-   * @param {Partial<Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>>} empleadoUpdateData Data to update for the employee.
-   * @param {Partial<Omit<SystemUserCredentials, 'permisos' | '_id'>>} [systemUserUpdateData] Optional data to update/create system user credentials.
-   * @returns {Promise<boolean>} True if the update was successful (modified count > 0), false otherwise.
-   * @throws Will throw an error if username is duplicate.
+   * Actualiza los datos de un empleado y/o sus credenciales de usuario del sistema.
+   * @param {string} id - La cadena hexadecimal del ObjectId de MongoDB del empleado a actualizar.
+   * @param {Partial<Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>>} empleadoUpdateData - Datos a actualizar para el empleado.
+   * @param {Partial<Omit<SystemUserCredentials, 'permisos' | '_id' | 'contraseña'>> & { contraseña?: string }} [systemUserUpdateData] - Datos opcionales para actualizar/crear credenciales de usuario del sistema. `contraseña` es opcional para permitir cambios de rol/usuario sin cambiar contraseña.
+   * @returns {Promise<boolean>} True si la actualización fue exitosa (modifiedCount > 0), false en caso contrario.
+   * @throws {Error} Si el nombre de usuario está duplicado.
    */
   async updateEmpleado(
     id: string, 
     empleadoUpdateData: Partial<Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>>,
-    systemUserUpdateData?: Partial<Omit<SystemUserCredentials, 'permisos' | '_id'>>
+    systemUserUpdateData?: Partial<Omit<SystemUserCredentials, 'permisos' | '_id' | 'contraseña'>> & { contraseña?: string }
   ): Promise<boolean> {
     const collection = await this.getCollection();
     try {
@@ -190,48 +219,48 @@ class EmpleadoManager {
         return false;
       }
 
-      const updateDoc: any = { $set: {}, $unset: {} }; // Prepare update document for MongoDB.
+      const updateDoc: any = { $set: {}, $unset: {} }; // Preparar documento de actualización para MongoDB.
       
-      // Update basic employee fields (nombre, puesto, etc.).
+      // Actualizar campos básicos del empleado (nombre, puesto, etc.).
       for (const key in empleadoUpdateData) {
         if (Object.prototype.hasOwnProperty.call(empleadoUpdateData, key)) {
           updateDoc.$set[key] = (empleadoUpdateData as any)[key];
         }
       }
 
-      // Update or create nested system user credentials.
+      // Actualizar o crear credenciales de usuario del sistema anidadas.
       if (systemUserUpdateData) {
-        const currentEmpleado = await collection.findOne({_id: new ObjectId(id) }); // Fetch current state for user object.
+        const currentEmpleado = await collection.findOne({_id: new ObjectId(id) }); // Obtener estado actual para el objeto user.
         
-        // Case 1: Creating a new system user for an employee who doesn't have one.
+        // Caso 1: Creando un nuevo usuario de sistema para un empleado que no tiene uno.
         const creatingUser = !currentEmpleado?.user && systemUserUpdateData.usuario && systemUserUpdateData.contraseña && systemUserUpdateData.rol;
         
         if (creatingUser) {
            updateDoc.$set['user.usuario'] = systemUserUpdateData.usuario!;
-           // IMPORTANT: Hash password in a real application.
+           // IMPORTANTE: Hashear contraseña en una aplicación real.
            updateDoc.$set['user.contraseña'] = systemUserUpdateData.contraseña!; 
            updateDoc.$set['user.rol'] = systemUserUpdateData.rol!;
            updateDoc.$set['user.permisos'] = this.getDefaultPermissions(systemUserUpdateData.rol!);
         } else if (currentEmpleado?.user) { 
-            // Case 2: Modifying an existing system user.
+            // Caso 2: Modificando un usuario de sistema existente.
             if (systemUserUpdateData.usuario) updateDoc.$set['user.usuario'] = systemUserUpdateData.usuario;
-            if (systemUserUpdateData.contraseña) {
-                // IMPORTANT: Hash password in a real application.
+            if (systemUserUpdateData.contraseña) { // Solo actualizar contraseña si se proporciona.
+                // IMPORTANTE: Hashear contraseña en una aplicación real.
                 updateDoc.$set['user.contraseña'] = systemUserUpdateData.contraseña;
             }
             if (systemUserUpdateData.rol) {
                 updateDoc.$set['user.rol'] = systemUserUpdateData.rol;
-                // Update permissions if role changes.
+                // Actualizar permisos si cambia el rol.
                 updateDoc.$set['user.permisos'] = this.getDefaultPermissions(systemUserUpdateData.rol); 
             }
         }
       }
       
-      // If no actual changes are being made, return true.
+      // Si no hay cambios reales, devolver true.
       if (Object.keys(updateDoc.$set).length === 0 && Object.keys(updateDoc.$unset).length === 0) {
         return true; 
       }
-      // Clean up $unset if it's empty.
+      // Limpiar $unset si está vacío.
       if (Object.keys(updateDoc.$unset).length === 0) delete updateDoc.$unset;
 
       const result: UpdateResult = await collection.updateOne(
@@ -241,24 +270,27 @@ class EmpleadoManager {
       return result.modifiedCount > 0;
     } catch (error: any) {
       console.error('Error al actualizar empleado:', error);
-      // Handle duplicate username error.
-      if (error.code === 11000 && error.message.includes('user.usuario_1')) {
-        throw new Error(`El nombre de usuario "${systemUserUpdateData?.usuario}" ya está en uso.`);
+      // Manejar error de nombre de usuario duplicado.
+      if (error.code === 11000 && systemUserUpdateData?.usuario && error.message.includes('user.usuario_1')) {
+        throw new Error(`El nombre de usuario "${systemUserUpdateData.usuario}" ya está en uso.`);
       }
       throw error;
     }
   }
 
   /**
-   * Removes the system user credentials from an employee, effectively disabling their system access.
-   * @param {string} empleadoId The MongoDB ObjectId string of the employee.
-   * @returns {Promise<boolean>} True if system access was removed, false otherwise.
+   * Elimina las credenciales de usuario del sistema de un empleado, deshabilitando efectivamente su acceso al sistema.
+   * @param {string} empleadoId - La cadena hexadecimal del ObjectId de MongoDB del empleado.
+   * @returns {Promise<boolean>} True si se eliminó el acceso al sistema, false en caso contrario.
    */
   async removeSystemUserFromEmpleado(empleadoId: string): Promise<boolean> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(empleadoId)) return false;
-      // Uses $unset to remove the entire 'user' subdocument.
+      if (!ObjectId.isValid(empleadoId)) {
+        console.warn('Formato de ObjectId inválido para removeSystemUserFromEmpleado:', empleadoId);
+        return false;
+      }
+      // Usar $unset para eliminar todo el subdocumento 'user'.
       const result = await collection.updateOne(
         { _id: new ObjectId(empleadoId) },
         { $unset: { user: "" } } 
@@ -271,9 +303,9 @@ class EmpleadoManager {
   }
 
   /**
-   * Deletes an employee from the database.
-   * @param {string} id The MongoDB ObjectId string of the employee to delete.
-   * @returns {Promise<boolean>} True if the employee was deleted, false otherwise.
+   * Elimina un empleado de la base de datos.
+   * @param {string} id - La cadena hexadecimal del ObjectId de MongoDB del empleado a eliminar.
+   * @returns {Promise<boolean>} True si el empleado fue eliminado, false en caso contrario.
    */
   async deleteEmpleado(id: string): Promise<boolean> {
     const collection = await this.getCollection();

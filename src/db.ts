@@ -1,4 +1,4 @@
-import { MongoClient, Db, ObjectId } from 'mongodb';
+import { MongoClient, Db, ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter, type FindOneAndUpdateOptions } from 'mongodb';
 import dotenv from 'dotenv';
 
 // Cargar variables de entorno desde .env
@@ -53,4 +53,15 @@ async function closeDB(): Promise<void> {
 }
 
 // Exportar las funciones connectDB y closeDB para ser usadas en otros módulos
-export { connectDB, closeDB, ObjectId };
+// y re-exportar ObjectId y otros tipos comunes de mongodb
+export { 
+  connectDB, 
+  closeDB, 
+  ObjectId,
+  type Collection,
+  type InsertOneResult,
+  type UpdateResult,
+  type DeleteResult,
+  type Filter,
+  type FindOneAndUpdateOptions
+};
