@@ -1,0 +1,219 @@
+Order = {
+//"_id":ObjectId, // id de la orden se genera automaticamente para mongodb
+//"idOrder":"" ,//va a ser in id personalizado para cada orden independentemente de la base de datos
+//"ajustador":Objectid,///este va a ser un ajustador que va a estar en la tabal de aseguradora ya que cada ageuradora tiene sus propios ajustadores
+//"siniestro":"",//un texto que va a ser el siniestro
+//"piso":true,// si la unidad es de piso o no
+//"idAseguradora":,//hace referencia a una aseguradora
+//"poliza":"",//texto  una poliza
+//"folio":"",//texto
+//"grua":true,//si la llego en grua o no
+//"deducible":0,//deducible en caso de que lo tenga
+//"vin":"",//numero de vin 
+"idCliente":1,// hace referencia a un cliente
+//"idMarca":1,// hace referencia a un modelo de marca
+//"idModelo":1,// hace referencia a un modelo de marca que esta entro de la marca
+//"año":2000,// año del modelo
+//"placas":"",// texto de placas
+//"color":"",// texto de color
+//"aseguradoTercero":asegurado/tercero,// si es asegurado o tercero
+"urlArchivos":"",//url de los archivos
+"fechaRegistro":"",// fecha en que se creó la orden
+"fechaValuacion":"",//  fecha en que se hizo la valuacion
+"fechaRengreso":"",// fecha en que se hizo el rengreso en caso de que se haya hecho
+"fechaEntrega":"",// fecha en que se hizo la entrega
+"fechaPromesa":"",// fecha tentativa de entrega
+//
+// "idValuador":1, // id del valuador que va a estar en la tabla de users
+//"idAsesor":1, // id del asesor que va a estar en la tabla de users
+//"idHojalatero":1, // id del hojalatero que va a estar en la tabla de users
+//"kilometraje":"",// texto de kilometraje
+//"idPintor":1, // id del pintor que va a estar en la tabla de users
+//"idPresupuesto":1, // id del presupuesto que va a estar en la tabla de presupuesto
+"log":"", // log de todos los cambios que se han hecho en la orden 
+"proceso":"" // proceso de la orden valuacion, hojalateria, pintura, almacen, entrega,refacciones,garantia
+}
+
+Orders={
+"_id":ObjectId, // id de la orden se genera automaticamente para mongodb
+"idOrder":ObjectId, // id de la orden esta es personalizada
+"idAseguradora":ObjectId, // id de la aseguradora que va a estar en la tabla de aseguradoras en el formulario debe de mostrar el nombre de la aseguradora
+"idAjustador":ObjectId, // id del ajustador que va a estar en la tabla de aseguradoras en el formulario debe de mostrar el nombre del ajustador
+"poliza":"", // poliza de la aseguradora
+"folio":"", // folio de la aseguradora
+"siniestro":"", // siniestro de la aseguradora
+"piso":true,// si la unidad es de piso o no
+"grua":true,// si la unidad es de grua o no
+"deducible":0,// deducible de la aseguradora
+"aseguradoTercero":true,// si es asegurado o false tercero
+"idMarca":ObjectId, // id de la marca que va a estar en la tabla de marcas en el formulario debe de mostrar el nombre de la marca
+"idModelo":ObjectId, // id del modelo que va a estar en la tabla de marcas en el formulario debe de mostrar el nombre del modelo
+"año":2000,// año del modelo
+"vin":"",// numero de vin
+"placas":"",// placas de la unidad
+"color":"",// color de la unidad
+"kilometraje":"",// kilometraje de la unidad
+"idValuador":ObjectId, // id del valuador que va a estar en la tabla de empleados en el formulario debe de mostrar el nombre del valuador
+"idAsesor":ObjectId, // id del asesor que va a estar en la tabla empleados en el formulario debe de mostrar el nombre del asesor
+"idHojalatero":ObjectId, // id del hojalatero que va a estar en la tabla de empleados en el formulario debe de mostrar el nombre del hojalatero
+"idPintor":ObjectId, // id del pintor que va a estar en la tabla de empleados en el formulario debe de mostrar el nombre del pintor
+"proceso":"", // proceso de la orden valuacion, hojalateria, pintura, almacen, entrega,refacciones,garantia
+"fechaRegistro":"",// fecha en que se creó la orden
+"fechaValuacion":"",// fecha en que se hizo la valuacion
+"fechaReingreso":"",// fecha en que se hizo el reingreso en caso de que se haya hecho
+"fechaEntrega":"",// fecha en que se hizo la entrega
+"fechaPromesa":"",// fecha tentativa de entrega
+"fechaBaja":"",// fecha en que se dio de baja la orden
+"urlArchivos":"",// url de los archivos
+"Log":[{ // log de todos los cambios que se han hecho en la orden 
+    "fecha":timestamp,// fecha en que se hizo el cambio
+    "usuario":Objectid,// usuario que hizo el cambio en la orden pero en el formulario debe de mostrar el nombre del usuario
+    "cambio":"" // cambio que se hizo en la orden debe mostar el nombre del campo que se cambio y el nuevo valor Ejemplo: "Usuario":"se cambio el folio de 1234 a 5678" ,"Usuario":"cambio de aseguradora de Aseguradora 1 a Aseguradora 2","Usuario":"cambio de ajustador de Ajustador 1 a Ajustador 2","Usuario":"cambio de pintura a hojalateria""
+
+}],
+"presupuestos":[{ // conceptos del presupuesto // el presupuesto es un array de conceptos este no se tiene que crear obligatoriamente al momento de crear la orden
+        "concepto":"",// concepto del presupuesto ejemplo: "Cambio de cofre", "Cambio de defensa", "Cambio de faro", "Cambio de calavera", "reparacion de cofre", "reparacion de defensa", "reparacion de faro", "reparacion de calavera"
+        "cantidad":0,// cantidad del concepto este aun no lo tenemos definido si es por pieza o por hora (dejamos pendiente)
+        "precioPublico":0, // precio del concepto
+        "costopintura":0, // costo de la pintura
+        "costoManoObra":0, // costo de la mano de obra
+        "costoRefaccion":0, // costo de la refaccion
+        "pintura":true,// requisito de pintura
+        "precedimiento":"", // procedimiento del concepto reparacion, cambio, etc
+        "Refaccion":ObjectId // id de la refaccion en caso de cambio la refacion,este  se vinculara a la orden y al presupuesto al momento de crear la refaccion en la seccion de refacciones 
+    }]
+
+
+
+
+}
+
+
+
+
+
+
+
+aseguradoras{
+"idAseguradora":ObjectId, // id de la aseguradora se genera automaticamente para mongodb
+"nombre":"", // nombre de la aseguradora
+"telefono":"", // telefono de la aseguradora
+"ajustadores":[{ // lista de ajustadores
+    "idAjustador":ObjectId, // id del ajustador se genera automaticamente para mongodb
+    "nombre":"nombre", // nombre del ajustador 
+    "telefono":"", // telefono del ajustador
+    "correo":"", // correo del ajustador
+
+}]
+}
+
+cliente{
+ 
+    "nombre":"",
+    "telefono":"",
+    "correo":"",    
+    "ordenes":[
+{
+"idOrden":"",// id de la orden
+}
+
+    ]
+}
+Marca{
+    "_id":ObjectId, // id de la marca se genera automaticamente para mongodb
+    "marca":"",
+    "modelos":[{"idModelo":ObjectId,// id del modelo  se genera automaticamente para mongodb
+"modelo":"",// nombre del modelo
+    }]
+
+}
+
+
+
+users{
+    "idEmpleado":1,// id del empleado 
+    "contraseña":"", // contraseña del empleado
+    "usuario":"",       // nombre de usuario del empleado
+    "rol":"", // rol del empleado admin,valuador,asesor,almacenista
+    "permisos":{ 
+        "verOrdenes":true,// si puede ver las ordenes
+        "crearOrdenes":true,// si puede crear ordenes
+        "editarOrdenes":true,// si puede editar ordenes
+        "eliminarOrdenes":true,// si puede eliminar ordenes
+        "verPresupuestos":true,// si puede ver presupuestos
+        "crearPresupuestos":true,// si puede crear presupuestos
+        "editarPresupuestos":true,// si puede editar presupuestos
+        "eliminarPresupuestos":true,// si puede eliminar presupuestos
+        "verRefacciones":true,// si puede ver refacciones
+        "crearRefacciones":true,// si puede crear refacciones
+        "editarRefacciones":true,// si puede editar refacciones
+        "eliminarRefacciones":true// si puede eliminar refacciones
+        .......
+    }
+
+empleados{
+    "_id":Objectid // id de empleado se genera automaticamente para mongodb
+    "nombre":"",
+    "telefono":"",
+    "correo":"",   
+    "puesto":"",// puesto del empleado
+    "sueldo":0,// sueldo del empleado
+    "comision":0,// comision del empleado
+    "fechaRegistro":"",// fecha en que se registro el empleado
+    "fechaBaja":"",// fecha en que se dio de baja el empleado
+    "user":{    
+    "contraseña":"", // contraseña del empleado
+    "usuario":"",       // nombre de usuario del empleado
+    "rol":"", // rol del empleado admin,valuador,asesor,almacenista
+    "permisos":{ 
+        "verOrdenes":true,// si puede ver las ordenes
+        "crearOrdenes":true,// si puede crear ordenes
+        "editarOrdenes":true,// si puede editar ordenes
+        "eliminarOrdenes":true,// si puede eliminar ordenes
+        "verPresupuestos":true,// si puede ver presupuestos
+        "crearPresupuestos":true,// si puede crear presupuestos
+        "editarPresupuestos":true,// si puede editar presupuestos
+        "eliminarPresupuestos":true,// si puede eliminar presupuestos
+        "verRefacciones":true,// si puede ver refacciones
+        "crearRefacciones":true,// si puede crear refacciones
+        "editarRefacciones":true,// si puede editar refacciones
+        "eliminarRefacciones":true// si puede eliminar refacciones
+        ....... /// permisos de cada empleado en el sistema vamos a tener que crear un sistema de permisos para cada empleado
+    }
+
+
+}
+presupuestos{// id del presupuesto,
+    "conceptos":[{
+        "consepto":"",// concepto del presupuesto
+        "cantidad":0,// cantidad del concepto
+        "precio":0, // precio del concepto
+        "pintura":true,// requisito de pintura
+        "precedimiento":"", // procedimiento del concepto reparacion, cambio, etc 
+        "idRefaccion":"" // id de la refaccion en caso de cambio 
+
+
+            }],
+}
+refacciones{
+
+
+    "idOrder":"", // id de la orden a la que pertenece la refaccion
+    "refaccion":"", // nombre de la refaccion
+    "cantidad":0, // cantidad de la refaccion
+    "idMarca":"", // id de la marca de la refaccion
+    "idModelo":"", // id del modelo de la refaccion
+    "año":1, // año de la refaccion
+    "proveedor":"", // proveedor de la refaccion
+    "precio":0, // precio de la refaccion 
+    "fechaPromesa":"",  // fecha de promesa de la refaccion de llegada
+    "fechaAlta":"", // fecha de alta de la refaccion
+    "fechaBaja":"", // fecha de baja de la refaccion
+    "numGuia":"",   // numero de guia de la refaccion
+    "fechaDevolucion":"", // fecha de devolucion de la refaccion
+    "surtido":true, // si la refaccion fue surtida o no
+    "observaciones":"", // observaciones de la refaccion Ejemplo: no surtido, surtido, dañado, etc
+
+
+}
+
