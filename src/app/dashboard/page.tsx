@@ -71,7 +71,7 @@ import {
   updateOrderAction,
   deleteOrderAction,
   getOrderByIdAction,
-  getAjustadoresByAseguradora, // Esta acción es la que se usa para el select en el formulario de orden
+  getAjustadoresByAseguradora,
 } from './service-orders/actions';
 // Marcas y Modelos
 import {
@@ -211,7 +211,7 @@ type ColorVehiculoFormDataType = Pick<ColorVehiculo, 'nombre'>; // Nombre es el 
  * Gestiona estados, carga de datos y diálogos para las diferentes secciones del taller.
  */
 export default function DashboardPage() {
-  console.log("DashboardPage: Renderizando componente...");
+  console.log("DashboardPage: Renderizando componente..."); // LOG INICIAL
   const router = useRouter();
   const { toast } = useToast();
 
@@ -234,6 +234,7 @@ export default function DashboardPage() {
   /** Estado inicial para el formulario de nueva orden. */
   const initialNewOrderData: OrderFormDataType = {
     proceso: 'pendiente', piso: false, grua: false, aseguradoTerceroString: 'true', // 'true' para Asegurado por defecto
+    // Los campos de fecha se omiten aquí, ya que no se muestran en el formulario de creación.
   };
   const [newOrderData, setNewOrderData] = useState<OrderFormDataType>(initialNewOrderData);
   const [editOrderData, setEditOrderData] = useState<OrderFormDataType>({});
@@ -341,7 +342,7 @@ export default function DashboardPage() {
     console.log("Dashboard useEffect: Verificando sesión...");
     const loggedIn = localStorage.getItem('isLoggedIn');
     const storedUserName = localStorage.getItem('username');
-    const storedEmpleadoId = localStorage.getItem('empleadoId'); // Se espera que sea el _id (string) del Empleado
+    const storedEmpleadoId = localStorage.getItem('empleadoId'); 
     const storedUserRole = localStorage.getItem('userRole') as UserRoleType | null;
 
     console.log("Dashboard useEffect: Valores RAW de localStorage:", {
@@ -1952,6 +1953,8 @@ export default function DashboardPage() {
       if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
         const parts = dateInput.split('-').map(Number);
         date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])); // Mes es 0-indexado
+      } else if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+        date = dateInput;
       } else {
         date = new Date(dateInput); // Intentar parsear otros formatos de string o números (timestamps)
       }
@@ -2140,8 +2143,7 @@ export default function DashboardPage() {
         ) : type === 'checkbox' ? (
           <div className="flex items-center space-x-2 mt-1 pt-2">
              <Checkbox id={fieldId} name={String(name)} checked={!!value} onCheckedChange={(checkedState) => handleCheckbox(typeof checkedState === 'boolean' ? checkedState : false)} disabled={isDisabled} />
-             {/* La label para el checkbox se renderiza aquí si se desea una etiqueta al lado */}
-             <Label htmlFor={fieldId} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{placeholder || label}</Label>
+             {placeholder && <Label htmlFor={fieldId} className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{placeholder}</Label>}
           </div>
         ) : (
           <Input id={fieldId} name={String(name)} type={type} placeholder={placeholder} value={value === undefined || value === null ? '' : String(value)} onChange={handleChange} disabled={isDisabled} className="mt-1 w-full" min={type === 'number' ? '0' : undefined} />
@@ -2157,7 +2159,7 @@ export default function DashboardPage() {
     return <div className="flex h-screen items-center justify-center">Cargando dashboard...</div>;
   }
   console.log("DashboardPage: Renderizando contenido principal. Estados de carga:", {isLoadingOrders, isLoadingMarcas, isLoadingAseguradoras, isLoadingClients, isLoadingAsesores, isLoadingValuadores, isLoadingHojalateros, isLoadingPintores, isLoadingEmpleadosList, isLoadingPuestos, isLoadingColores});
-  console.log("DashboardPage: Datos para Selects:", {clientes, marcas, aseguradoras, asesores, valuadores, hojalateros, pintores, puestosList, coloresList});
+  console.log("DashboardPage: Datos para Selects:", {clients, marcas, aseguradoras, asesores, valuadores, hojalateros, pintores, puestosList, coloresList});
 
 
   // Determinar las clases para la lista de pestañas principales según el rol del usuario
@@ -3141,3 +3143,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
