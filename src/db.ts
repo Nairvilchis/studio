@@ -1,8 +1,7 @@
 import { MongoClient, Db, ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter, type FindOneAndUpdateOptions } from 'mongodb';
-import dotenv from 'dotenv';
 
 // Cargar variables de entorno desde .env
-dotenv.config();
+// dotenv.config(); // Eliminado: Next.js maneja esto automáticamente
 
 // Obtener la URI de conexión de las variables de entorno
 const uri = process.env.MONGODB_URI;
@@ -19,7 +18,7 @@ async function connectDB(): Promise<Db> {
 
   // Verificar si la URI de conexión está definida
   if (!uri) {
-    throw new Error('MONGODB_URI is not defined in your .env file');
+    throw new Error('MONGODB_URI is not defined in your .env file or not accessible via process.env.MONGODB_URI');
   }
 
   try {
