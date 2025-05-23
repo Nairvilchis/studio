@@ -21,11 +21,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils"; // Asegurar que cn esté importado
+import { cn } from "@/lib/utils";
 
 // Importación de tipos de datos.
 import type {
-  UserRole as UserRoleType, // Tipo para UserRole
+  UserRole as UserRoleType,
   Empleado,
   SystemUserCredentials,
   Order,
@@ -59,7 +59,7 @@ import {
   updateOrderAction,
   deleteOrderAction,
   getOrderByIdAction,
-  getAjustadoresByAseguradora,
+  getAjustadoresByAseguradora, // Renombrado para consistencia
 } from './service-orders/actions';
 
 // Acciones del servidor para Marcas.
@@ -71,8 +71,8 @@ import {
   addModeloToMarcaAction,
   updateModeloInMarcaAction,
   removeModeloFromMarcaAction,
-  getMarcaByIdAction as getMarcaForModelosAction, 
-  getModelosByMarcaAction, 
+  getMarcaByIdAction as getMarcaForModelosAction,
+  getModelosByMarcaAction,
 } from './admin/marcas/actions';
 
 // Acciones del servidor para Aseguradoras.
@@ -98,8 +98,8 @@ import {
   updateEmpleadoAction,
   deleteEmpleadoAction,
   removeSystemUserFromEmpleadoAction,
-  getEmpleadosByRolAction, 
-  getEmpleadosByPuestoAction, 
+  getEmpleadosByRolAction,
+  getEmpleadosByPuestoAction,
 } from './admin/empleados/actions';
 
 // Acciones del servidor para Puestos.
@@ -140,14 +140,14 @@ type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro'
 
 /** Tipo de datos para el formulario de creación/edición de Marcas de Vehículos. */
 type MarcaFormDataType = Partial<Omit<MarcaVehiculo, '_id' | 'modelos'>>;
-/** Tipo de datos para el formulario de creación/edición de Modelos. El idModelo_to_edit es para identificar cual se edita. */
-type ModeloFormDataType = Partial<Omit<ModeloVehiculo, 'idModelo'>> & { idModelo_to_edit?: string };
+/** Tipo de datos para el formulario de creación/edición de Modelos. */
+type ModeloFormDataType = Partial<Omit<ModeloVehiculo, 'idModelo'>>;
 
 
 /** Tipo de datos para el formulario de creación/edición de Aseguradoras. */
 type AseguradoraFormDataType = Partial<Omit<Aseguradora, '_id' | 'ajustadores'>>;
-/** Tipo de datos para el formulario de creación/edición de Ajustadores. El idAjustador_to_edit es para identificar cual se edita. */
-type AjustadorFormDataType = Partial<Omit<Ajustador, 'idAjustador'>> & { idAjustador_to_edit?: string };
+/** Tipo de datos para el formulario de creación/edición de Ajustadores. */
+type AjustadorFormDataType = Partial<Omit<Ajustador, 'idAjustador'>>;
 
 /**
  * Tipo de datos para el formulario de creación de Empleados.
@@ -342,7 +342,7 @@ export default function DashboardPage() {
     console.log("Dashboard useEffect: Verificando sesión...");
     const loggedIn = localStorage.getItem('isLoggedIn');
     const storedUserName = localStorage.getItem('username');
-    const storedEmpleadoId = localStorage.getItem('empleadoId'); // Ya debería ser string
+    const storedEmpleadoId = localStorage.getItem('empleadoId');
     const storedUserRole = localStorage.getItem('userRole') as UserRoleType | null;
 
     console.log("Dashboard useEffect: Valores RAW de localStorage:", {
@@ -367,8 +367,9 @@ export default function DashboardPage() {
     if (isSessionValid) {
       console.log("Dashboard useEffect: Usuario logueado. Configurando estado y cargando datos iniciales.");
       setUserName(storedUserName);
-      setUserIdEmpleado(storedEmpleadoId); // Ya es string
+      setUserIdEmpleado(storedEmpleadoId);
       setUserRole(storedUserRole);
+      // Solo llamar a fetchInitialData si los datos de sesión son válidos
       fetchInitialData(storedUserRole, storedEmpleadoId); // Pasar el ID del empleado
     } else {
       console.log("Dashboard useEffect: Sesión inválida o datos faltantes. Redirigiendo a /. Detalles:",
@@ -797,7 +798,6 @@ export default function DashboardPage() {
    */
   const handleCreateOrder = async () => {
     // Validación básica de campos obligatorios.
-    // El _id del asesor (userIdEmpleado) se obtiene del estado/localstorage
     if (!newOrderData.idCliente || !newOrderData.idMarca || !newOrderData.idModelo || !newOrderData.idAsesor || !newOrderData.proceso || !newOrderData.color) {
       toast({ title: "Error de Validación", description: "Cliente, Marca, Modelo, Color, Asesor y Proceso son obligatorios.", variant: "destructive" });
       return;
@@ -806,13 +806,13 @@ export default function DashboardPage() {
     // Construye el objeto de datos para la nueva orden.
     const orderToCreate: NewOrderData = {
       // IDs de referencia (ya son strings desde los Selects o ComboBox)
-      idCliente: newOrderData.idCliente, 
+      idCliente: newOrderData.idCliente,
       idAseguradora: newOrderData.idAseguradora,
-      idAjustador: newOrderData.idAjustador, // Este es el idAjustador (ObjectId string) del ajustador
+      idAjustador: newOrderData.idAjustador,
       idMarca: newOrderData.idMarca,
-      idModelo: newOrderData.idModelo, // Este es el idModelo (ObjectId string) del modelo
+      idModelo: newOrderData.idModelo,
       idValuador: newOrderData.idValuador,
-      idAsesor: newOrderData.idAsesor, // Este es el _id (string ObjectId) del empleado asesor
+      idAsesor: newOrderData.idAsesor,
       idHojalatero: newOrderData.idHojalatero,
       idPintor: newOrderData.idPintor,
 
@@ -822,7 +822,7 @@ export default function DashboardPage() {
       folio: newOrderData.folio,
       vin: newOrderData.vin,
       placas: newOrderData.placas,
-      color: newOrderData.color, 
+      color: newOrderData.color,
       kilometraje: newOrderData.kilometraje,
       
       // Campos numéricos (convertir de string/undefined a number/undefined)
@@ -832,20 +832,13 @@ export default function DashboardPage() {
       // Campos booleanos
       piso: newOrderData.piso || false,
       grua: newOrderData.grua || false,
-      aseguradoTercero: newOrderData.aseguradoTerceroString === 'true',
+      aseguradoTercero: newOrderData.aseguradoTerceroString === 'true', // Convertir de string 'true'/'false' a boolean
 
       // Otros campos
       proceso: newOrderData.proceso as Order['proceso'], // Castear al tipo específico de proceso
-      // Los campos de fecha se envían como undefined si están vacíos en el formulario de creación.
-      fechaValuacion: newOrderData.fechaValuacion ? new Date(newOrderData.fechaValuacion + 'T00:00:00Z') : undefined,
-      fechaReingreso: newOrderData.fechaReingreso ? new Date(newOrderData.fechaReingreso + 'T00:00:00Z') : undefined,
-      fechaEntrega: newOrderData.fechaEntrega ? new Date(newOrderData.fechaEntrega + 'T00:00:00Z') : undefined,
-      fechaPromesa: newOrderData.fechaPromesa ? new Date(newOrderData.fechaPromesa + 'T00:00:00Z') : undefined,
-      fechaBaja: newOrderData.fechaBaja ? new Date(newOrderData.fechaBaja + 'T00:00:00Z') : undefined,
     };
 
     // Llama a la acción del servidor para crear la orden.
-    // Asegurar que userIdEmpleado sea string y no null/undefined antes de pasarlo.
     const currentUserId = userIdEmpleado ? userIdEmpleado : undefined; // userIdEmpleado ya es string ObjectId del empleado
     if (!currentUserId) {
         toast({ title: "Error de Sesión", description: "No se pudo identificar al usuario para el log.", variant: "destructive" });
@@ -960,7 +953,7 @@ export default function DashboardPage() {
       proceso: editOrderData.proceso as Order['proceso'],
       // Campos de fecha (convertir de string YYYY-MM-DD a Date)
       // Añadir 'T00:00:00Z' para asegurar que se interpreten como UTC y evitar problemas de un día por zona horaria.
-      fechaValuacion: editOrderData.fechaValuacion ? new Date(editOrderData.fechaValuacion + 'T00:00:00Z') : undefined, 
+      fechaValuacion: editOrderData.fechaValuacion ? new Date(editOrderData.fechaValuacion + 'T00:00:00Z') : undefined,
       fechaReingreso: editOrderData.fechaReingreso ? new Date(editOrderData.fechaReingreso + 'T00:00:00Z') : undefined,
       fechaEntrega: editOrderData.fechaEntrega ? new Date(editOrderData.fechaEntrega + 'T00:00:00Z') : undefined,
       fechaPromesa: editOrderData.fechaPromesa ? new Date(editOrderData.fechaPromesa + 'T00:00:00Z') : undefined,
@@ -997,12 +990,15 @@ export default function DashboardPage() {
       setCurrentOrder(result.data);
       // Si la orden tiene idAseguradora, cargar sus ajustadores para mostrar el nombre.
       if (result.data.idAseguradora) {
+        // Intenta encontrar la aseguradora completa en la lista ya cargada
         const aseguradoraCompleta = aseguradoras.find(a => a._id === result.data.idAseguradora);
         if (aseguradoraCompleta && aseguradoraCompleta.ajustadores) {
-            // Guardar solo los ajustadores de la aseguradora actual para la vista
             setAvailableAjustadoresForOrder(aseguradoraCompleta.ajustadores.map(aj => ({idAjustador: aj.idAjustador, nombre: aj.nombre})));
         } else {
-            setAvailableAjustadoresForOrder([]); // Limpiar si no se encuentran
+            // Si no está en la lista cargada, o no tiene ajustadores, intentar obtenerlos del servidor
+            const ajustadoresRes = await getAjustadoresByAseguradora(result.data.idAseguradora);
+            if (ajustadoresRes.success && ajustadoresRes.data) setAvailableAjustadoresForOrder(ajustadoresRes.data);
+            else setAvailableAjustadoresForOrder([]);
         }
       } else {
         setAvailableAjustadoresForOrder([]);
@@ -1011,10 +1007,11 @@ export default function DashboardPage() {
       if (result.data.idMarca) {
         const marcaCompleta = marcas.find(m => m._id === result.data.idMarca);
          if (marcaCompleta && marcaCompleta.modelos) {
-            // Guardar solo los modelos de la marca actual para la vista
             setAvailableModelosForOrder(marcaCompleta.modelos.map(mod => ({idModelo: mod.idModelo, modelo: mod.modelo})));
         } else {
-            setAvailableModelosForOrder([]); // Limpiar si no se encuentran
+            const modelosRes = await getModelosByMarcaAction(result.data.idMarca);
+            if (modelosRes.success && modelosRes.data) setAvailableModelosForOrder(modelosRes.data);
+            else setAvailableModelosForOrder([]);
         }
       } else {
         setAvailableModelosForOrder([]);
@@ -1058,7 +1055,8 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "El nombre de la marca es obligatorio.", variant: "destructive" });
       return;
     }
-    const result = await createMarcaAction({ marca: newMarcaData.marca! });
+    // Llama a la acción del servidor. 'newMarcaData' ya debería ser { marca: string }
+    const result = await createMarcaAction({ marca: newMarcaData.marca });
     if (result.success) {
       toast({ title: "Éxito", description: result.message || "Marca creada." });
       setIsCreateMarcaDialogOpen(false);
@@ -1082,7 +1080,8 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "Datos inválidos para actualizar la marca.", variant: "destructive" });
       return;
     }
-    const result = await updateMarcaAction(currentMarca._id, { marca: editMarcaData.marca! });
+    // Llama a la acción del servidor. 'editMarcaData' es { marca: string }
+    const result = await updateMarcaAction(currentMarca._id, { marca: editMarcaData.marca });
     if (result.success) {
       toast({ title: "Éxito", description: result.message || "Marca actualizada." });
       setIsEditMarcaDialogOpen(false);
@@ -1114,17 +1113,18 @@ export default function DashboardPage() {
   };
 
   // --- Funciones de Gestión de Modelos (Administración) ---
-  /** 
+  /**
    * Abre el diálogo para gestionar modelos de una marca específica.
    * Carga los datos de la marca, incluyendo sus modelos.
+   * @param {MarcaVehiculo} marca - La marca para la cual gestionar modelos.
    */
   const openManageModelosDialog = async (marca: MarcaVehiculo) => {
     if (!marca._id) {
         toast({ title: "Error", description: "ID de marca no encontrado.", variant: "destructive" });
         return;
     }
-    // Obtener los datos más recientes de la marca (incluyendo sus modelos)
-    const result = await getMarcaForModelosAction(marca._id); // Esta acción debe devolver la marca con sus modelos.
+    // Obtener los datos más recientes de la marca (incluyendo sus modelos).
+    const result = await getMarcaForModelosAction(marca._id);
     if (result.success && result.data) {
         setCurrentMarca(result.data); // Guardar la marca completa con sus modelos
         setIsManageModelosDialogOpen(true);
@@ -1139,7 +1139,8 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "Marca no seleccionada o nombre de modelo inválido.", variant: "destructive" });
       return;
     }
-    const result = await addModeloToMarcaAction(currentMarca._id, { modelo: newModeloData.modelo! });
+    // Llama a la acción del servidor. 'newModeloData' es Omit<ModeloVehiculo, 'idModelo'>, es decir, { modelo: string }
+    const result = await addModeloToMarcaAction(currentMarca._id, { modelo: newModeloData.modelo });
     if (result.success && result.data) {
       toast({ title: "Éxito", description: `Modelo "${result.data.modelo}" añadido a ${currentMarca.marca}.` });
       // Actualizar el estado local de 'currentMarca' para reflejar el nuevo modelo
@@ -1152,10 +1153,13 @@ export default function DashboardPage() {
     }
   };
 
-  /** Abre el diálogo para editar un modelo, cargando sus datos. */
+  /**
+   * Abre el diálogo para editar un modelo.
+   * @param {ModeloVehiculo} modelo - El modelo a editar.
+   */
   const openEditModeloDialog = (modelo: ModeloVehiculo) => {
     setCurrentModelo(modelo); // Guardar el modelo completo que se está editando
-    setEditModeloData({ modelo: modelo.modelo }); 
+    setEditModeloData({ modelo: modelo.modelo });
     setIsEditModeloDialogOpen(true);
   };
 
@@ -1165,7 +1169,8 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "Datos inválidos para actualizar modelo.", variant: "destructive" });
       return;
     }
-    const result = await updateModeloInMarcaAction(currentMarca._id, currentModelo.idModelo, { modelo: editModeloData.modelo! });
+    // Llama a la acción del servidor. 'editModeloData' es Partial<ModeloVehiculo>, aquí solo { modelo: string }
+    const result = await updateModeloInMarcaAction(currentMarca._id, currentModelo.idModelo, { modelo: editModeloData.modelo });
     if (result.success) {
       toast({ title: "Éxito", description: `Modelo "${editModeloData.modelo}" actualizado.` });
       // Actualizar el estado local de 'currentMarca'
@@ -1181,7 +1186,10 @@ export default function DashboardPage() {
     }
   };
 
-  /** Maneja la eliminación de un modelo. Llama a `removeModeloFromMarcaAction`. */
+  /**
+   * Maneja la eliminación de un modelo de la marca actual.
+   * @param {string} idModelo - El idModelo (string ObjectId) del modelo a eliminar.
+   */
   const handleDeleteModelo = async (idModelo: string) => {
     if (!currentMarca || !currentMarca._id) return;
     const result = await removeModeloFromMarcaAction(currentMarca._id, idModelo);
@@ -1202,7 +1210,8 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "El nombre de la aseguradora es obligatorio.", variant: "destructive" });
       return;
     }
-    const result = await createAseguradoraAction({ nombre: newAseguradoraData.nombre!, telefono: newAseguradoraData.telefono });
+    // 'newAseguradoraData' es { nombre: string, telefono?: string }
+    const result = await createAseguradoraAction(newAseguradoraData as NewAseguradoraData);
     if (result.success) {
       toast({ title: "Éxito", description: result.message || "Aseguradora creada." });
       setIsCreateAseguradoraDialogOpen(false);
@@ -1213,7 +1222,10 @@ export default function DashboardPage() {
     }
   };
 
-  /** Abre el diálogo para editar una aseguradora, cargando sus datos. */
+  /**
+   * Abre el diálogo para editar una aseguradora.
+   * @param {Aseguradora} aseguradora - La aseguradora a editar.
+   */
   const openEditAseguradoraDialog = (aseguradora: Aseguradora) => {
     setCurrentAseguradora(aseguradora);
     setEditAseguradoraData({ nombre: aseguradora.nombre, telefono: aseguradora.telefono });
@@ -1226,7 +1238,8 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "Datos inválidos para actualizar la aseguradora.", variant: "destructive" });
       return;
     }
-    const result = await updateAseguradoraAction(currentAseguradora._id, { nombre: editAseguradoraData.nombre!, telefono: editAseguradoraData.telefono });
+    // 'editAseguradoraData' es { nombre: string, telefono?: string }
+    const result = await updateAseguradoraAction(currentAseguradora._id, editAseguradoraData as UpdateAseguradoraData);
     if (result.success) {
       toast({ title: "Éxito", description: result.message || "Aseguradora actualizada." });
       setIsEditAseguradoraDialogOpen(false);
@@ -1258,16 +1271,18 @@ export default function DashboardPage() {
   };
 
   // --- Funciones de Gestión de Ajustadores (Administración) ---
-  /** 
+  /**
    * Abre el diálogo para gestionar ajustadores de una aseguradora específica.
    * Carga los datos de la aseguradora, incluyendo sus ajustadores.
+   * @param {Aseguradora} aseguradora - La aseguradora para la cual gestionar ajustadores.
    */
   const openManageAjustadoresDialog = async (aseguradora: Aseguradora) => {
     if (!aseguradora._id) {
       toast({ title: "Error", description: "ID de aseguradora no encontrado.", variant: "destructive" });
       return;
     }
-     const result = await getAseguradoraForAjustadoresAction(aseguradora._id); // Esta acción debe devolver la aseguradora con sus ajustadores.
+     // Esta acción debe devolver la aseguradora con sus ajustadores.
+     const result = await getAseguradoraForAjustadoresAction(aseguradora._id);
      if (result.success && result.data) {
         setCurrentAseguradora(result.data); // Guardar la aseguradora completa
         setIsManageAjustadoresDialogOpen(true);
@@ -1282,6 +1297,7 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "Aseguradora no seleccionada o nombre de ajustador inválido.", variant: "destructive" });
       return;
     }
+    // 'newAjustadorData' es Omit<Ajustador, 'idAjustador'>
     const result = await addAjustadorToAseguradoraAction(currentAseguradora._id, newAjustadorData);
     if (result.success && result.data) {
       toast({ title: "Éxito", description: `Ajustador "${result.data.nombre}" añadido.` });
@@ -1295,10 +1311,14 @@ export default function DashboardPage() {
     }
   };
 
-  /** Abre el diálogo para editar un ajustador, cargando sus datos. */
+  /**
+   * Abre el diálogo para editar un ajustador.
+   * @param {Ajustador} ajustador - El ajustador a editar.
+   */
   const openEditAjustadorDialog = (ajustador: Ajustador) => {
     setCurrentAjustador(ajustador); // Guardar el ajustador completo
-    setEditAjustadorData({ ...ajustador }); // Llenar el formulario
+    // Llenar el formulario. 'idAjustador' no se edita pero se usa para identificar.
+    setEditAjustadorData({ nombre: ajustador.nombre, telefono: ajustador.telefono, correo: ajustador.correo });
     setIsEditAjustadorDialogOpen(true);
   };
 
@@ -1308,7 +1328,8 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "Datos inválidos para actualizar ajustador.", variant: "destructive" });
       return;
     }
-    const { idAjustador, ...updatePayload } = editAjustadorData; // Extraer idAjustador ya que no se envía en el payload de actualización
+    // 'editAjustadorData' es Partial<Omit<Ajustador, 'idAjustador'>>
+    const { ...updatePayload } = editAjustadorData;
     const result = await updateAjustadorInAseguradoraAction(currentAseguradora._id, currentAjustador.idAjustador, updatePayload);
     if (result.success) {
       toast({ title: "Éxito", description: "Ajustador actualizado." });
@@ -1325,7 +1346,10 @@ export default function DashboardPage() {
     }
   };
 
-  /** Maneja la eliminación de un ajustador. Llama a `removeAjustadorFromAseguradoraAction`. */
+  /**
+   * Maneja la eliminación de un ajustador de la aseguradora actual.
+   * @param {string} idAjustador - El idAjustador (string ObjectId) del ajustador a eliminar.
+   */
   const handleDeleteAjustador = async (idAjustador: string) => {
     if (!currentAseguradora || !currentAseguradora._id) return;
     const result = await removeAjustadorFromAseguradoraAction(currentAseguradora._id, idAjustador);
@@ -1348,7 +1372,7 @@ export default function DashboardPage() {
       return;
     }
 
-    let systemUserDetails: Omit<SystemUserCredentials, '_id' | 'permisos'> | undefined = undefined;
+    let systemUserDetails: Omit<SystemUserCredentials, 'permisos' | '_id'> | undefined = undefined;
     // Validaciones para credenciales de sistema si se elige crearlas
     if (newEmpleadoData.createSystemUser) {
       if (!newEmpleadoData.systemUserUsuario?.trim() || !newEmpleadoData.systemUserContraseña?.trim() || !newEmpleadoData.systemUserRol) {
@@ -1377,6 +1401,7 @@ export default function DashboardPage() {
     };
 
     // Llamar a la acción del servidor
+    console.log("handleCreateEmpleado - Enviando a createEmpleadoAction:", empleadoDataToCreate, systemUserDetails);
     const result = await createEmpleadoAction(empleadoDataToCreate, systemUserDetails);
     if (result.success) {
       toast({ title: "Éxito", description: result.message || "Empleado creado." });
@@ -1390,9 +1415,10 @@ export default function DashboardPage() {
     }
   };
 
-  /** 
-   * Abre el diálogo para editar un empleado. 
+  /**
+   * Abre el diálogo para editar un empleado.
    * Carga los datos del empleado y prepara el formulario de edición.
+   * @param {string} empleadoIdToEdit - El _id (string ObjectId) del empleado a editar.
    */
   const openEditEmpleadoDialog = async (empleadoIdToEdit: string) => {
     const result = await getEmpleadoForEditAction(empleadoIdToEdit); // Acción para obtener empleado por ID
@@ -1460,8 +1486,8 @@ export default function DashboardPage() {
             systemUserUpdates.contraseña = editEmpleadoData.newSystemUserContraseña;
         }
     }
-    
-    // Llamar a la acción del servidor
+
+    console.log("handleUpdateEmpleado - Enviando a updateEmpleadoAction:", currentEmpleadoToEdit._id, empleadoUpdates, systemUserUpdates);
     const result = await updateEmpleadoAction(currentEmpleadoToEdit._id, empleadoUpdates, systemUserUpdates);
     if (result.success) {
       toast({ title: "Éxito", description: result.message || "Empleado actualizado." });
@@ -1498,7 +1524,11 @@ export default function DashboardPage() {
     setEmpleadoToDeleteId(null);
   };
 
-  /** Maneja la eliminación del acceso al sistema de un empleado. */
+  /**
+   * Maneja la eliminación del acceso al sistema de un empleado.
+   * Llama a la acción del servidor `removeSystemUserFromEmpleadoAction`.
+   * @param {string} empleadoIdToRemoveAccess - El _id (string ObjectId) del empleado al cual remover acceso.
+   */
   const handleRemoveSystemUser = async (empleadoIdToRemoveAccess: string) => {
       const result = await removeSystemUserFromEmpleadoAction(empleadoIdToRemoveAccess);
       if (result.success) {
@@ -1528,7 +1558,7 @@ export default function DashboardPage() {
     setIsCreateClientDialogOpen(true);
   };
 
-  /** 
+  /**
    * Maneja la creación de un nuevo cliente desde el diálogo rápido.
    * Si tiene éxito, actualiza la lista de clientes y preselecciona el nuevo cliente en el formulario de orden.
    */
@@ -1542,7 +1572,6 @@ export default function DashboardPage() {
         nombre: newClientData.nombre!,
         telefono: newClientData.telefono,
         correo: newClientData.correo,
-        // RFC se eliminó de este formulario simple
     });
 
     if (result.success && result.data?.clienteId && result.data.nuevoCliente) {
@@ -1579,7 +1608,10 @@ export default function DashboardPage() {
     }
   };
 
-  /** Abre el diálogo para editar un Puesto, cargando sus datos. */
+  /**
+   * Abre el diálogo para editar un Puesto.
+   * @param {Puesto} puesto - El puesto a editar.
+   */
   const openEditPuestoDialog = (puesto: Puesto) => {
     setCurrentPuestoToEdit(puesto);
     setEditPuestoData({ nombre: puesto.nombre });
@@ -1644,7 +1676,10 @@ export default function DashboardPage() {
     }
   };
 
-  /** Abre el diálogo para editar un Color de Vehículo, cargando sus datos. */
+  /**
+   * Abre el diálogo para editar un Color de Vehículo.
+   * @param {ColorVehiculo} color - El color a editar.
+   */
   const openEditColorDialog = (color: ColorVehiculo) => {
     setCurrentColorToEdit(color);
     setEditColorData({ nombre: color.nombre });
@@ -1707,8 +1742,9 @@ export default function DashboardPage() {
       // Para crear el objeto Date correctamente y evitar corrimientos de un día:
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
         // Separar año, mes, día. Mes es 0-indexado para el constructor de Date.
-        const parts = dateInput.split('-');
-        date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        // Crear la fecha en UTC para evitar problemas de zona horaria.
+        const [year, month, day] = dateInput.split('-').map(Number);
+        date = new Date(Date.UTC(year, month - 1, day));
       } else {
         // Para otros formatos de string (ej. ISO completo con 'Z' o offset), new Date() suele funcionar bien.
         date = new Date(dateInput);
@@ -1721,19 +1757,22 @@ export default function DashboardPage() {
 
     if (format === 'YYYY-MM-DD') {
       // Para input type="date", se necesita YYYY-MM-DD.
-      // Usar los componentes de fecha del objeto Date ya ajustado a la zona horaria local.
-      const year = date.getFullYear();
-      const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Mes es 0-indexado
-      const day = date.getDate().toString().padStart(2, '0');
+      // Usar los componentes de fecha del objeto Date ya ajustado (si era UTC, obtenerlos en UTC).
+      const year = date.getUTCFullYear();
+      const month = (date.getUTCMonth() + 1).toString().padStart(2, '0'); // Mes es 0-indexado
+      const day = date.getUTCDate().toString().padStart(2, '0');
       return `${year}-${month}-${day}`;
     } else { // 'dd/MM/yyyy', mostrar en hora local (es-MX) del navegador.
+      // Para mostrar 'dd/MM/yyyy', lo mejor es usar toLocaleDateString que maneja la zona horaria del usuario.
+      // Si la fecha original era UTC (como la que creamos para 'YYYY-MM-DD'), esto la convertirá a local.
       return date.toLocaleDateString('es-MX', {
         day: '2-digit', month: '2-digit', year: 'numeric',
+        timeZone: 'UTC' // Asegurar que se interpreta la fecha como UTC si así fue almacenada/creada
       });
     }
   };
 
-  /** 
+  /**
    * Formatea una fecha y hora a 'dd/MM/yyyy HH:mm' en la zona horaria local del navegador.
    * @param {Date | string | number | undefined} dateInput - La fecha y hora a formatear.
    * @returns {string} La fecha y hora formateada, o string vacío si la entrada es inválida/nula.
@@ -1742,9 +1781,11 @@ export default function DashboardPage() {
     if (!dateInput) return '';
     const date = new Date(dateInput);
     if (isNaN(date.getTime())) return 'Fecha inválida';
-    return date.toLocaleString('es-MX', { // Formato para México
+    // Formato para México, hora local del navegador.
+    return date.toLocaleString('es-MX', {
       day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', hour12: false // Formato de 24 horas
+      hour: '2-digit', minute: '2-digit', hour12: false, // Formato de 24 horas
+      // timeZone: 'UTC' // Quitar si queremos que la hora se muestre en la zona local del navegador
     });
   };
 
@@ -1812,7 +1853,7 @@ export default function DashboardPage() {
       case 'newMarca': value = newMarcaData[name as keyof MarcaFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewMarcaData); break;
       case 'editMarca': value = editMarcaData[name as keyof MarcaFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setEditMarcaData); break;
       case 'newModelo': value = newModeloData[name as keyof Omit<ModeloVehiculo, 'idModelo'>]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewModeloData); break;
-      case 'editModelo': value = editModeloData[name as keyof Partial<ModeloVehiculo>]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setEditModeloData); break; 
+      case 'editModelo': value = editModeloData[name as keyof Partial<ModeloVehiculo>]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setEditModeloData); break;
       case 'newAseguradora': value = newAseguradoraData[name as keyof AseguradoraFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewAseguradoraData); break;
       case 'editAseguradora': value = editAseguradoraData[name as keyof AseguradoraFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setEditAseguradoraData); break;
       case 'newAjustador': value = newAjustadorData[name as keyof Omit<Ajustador, 'idAjustador'>]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewAjustadorData); break;
@@ -1821,7 +1862,7 @@ export default function DashboardPage() {
         value = newEmpleadoData[name as keyof EmpleadoFormDataType];
         handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewEmpleadoData);
         handleSelect = (val: string | undefined) => handleSelectChangeGeneric(name, val, setNewEmpleadoData);
-        handleCheckbox = (checked: boolean) => handleCheckboxChangeGeneric(name, checked, setNewEmpleadoData); // Manejador para checkbox
+        handleCheckbox = (checked: boolean) => handleCheckboxChangeGeneric(name, checked, setNewEmpleadoData);
         // Opciones dinámicas para selects dentro de este formulario
         if (name === 'puesto') options = puestosList.map(p => ({ value: p.nombre, label: p.nombre }));
         if (name === 'systemUserRol') options = userRoleOptions;
@@ -1830,7 +1871,7 @@ export default function DashboardPage() {
         value = editEmpleadoData[name as keyof EditEmpleadoFormDataType];
         handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setEditEmpleadoData);
         handleSelect = (val: string | undefined) => handleSelectChangeGeneric(name, val, setEditEmpleadoData);
-        handleCheckbox = (checked: boolean) => handleCheckboxChangeGeneric(name, checked, setEditEmpleadoData); // Manejador para checkbox
+        handleCheckbox = (checked: boolean) => handleCheckboxChangeGeneric(name, checked, setEditEmpleadoData);
         // Opciones dinámicas
         if (name === 'puesto') options = puestosList.map(p => ({ value: p.nombre, label: p.nombre }));
         if (name === 'systemUserRol') options = userRoleOptions;
@@ -1867,7 +1908,7 @@ export default function DashboardPage() {
       return (
         <div className={`space-y-1 ${classNameGrid || ''}`}>
           <Label htmlFor={fieldId} className="text-sm font-medium">{label}{isRequired && <span className="text-destructive">*</span>}</Label>
-          <Select name={String(name)} onValueChange={handleSelect} value={value || ''} disabled={isDisabled}>
+          <Select name={String(name)} onValueChange={handleSelect} value={value || undefined} disabled={isDisabled}>
             <SelectTrigger id={fieldId} className="w-full mt-1"><SelectValue placeholder={placeholder || `Seleccionar ${label.toLowerCase()}...`} /></SelectTrigger>
             <SelectContent>
               {isLoadingSource ? <SelectItem value="loading" disabled>Cargando opciones...</SelectItem> :
@@ -1879,7 +1920,7 @@ export default function DashboardPage() {
         </div>
       );
     }
-    
+
     // Renderizado general para otros campos
     return (
       <div className={`space-y-1 ${classNameGrid || ''}`}>
@@ -1897,13 +1938,11 @@ export default function DashboardPage() {
             className="mt-1 w-full"
           />
         ) : type === 'select' ? (
-          <Select name={String(name)} onValueChange={handleSelect} value={value || ''} disabled={isDisabled}>
+          <Select name={String(name)} onValueChange={handleSelect} value={value || undefined} disabled={isDisabled}>
             <SelectTrigger id={fieldId} className="w-full mt-1">
               <SelectValue placeholder={placeholder || `Seleccionar ${label.toLowerCase()}...`} />
             </SelectTrigger>
             <SelectContent>
-              {/* Placeholder si las opciones están cargando (si se implementa) */}
-              {/* {isLoadingOptions ? <SelectItem value="loading" disabled>Cargando...</SelectItem> : null} */}
               {options && options.length > 0 ? options.map(opt => (
                 <SelectItem key={String(opt.value)} value={String(opt.value)}>{opt.label}</SelectItem>
               )) : <SelectItem value="no_options_available" disabled>No hay opciones disponibles</SelectItem>}
@@ -1918,7 +1957,9 @@ export default function DashboardPage() {
                 onCheckedChange={(checkedState) => handleCheckbox(typeof checkedState === 'boolean' ? checkedState : false)} // Pasar solo el valor booleano
                 disabled={isDisabled}
              />
-             {/* Opcional: Se podría añadir una etiqueta aquí si el checkbox no tiene una label global con renderDialogField */}
+             <Label htmlFor={fieldId} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              {label} {/* Mostrar la etiqueta al lado del checkbox */}
+            </Label>
           </div>
         ) : (
           <Input
@@ -1948,8 +1989,8 @@ export default function DashboardPage() {
 
   // Define las clases para el TabsList principal según el rol del usuario para un mejor diseño responsivo.
   const mainTabsListClassName = userRole === UserRole.ADMIN ?
-    "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" : // 2x2 en móvil, 4 en línea en SM+
-    "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted"; // 1 columna en móvil, 3 en línea en SM+
+    "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" :
+    "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted";
 
 
   return (
@@ -2000,7 +2041,7 @@ export default function DashboardPage() {
                     <CardTitle className="text-xl">Órdenes de Servicio</CardTitle>
                     <CardDescription>Administra todas las órdenes de trabajo del taller.</CardDescription>
                 </div>
-                <Button size="sm" onClick={() => { setNewOrderData(initialNewOrderData); setIsCreateOrderDialogOpen(true); setAvailableAjustadoresForOrder([]); setAvailableModelosForOrder([]); }}>
+                <Button size="sm" onClick={() => { setNewOrderData(initialNewOrderData); setIsCreateOrderDialogOpen(true); setAvailableAjustadoresForOrder([]); setAvailableModelosForOrder([]); setIsNewOrderClientComboboxOpen(false);}}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Nueva Orden
                 </Button>
               </CardHeader>
@@ -2274,7 +2315,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {renderDialogField("Aseguradora", "idAseguradora", "select", "Seleccionar aseguradora...", "newOrder", [{value: "", label: "Ninguna/Particular"}, ...aseguradoras.map(a => ({value: a._id, label: a.nombre}))], false, false, false, "col-span-1")}
+            {renderDialogField("Aseguradora", "idAseguradora", "select", "Seleccionar aseguradora...", "newOrder", aseguradoras.map(a => ({value: a._id, label: a.nombre})), false, false, false, "col-span-1")}
             {renderDialogField("Ajustador", "idAjustador", "select", "Seleccionar ajustador...", "newOrder", availableAjustadoresForOrder.map(a => ({value: a.idAjustador, label: a.nombre})), false, !newOrderData.idAseguradora || availableAjustadoresForOrder.length === 0, false, "col-span-1")}
             {renderDialogField("No. Siniestro", "siniestro", "text", "Número de siniestro", "newOrder", undefined, false, false, false, "col-span-1")}
             {renderDialogField("No. Póliza", "poliza", "text", "Número de póliza", "newOrder", undefined, false, false, false, "col-span-1")}
@@ -2288,7 +2329,7 @@ export default function DashboardPage() {
             {renderDialogField("Color", "color", "select", "Color del vehículo", "newOrder", coloresList.map(c => ({value: c.nombre, label:c.nombre})), false, false, true, "col-span-1")}
             {renderDialogField("VIN", "vin", "text", "Número de serie", "newOrder", undefined, false, false, false, "col-span-1")}
             {renderDialogField("Kilometraje", "kilometraje", "text", "KM del vehículo", "newOrder", undefined, false, false, false, "col-span-1")}
-            <div className="col-span-1 flex items-center space-x-2 pt-5"> {/* Usar pt-5 para alinear con label de arriba */}
+            <div className="col-span-1 flex items-center space-x-2 pt-5">
               {renderDialogField("¿Piso?", "piso", "checkbox", "", "newOrder", undefined, false, false, false, "flex items-center")}
             </div>
             <div className="col-span-1 flex items-center space-x-2 pt-5">
@@ -2351,7 +2392,7 @@ export default function DashboardPage() {
                   <Button type="button" size="sm" variant="outline" onClick={openCreateClientDialog} className="shrink-0"><PlusCircle className="mr-2 h-4 w-4" />Nuevo</Button>
                 </div>
               </div>
-              {renderDialogField("Aseguradora", "idAseguradora", "select", "Seleccionar aseguradora...", "editOrder", [{value: "", label: "Ninguna/Particular"}, ...aseguradoras.map(a => ({value: a._id, label: a.nombre}))], false, false, false, "col-span-1")}
+              {renderDialogField("Aseguradora", "idAseguradora", "select", "Seleccionar aseguradora...", "editOrder", aseguradoras.map(a => ({value: a._id, label: a.nombre})), false, false, false, "col-span-1")}
               {renderDialogField("Ajustador", "idAjustador", "select", "Seleccionar ajustador...", "editOrder", availableAjustadoresForOrder.map(a => ({value: a.idAjustador, label: a.nombre})), false, !editOrderData.idAseguradora || availableAjustadoresForOrder.length === 0, false, "col-span-1")}
               {renderDialogField("No. Siniestro", "siniestro", "text", "Número de siniestro", "editOrder", undefined, false, false, false, "col-span-1")}
               {renderDialogField("No. Póliza", "poliza", "text", "Número de póliza", "editOrder", undefined, false, false, false, "col-span-1")}
@@ -2719,7 +2760,12 @@ export default function DashboardPage() {
             {/* Sección para crear acceso al sistema */}
             <div className="my-2 border-t pt-4">
               <div className="flex items-center space-x-2">
-                {renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "", "newEmpleado")}
+                 <Checkbox
+                    id="newEmp_createSystemUser"
+                    checked={newEmpleadoData.createSystemUser}
+                    onCheckedChange={(checked) => handleCheckboxChangeGeneric('createSystemUser', typeof checked === 'boolean' ? checked : false, setNewEmpleadoData)}
+                  />
+                <Label htmlFor="newEmp_createSystemUser" className="text-sm font-medium">Crear acceso al sistema</Label>
               </div>
             </div>
 
@@ -2754,15 +2800,21 @@ export default function DashboardPage() {
               {/* Sección para gestionar acceso al sistema */}
               <div className="my-2 border-t pt-4">
                 <div className="flex items-center space-x-2 mb-2">
-                    {/* El checkbox indica si se quieren gestionar datos de usuario (crear si no existe, o preparar para modificar) */}
-                    {renderDialogField(currentEmpleadoToEdit.user ? 'Modificar acceso al sistema' : 'Crear acceso al sistema', "createSystemUser", "checkbox", "", "editEmpleado")}
+                    <Checkbox
+                        id="editEmp_createSystemUser"
+                        checked={!!editEmpleadoData.createSystemUser}
+                        onCheckedChange={(checked) => handleCheckboxChangeGeneric('createSystemUser', typeof checked === 'boolean' ? checked : false, setEditEmpleadoData)}
+                    />
+                    <Label htmlFor="editEmp_createSystemUser" className="text-sm font-medium">
+                        {currentEmpleadoToEdit.user ? 'Modificar acceso al sistema' : 'Crear acceso al sistema'}
+                    </Label>
                 </div>
 
                 {/* Campos de credenciales visibles si createSystemUser está marcado */}
                 {editEmpleadoData.createSystemUser && (
                   <>
-                    <div className="space-y-1">{renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", currentEmpleadoToEdit.user?.usuario, "editEmpleado", undefined, false, !currentEmpleadoToEdit.user, true)}</div>
-                    <div className="space-y-1">{renderDialogField("Rol en Sistema", "systemUserRol", "select", currentEmpleadoToEdit.user?.rol, "editEmpleado", userRoleOptions, false, false, true)}</div>
+                    <div className="space-y-1">{renderDialogField("Nombre de Usuario", "systemUserUsuario", "text", currentEmpleadoToEdit.user?.usuario || '', "editEmpleado", undefined, false, !currentEmpleadoToEdit.user, true)}</div>
+                    <div className="space-y-1">{renderDialogField("Rol en Sistema", "systemUserRol", "select", currentEmpleadoToEdit.user?.rol || UserRole.ASESOR, "editEmpleado", userRoleOptions, false, false, true)}</div>
                     {/* Campos para nueva contraseña (solo si se desea cambiar) */}
                     <div className="mt-2 space-y-1">
                         <Label htmlFor="editEmp_newPass">Nueva Contraseña (dejar en blanco para no cambiar)</Label>
@@ -2774,7 +2826,7 @@ export default function DashboardPage() {
                     </div>
                   </>
                 )}
-                 {/* Botón para remover acceso si el empleado ya tiene usuario y el checkbox NO está marcado */}
+                 {/* Botón para remover acceso si el empleado ya tiene usuario y el checkbox NO está marcado para modificar/crear */}
                  {currentEmpleadoToEdit.user && !editEmpleadoData.createSystemUser && (
                     <Button variant="link" size="sm" className="text-orange-600 p-0 h-auto mt-2" onClick={() => handleRemoveSystemUser(currentEmpleadoToEdit._id)}>Remover Acceso al Sistema Actual</Button>
                 )}
