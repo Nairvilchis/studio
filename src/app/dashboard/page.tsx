@@ -71,7 +71,7 @@ import {
   updateOrderAction,
   deleteOrderAction,
   getOrderByIdAction,
-  getAjustadoresByAseguradora, // Ya es getAjustadoresByAseguradora
+  getAjustadoresByAseguradora,
 } from './service-orders/actions';
 // Marcas y Modelos
 import {
@@ -133,17 +133,26 @@ import {
 
 // --- Tipos de Datos para Formularios ---
 
-/** Tipo de datos para el formulario de creación/edición de Órdenes de Servicio. */
-type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'Log' | 'presupuestos' | 'aseguradoTercero'>> & {
-  año?: string; // Para input de texto, se convertirá a número
-  deducible?: string; // Para input de texto, se convertirá a número
-  aseguradoTerceroString?: 'true' | 'false' | string; // Para manejar el select
-  fechaValuacion?: string; // Para input date YYYY-MM-DD
-  fechaReingreso?: string; // Para input date YYYY-MM-DD
-  fechaEntrega?: string; // Para input date YYYY-MM-DD
-  fechaPromesa?: string; // Para input date YYYY-MM-DD
-  fechaBaja?: string; // Para input date YYYY-MM-DD
+/**
+ * Tipo de datos para el formulario de creación/edición de Órdenes de Servicio.
+ * Representa los campos que el usuario puede llenar en la UI.
+ * Varios campos son string para facilitar el manejo en inputs, y se convierten
+ * a números o booleanos antes de enviar a las actions del servidor.
+ */
+type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'Log' | 'presupuestos' | 'aseguradoTercero' | 'deducible' | 'año'>> & {
+  // Campos que son números pero se manejan como string en el input
+  año?: string;
+  deducible?: string;
+  // Campo para manejar el select de asegurado/tercero como string
+  aseguradoTerceroString?: 'true' | 'false' | string;
+  // Campos de fecha como string en formato YYYY-MM-DD para input type="date"
+  fechaValuacion?: string;
+  fechaReingreso?: string;
+  fechaEntrega?: string;
+  fechaPromesa?: string;
+  fechaBaja?: string;
 };
+
 
 /** Tipo de datos para el formulario de creación/edición de Marcas de Vehículos. */
 type MarcaFormDataType = Partial<Omit<MarcaVehiculo, '_id' | 'modelos'>>;
@@ -155,29 +164,35 @@ type AseguradoraFormDataType = Partial<Omit<Aseguradora, '_id' | 'ajustadores'>>
 /** Tipo de datos para el formulario de creación/edición de Ajustadores. */
 type AjustadorFormDataType = Partial<Omit<Ajustador, 'idAjustador'>>;
 
-/** Tipo de datos para el formulario de creación de Empleados. */
+/**
+ * Tipo de datos para el formulario de creación de Empleados.
+ * Incluye campos para el empleado y, opcionalmente, para crear su usuario de sistema.
+ */
 type EmpleadoFormDataType = Omit<Empleado, '_id' | 'fechaRegistro' | 'user' | 'sueldo' | 'comision'> & {
-  sueldo?: string; // Para input, se convertirá a número
-  comision?: string; // Para input, se convertirá a número
-  createSystemUser?: boolean;
-  systemUserUsuario?: string;
-  systemUserContraseña?: string;
-  systemUserConfirmContraseña?: string;
-  systemUserRol?: UserRoleType;
+  sueldo?: string; // Sueldo como string para el input, se convertirá a número.
+  comision?: string; // Comisión como string para el input, se convertirá a número.
+  createSystemUser?: boolean; // Checkbox para decidir si se crea un usuario de sistema.
+  systemUserUsuario?: string; // Nombre de usuario para el sistema.
+  systemUserContraseña?: string; // Contraseña para el sistema.
+  systemUserConfirmContraseña?: string; // Confirmación de contraseña.
+  systemUserRol?: UserRoleType; // Rol del usuario en el sistema.
 };
-/** Tipo de datos para el formulario de edición de Empleados. */
+/**
+ * Tipo de datos para el formulario de edición de Empleados.
+ * Permite actualizar campos del empleado y, opcionalmente, su usuario de sistema.
+ */
 type EditEmpleadoFormDataType = Partial<Omit<Empleado, '_id' | 'fechaRegistro' | 'user' | 'sueldo' | 'comision'>> & {
-  sueldo?: string;
-  comision?: string;
-  createSystemUser?: boolean; // Para el caso de añadir usuario a un empleado existente
-  systemUserUsuario?: string; // Para crear usuario, o (potencialmente) para cambiar username (manejar con cuidado)
-  systemUserRol?: UserRoleType; // Para crear usuario, o para cambiar rol
-  newSystemUserContraseña?: string; // Para establecer/cambiar contraseña
-  newSystemUserConfirmContraseña?: string; // Confirmación
+  sueldo?: string; // Sueldo como string.
+  comision?: string; // Comisión como string.
+  createSystemUser?: boolean; // Para añadir usuario a un empleado existente sin uno.
+  systemUserUsuario?: string; // Para crear o (potencialmente) cambiar username.
+  systemUserRol?: UserRoleType; // Para crear o cambiar rol.
+  newSystemUserContraseña?: string; // Para establecer/cambiar contraseña.
+  newSystemUserConfirmContraseña?: string; // Confirmación de nueva contraseña.
 };
 
 /** Tipo de datos para el formulario de creación/edición de Clientes. */
-type ClienteFormDataType = Partial<NewClienteData>;
+type ClienteFormDataType = Partial<NewClienteData>; // Usa NewClienteData ya que RFC es opcional.
 
 /** Tipo de datos para el formulario de creación/edición de Puestos. */
 type PuestoFormDataType = Partial<NewPuestoData>;
@@ -765,13 +780,13 @@ export default function DashboardPage() {
   /**
    * Maneja el cambio en los selects del formulario de órdenes.
    * Carga ajustadores o modelos dinámicamente si se selecciona una aseguradora o marca.
-   * @param {keyof OrderFormDataType} name - Nombre del campo.
+   * @param {keyof OrderFormDataType | 'idMarca' | 'idAseguradora'} name - Nombre del campo.
    * @param {string | undefined} value - Nuevo valor seleccionado (_id de la entidad referenciada).
    * @param {'new' | 'edit'} formType - Tipo de formulario.
    */
-  const handleOrderSelectChange = async (name: keyof OrderFormDataType, value: string | undefined, formType: 'new' | 'edit') => {
+  const handleOrderSelectChange = async (name: keyof OrderFormDataType | 'idMarca' | 'idAseguradora', value: string | undefined, formType: 'new' | 'edit') => {
     const setState = formType === 'new' ? setNewOrderData : setEditOrderData;
-    setState((prev: OrderFormDataType) => ({ ...prev, [name]: value }));
+    setState((prev: OrderFormDataType) => ({ ...prev, [name as keyof OrderFormDataType]: value }));
 
     // Si cambia la Aseguradora, cargar sus ajustadores y limpiar selección de ajustador.
     if (name === 'idAseguradora') {
@@ -842,9 +857,6 @@ export default function DashboardPage() {
       piso: newOrderData.piso || false,
       grua: newOrderData.grua || false,
       proceso: newOrderData.proceso || 'pendiente', // Proceso viene del Select
-
-      // Fechas (no se envían al crear desde el formulario, se establecen en el servidor o más tarde)
-      // urlArchivos: ya no se maneja aquí
     };
 
     // El empleadoLogId es el _id del empleado logueado.
@@ -944,7 +956,6 @@ export default function DashboardPage() {
         fechaEntrega: editOrderData.fechaEntrega ? new Date(editOrderData.fechaEntrega + 'T00:00:00') : undefined,
         fechaPromesa: editOrderData.fechaPromesa ? new Date(editOrderData.fechaPromesa + 'T00:00:00') : undefined,
         fechaBaja: editOrderData.fechaBaja ? new Date(editOrderData.fechaBaja + 'T00:00:00') : undefined,
-        // urlArchivos: ya no se maneja aquí
     };
 
     const result = await updateOrderAction(currentOrder._id, orderPayload, userIdEmpleado || undefined);
@@ -1633,7 +1644,6 @@ export default function DashboardPage() {
       toast({ title: "Error de Validación", description: "El nombre del cliente es obligatorio.", variant: "destructive" });
       return;
     }
-    // El RFC fue eliminado del tipo NewClienteData y del formulario.
     const result = await createClienteAction({
         nombre: newClientData.nombre!,
         telefono: newClientData.telefono,
@@ -1685,7 +1695,6 @@ export default function DashboardPage() {
       return;
     }
     console.log("handleUpdateClient: Actualizando cliente ID:", currentClientToEdit._id, "con datos:", editClientData);
-    // El RFC fue eliminado.
     const result = await updateClienteAction(currentClientToEdit._id, {
       nombre: editClientData.nombre!,
       telefono: editClientData.telefono,
@@ -2017,8 +2026,8 @@ export default function DashboardPage() {
 
     // Asignar manejadores y valor según el tipo de formulario
     switch (formType) {
-      case 'newOrder': value = newOrderData[name as keyof OrderFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => handleOrderInputChange(e, 'new'); handleSelect = (val: string | undefined) => handleOrderSelectChange(name as keyof OrderFormDataType, val, 'new'); handleCheckbox = (checked: boolean) => handleOrderCheckboxChange(name as keyof OrderFormDataType, checked, 'new'); break;
-      case 'editOrder': value = editOrderData[name as keyof OrderFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => handleOrderInputChange(e, 'edit'); handleSelect = (val: string | undefined) => handleOrderSelectChange(name as keyof OrderFormDataType, val, 'edit'); handleCheckbox = (checked: boolean) => handleOrderCheckboxChange(name as keyof OrderFormDataType, checked, 'edit'); break;
+      case 'newOrder': value = newOrderData[name as keyof OrderFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => handleOrderInputChange(e, 'new'); handleSelect = (val: string | undefined) => handleOrderSelectChange(name as keyof OrderFormDataType | 'idMarca' | 'idAseguradora', val, 'new'); handleCheckbox = (checked: boolean) => handleOrderCheckboxChange(name as keyof OrderFormDataType, checked, 'new'); break;
+      case 'editOrder': value = editOrderData[name as keyof OrderFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => handleOrderInputChange(e, 'edit'); handleSelect = (val: string | undefined) => handleOrderSelectChange(name as keyof OrderFormDataType | 'idMarca' | 'idAseguradora', val, 'edit'); handleCheckbox = (checked: boolean) => handleOrderCheckboxChange(name as keyof OrderFormDataType, checked, 'edit'); break;
       case 'newMarca': value = newMarcaData[name as keyof MarcaFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewMarcaData); break;
       case 'editMarca': value = editMarcaData[name as keyof MarcaFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setEditMarcaData); break;
       case 'newModelo': value = newModeloData[name as keyof Omit<ModeloVehiculo, 'idModelo'>]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewModeloData); break;
@@ -2032,7 +2041,7 @@ export default function DashboardPage() {
         handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewEmpleadoData);
         handleSelect = (val: string | undefined) => handleSelectChangeGeneric(name, val, setNewEmpleadoData); // Usar el genérico
         handleCheckbox = (checked: boolean) => handleCheckboxChangeGeneric(name, checked, setNewEmpleadoData); // Usar el genérico
-        if (name === 'puesto') options = puestosList.filter(p => p.nombre && p.nombre.trim() !== "").map(p => ({ value: p.nombre, label: p.nombre })); // Filtrar puestos sin nombre
+        if (name === 'puesto') options = puestosList.filter(p => p.nombre && p.nombre.trim() !== "").map(p => ({ value: p.nombre, label: p.nombre })); 
         if (name === 'systemUserRol') options = userRoleOptions;
         break;
       case 'editEmpleado':
@@ -2040,7 +2049,7 @@ export default function DashboardPage() {
         handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setEditEmpleadoData);
         handleSelect = (val: string | undefined) => handleSelectChangeGeneric(name, val, setEditEmpleadoData);
         handleCheckbox = (checked: boolean) => handleCheckboxChangeGeneric(name, checked, setEditEmpleadoData);
-        if (name === 'puesto') options = puestosList.filter(p => p.nombre && p.nombre.trim() !== "").map(p => ({ value: p.nombre, label: p.nombre })); // Filtrar puestos sin nombre
+        if (name === 'puesto') options = puestosList.filter(p => p.nombre && p.nombre.trim() !== "").map(p => ({ value: p.nombre, label: p.nombre })); 
         if (name === 'systemUserRol') options = userRoleOptions;
         break;
       case 'newClient': value = newClientData[name as keyof ClienteFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewClientData); break;
@@ -2056,29 +2065,11 @@ export default function DashboardPage() {
     const fieldId = `${formType}_${String(name)}`;
 
     // Caso especial para Select de 'color' en formularios de orden, que usa coloresList.
+    let currentOptions = options; 
+    let isLoadingSource = false;
     if (((formType === 'newOrder' || formType === 'editOrder') && name === 'color')) {
-      let currentOptions = options; // Usa las opciones pasadas si existen
-      let isLoadingSource = false;
-
-      if (name === 'color') {
-        currentOptions = coloresList.filter(c => c.nombre && c.nombre.trim() !== "").map(c => ({ value: c.nombre, label: c.nombre })); // Filtrar colores sin nombre
-        isLoadingSource = isLoadingColores;
-      }
-
-      return (
-        <div className={`space-y-1 ${classNameGrid || ''}`}>
-          <Label htmlFor={fieldId} className="text-sm font-medium">{label}{isRequired && <span className="text-destructive">*</span>}</Label>
-          <Select name={String(name)} onValueChange={handleSelect} value={String(value || '')} disabled={isDisabled}>
-            <SelectTrigger id={fieldId} className="w-full mt-1"><SelectValue placeholder={placeholder || `Seleccionar ${label.toLowerCase()}...`} /></SelectTrigger>
-            <SelectContent>
-              {isLoadingSource ? <SelectItem value="loading_options" disabled>Cargando opciones...</SelectItem> :
-               (currentOptions && currentOptions.length > 0 ? currentOptions.map(opt => <SelectItem key={String(opt.value)} value={String(opt.value)}>{opt.label}</SelectItem>) :
-               <SelectItem value="no_options_configured" disabled>No hay opciones configuradas</SelectItem>)
-              }
-            </SelectContent>
-          </Select>
-        </div>
-      );
+      currentOptions = coloresList.filter(c => c.nombre && c.nombre.trim() !== "").map(c => ({ value: c.nombre, label: c.nombre })); 
+      isLoadingSource = isLoadingColores;
     }
 
     // Renderizado general para otros tipos de campos
@@ -2093,10 +2084,10 @@ export default function DashboardPage() {
           <Select name={String(name)} onValueChange={handleSelect} value={String(value || '')} disabled={isDisabled}>
             <SelectTrigger id={fieldId} className="w-full mt-1"><SelectValue placeholder={placeholder || `Seleccionar ${label.toLowerCase()}...`} /></SelectTrigger>
             <SelectContent>
-              {/* Para los Selects, asegurar que opt.value no sea una cadena vacía. */}
-              {/* La mayoría de los 'options' pasados aquí usan IDs (_id) o enums que no son vacíos. */}
-              {/* Los casos de Puesto y Color (nombres como value) se manejan arriba o en la preparación de 'options'. */}
-              {options && options.length > 0 ? options.map(opt => (<SelectItem key={String(opt.value)} value={String(opt.value)}>{opt.label}</SelectItem>)) : <SelectItem value="no_options_available" disabled>No hay opciones disponibles</SelectItem>}
+              {isLoadingSource ? <SelectItem value="loading_options" disabled>Cargando opciones...</SelectItem> :
+               (currentOptions && currentOptions.length > 0 ? currentOptions.map(opt => <SelectItem key={String(opt.value)} value={String(opt.value)}>{opt.label}</SelectItem>) :
+               <SelectItem value="no_options_configured" disabled>No hay opciones configuradas</SelectItem>)
+              }
             </SelectContent>
           </Select>
         ) : type === 'checkbox' ? (
@@ -2123,8 +2114,8 @@ export default function DashboardPage() {
 
   // Determinar las clases para la lista de pestañas principales según el rol del usuario
   const mainTabsListClassName = userRole === UserRole.ADMIN ?
-    "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" : // 2x2 en móvil/tablet, 4 en línea en desktop
-    "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted"; // Apilado en móvil, 3 en línea en tablet/desktop
+    "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" : 
+    "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted";
 
 
   return (
@@ -2178,10 +2169,9 @@ export default function DashboardPage() {
                   <CardDescription>Visualiza y gestiona las órdenes de servicio activas.</CardDescription>
                 </div>
                 <Button size="sm" onClick={() => { 
-                  // Al abrir, resetear datos y pre-llenar asesor si aplica
                   setNewOrderData({
-                    ...initialNewOrderData, // Aplicar valores por defecto
-                    idAsesor: userRole === UserRole.ASESOR && userIdEmpleado ? userIdEmpleado : undefined, // Pre-llenar asesor
+                    ...initialNewOrderData, 
+                    idAsesor: userRole === UserRole.ASESOR && userIdEmpleado ? userIdEmpleado : undefined, 
                   }); 
                   setAvailableAjustadoresForOrder([]); 
                   setAvailableModelosForOrder([]); 
@@ -2210,10 +2200,8 @@ export default function DashboardPage() {
                     </TableHeader>
                     <TableBody>
                       {orders.map((order) => {
-                        // Buscar nombres de entidades relacionadas para mostrar en la tabla.
                         const cliente = clients.find(c => c._id === order.idCliente);
                         const marca = marcas.find(m => m._id === order.idMarca);
-                        // El modelo se busca dentro de la marca.
                         const modelo = marca?.modelos?.find(mod => mod.idModelo === order.idModelo);
                         return (
                           <TableRow key={order._id}>
@@ -2360,7 +2348,6 @@ export default function DashboardPage() {
                               <TableHead>Nombre</TableHead>
                               <TableHead>Teléfono</TableHead>
                               <TableHead>Correo</TableHead>
-                              {/* <TableHead>RFC</TableHead> -- Eliminado */}
                               <TableHead className="text-right w-[100px]">Acciones</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -2371,7 +2358,6 @@ export default function DashboardPage() {
                                 <TableCell className="font-medium">{client.nombre}</TableCell>
                                 <TableCell>{client.telefono || 'N/A'}</TableCell>
                                 <TableCell>{client.correo || 'N/A'}</TableCell>
-                                {/* <TableCell>{client.rfc || 'N/A'}</TableCell> -- Eliminado */}
                                 <TableCell className="text-right space-x-1">
                                   <Button variant="ghost" size="icon" onClick={() => openEditClientDialog(client)} title="Editar Cliente"><Edit className="h-4 w-4"/></Button>
                                   <Button variant="ghost" size="icon" onClick={() => openDeleteClientDialog(client._id)} title="Eliminar Cliente"><Trash2 className="h-4 w-4 text-destructive"/></Button>
@@ -2543,9 +2529,8 @@ export default function DashboardPage() {
                               {clients.map((client) => (
                                 <CommandItem
                                   key={client._id}
-                                  value={client.nombre} // Value para búsqueda/filtrado
-                                  onSelect={(currentValue) => { // currentValue es el 'value' del CommandItem (nombre del cliente)
-                                    // Encontrar el cliente por nombre para obtener el _id
+                                  value={client.nombre} 
+                                  onSelect={(currentValue) => { 
                                     const selectedClient = clients.find(c => c.nombre.toLowerCase() === currentValue.toLowerCase());
                                     if (selectedClient) {
                                       handleOrderSelectChange('idCliente', selectedClient._id, 'new');
@@ -2632,7 +2617,7 @@ export default function DashboardPage() {
                               {clients.map((client) => (
                                 <CommandItem
                                   key={client._id}
-                                  value={client.nombre} // Value para búsqueda/filtrado
+                                  value={client.nombre} 
                                   onSelect={(currentValue) => {
                                     const selectedClient = clients.find(c => c.nombre.toLowerCase() === currentValue.toLowerCase());
                                     if (selectedClient) {
@@ -2763,7 +2748,7 @@ export default function DashboardPage() {
                     <CardContent className="text-sm">
                       <ScrollArea className="h-[150px]">
                         <ul className="space-y-2">
-                          {currentOrder.Log.slice().reverse().map((entry, index) => ( // slice().reverse() para mostrar el más reciente primero sin mutar el original
+                          {currentOrder.Log.slice().reverse().map((entry, index) => ( 
                             <li key={index} className="border-b pb-1 mb-1">
                               <strong>{formatDateTime(entry.timestamp)}</strong> - {empleadosList.find(e => e._id === entry.userId)?.nombre || entry.userId || 'Sistema'}: {entry.action}
                             </li>
@@ -2778,7 +2763,6 @@ export default function DashboardPage() {
                   <CardContent className="text-sm">
                     {currentOrder.presupuestos && currentOrder.presupuestos.length > 0 ? (
                       <p>Hay {currentOrder.presupuestos.length} ítems en el presupuesto. (UI de detalle de presupuestos pendiente)</p>
-                      // Aquí iría una tabla o lista de PresupuestoItem
                     ) : <p>No hay ítems de presupuesto registrados para esta orden.</p>}
                   </CardContent>
                 </Card>
@@ -2841,7 +2825,7 @@ export default function DashboardPage() {
       </Dialog>
       {/* Diálogo para Gestionar Modelos de una Marca */}
       <Dialog open={isManageModelosDialogOpen} onOpenChange={setIsManageModelosDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl"> {/* Aumentado el ancho */}
           <DialogHeader><DialogTitle>Gestionar Modelos de: {currentMarca?.marca}</DialogTitle></DialogHeader>
           <div className="my-4">
             <div className="flex justify-end mb-2">
@@ -2853,7 +2837,7 @@ export default function DashboardPage() {
                   {currentMarca.modelos.map(mod => (
                     <TableRow key={mod.idModelo}>
                       <TableCell className="font-mono text-xs truncate max-w-[150px]" title={mod.idModelo}>{mod.idModelo.slice(-6)}</TableCell>
-                      <TableCell className="font-medium">{mod.modelo}</TableCell>
+                      <TableCell className="font-medium truncate" title={mod.modelo}>{mod.modelo}</TableCell> {/* Añadido truncate y title */}
                       <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => openEditModeloDialog(mod)} title="Editar Modelo"><Edit className="h-4 w-4"/></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteModelo(mod.idModelo)} title="Eliminar Modelo"><Trash2 className="h-4 w-4 text-destructive"/></Button>
@@ -2925,7 +2909,7 @@ export default function DashboardPage() {
       </Dialog>
       {/* Diálogo para Gestionar Ajustadores de una Aseguradora */}
       <Dialog open={isManageAjustadoresDialogOpen} onOpenChange={setIsManageAjustadoresDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl"> {/* Aumentado el ancho */}
           <DialogHeader><DialogTitle>Gestionar Ajustadores de: {currentAseguradora?.nombre}</DialogTitle></DialogHeader>
           <div className="my-4">
             <div className="flex justify-end mb-2">
@@ -2939,7 +2923,7 @@ export default function DashboardPage() {
                       <TableCell className="font-mono text-xs truncate max-w-[150px]" title={aj.idAjustador}>{aj.idAjustador.slice(-6)}</TableCell>
                       <TableCell className="font-medium">{aj.nombre}</TableCell>
                       <TableCell>{aj.telefono || 'N/A'}</TableCell>
-                      <TableCell>{aj.correo || 'N/A'}</TableCell>
+                      <TableCell className="truncate" title={aj.correo || 'N/A'}>{aj.correo || 'N/A'}</TableCell> {/* Añadido truncate y title */}
                       <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => openEditAjustadorDialog(aj)} title="Editar Ajustador"><Edit className="h-4 w-4"/></Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteAjustador(aj.idAjustador)} title="Eliminar Ajustador"><Trash2 className="h-4 w-4 text-destructive"/></Button>
@@ -2988,12 +2972,12 @@ export default function DashboardPage() {
           <DialogHeader><DialogTitle>Crear Nuevo Empleado</DialogTitle></DialogHeader>
           <ScrollArea className="max-h-[70vh] p-1">
             <div className="space-y-4 p-4">
-              {renderDialogField("Nombre Completo*", "nombre", "text", "Nombre completo del empleado", "newEmpleado", undefined, false, false, true)}
-              {renderDialogField("Puesto*", "puesto", "select", "Seleccionar puesto...", "newEmpleado", undefined, false, !puestosList || puestosList.length === 0, true)}
-              {renderDialogField("Teléfono", "telefono", "tel", "Número de teléfono", "newEmpleado")}
-              {renderDialogField("Correo Electrónico", "correo", "email", "correo@ejemplo.com", "newEmpleado")}
-              {renderDialogField("Sueldo", "sueldo", "number", "0.00", "newEmpleado")}
-              {renderDialogField("Comisión (%)", "comision", "number", "0", "newEmpleado")}
+              <div className="space-y-1">{renderDialogField("Nombre Completo*", "nombre", "text", "Nombre completo del empleado", "newEmpleado", undefined, false, false, true)}</div>
+              <div className="space-y-1">{renderDialogField("Puesto*", "puesto", "select", "Seleccionar puesto...", "newEmpleado", undefined, false, !puestosList || puestosList.length === 0, true)}</div>
+              <div className="space-y-1">{renderDialogField("Teléfono", "telefono", "tel", "Número de teléfono", "newEmpleado")}</div>
+              <div className="space-y-1">{renderDialogField("Correo Electrónico", "correo", "email", "correo@ejemplo.com", "newEmpleado")}</div>
+              <div className="space-y-1">{renderDialogField("Sueldo", "sueldo", "number", "0.00", "newEmpleado")}</div>
+              <div className="space-y-1">{renderDialogField("Comisión (%)", "comision", "number", "0", "newEmpleado")}</div>
               
               <div className="my-2 border-t pt-4">
                 {renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", undefined, "newEmpleado")}
@@ -3001,10 +2985,10 @@ export default function DashboardPage() {
 
               {newEmpleadoData.createSystemUser && (
                 <>
-                  {renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "usuario_sistema", "newEmpleado", undefined, false, false, true)}
-                  {renderDialogField("Contraseña*", "systemUserContraseña", "password", "••••••••", "newEmpleado", undefined, false, false, true)}
-                  {renderDialogField("Confirmar Contraseña*", "systemUserConfirmContraseña", "password", "••••••••", "newEmpleado", undefined, false, false, true)}
-                  {renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Seleccionar rol...", "newEmpleado", undefined, false, false, true)}
+                  <div className="space-y-1">{renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "usuario_sistema", "newEmpleado", undefined, false, false, true)}</div>
+                  <div className="space-y-1">{renderDialogField("Contraseña*", "systemUserContraseña", "password", "••••••••", "newEmpleado", undefined, false, false, true)}</div>
+                  <div className="space-y-1">{renderDialogField("Confirmar Contraseña*", "systemUserConfirmContraseña", "password", "••••••••", "newEmpleado", undefined, false, false, true)}</div>
+                  <div className="space-y-1">{renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Seleccionar rol...", "newEmpleado", undefined, false, false, true)}</div>
                 </>
               )}
             </div>
@@ -3022,37 +3006,35 @@ export default function DashboardPage() {
           <ScrollArea className="max-h-[70vh] p-1">
             {currentEmpleadoToEdit && (
               <div className="space-y-4 p-4">
-                {renderDialogField("Nombre Completo*", "nombre", "text", currentEmpleadoToEdit.nombre, "editEmpleado",undefined,false,false,true)}
-                {renderDialogField("Puesto*", "puesto", "select", currentEmpleadoToEdit.puesto, "editEmpleado",undefined,false,!puestosList || puestosList.length === 0,true)}
-                {renderDialogField("Teléfono", "telefono", "text", currentEmpleadoToEdit.telefono, "editEmpleado")}
-                {renderDialogField("Correo Electrónico", "correo", "email", currentEmpleadoToEdit.correo, "editEmpleado")}
-                {renderDialogField("Sueldo", "sueldo", "number", currentEmpleadoToEdit.sueldo?.toString(), "editEmpleado")}
-                {renderDialogField("Comisión (%)", "comision", "number", currentEmpleadoToEdit.comision?.toString(), "editEmpleado")}
+                <div className="space-y-1">{renderDialogField("Nombre Completo*", "nombre", "text", currentEmpleadoToEdit.nombre, "editEmpleado",undefined,false,false,true)}</div>
+                <div className="space-y-1">{renderDialogField("Puesto*", "puesto", "select", currentEmpleadoToEdit.puesto, "editEmpleado",undefined,false,!puestosList || puestosList.length === 0,true)}</div>
+                <div className="space-y-1">{renderDialogField("Teléfono", "telefono", "text", currentEmpleadoToEdit.telefono, "editEmpleado")}</div>
+                <div className="space-y-1">{renderDialogField("Correo Electrónico", "correo", "email", currentEmpleadoToEdit.correo, "editEmpleado")}</div>
+                <div className="space-y-1">{renderDialogField("Sueldo", "sueldo", "number", currentEmpleadoToEdit.sueldo?.toString(), "editEmpleado")}</div>
+                <div className="space-y-1">{renderDialogField("Comisión (%)", "comision", "number", currentEmpleadoToEdit.comision?.toString(), "editEmpleado")}</div>
 
                 <div className="my-2 border-t pt-4">
-                  {currentEmpleadoToEdit.user ? ( // Si el empleado YA tiene un usuario de sistema
+                  {currentEmpleadoToEdit.user ? ( 
                     <div>
                       <h4 className="font-medium mb-2">Acceso al Sistema</h4>
-                      {renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "Usuario del sistema", "editEmpleado", undefined, false, false, true)}
-                      {renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Rol en el sistema", "editEmpleado", undefined, false, false, true)}
-                      {renderDialogField("Nueva Contraseña (dejar vacío para no cambiar)", "newSystemUserContraseña", "password", "••••••••", "editEmpleado")}
-                      {renderDialogField("Confirmar Nueva Contraseña", "newSystemUserConfirmContraseña", "password", "••••••••", "editEmpleado")}
+                      <div className="space-y-1">{renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "Usuario del sistema", "editEmpleado", undefined, false, false, true)}</div>
+                      <div className="space-y-1">{renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Rol en el sistema", "editEmpleado", undefined, false, false, true)}</div>
+                      <div className="space-y-1">{renderDialogField("Nueva Contraseña (dejar vacío para no cambiar)", "newSystemUserContraseña", "password", "••••••••", "editEmpleado")}</div>
+                      <div className="space-y-1">{renderDialogField("Confirmar Nueva Contraseña", "newSystemUserConfirmContraseña", "password", "••••••••", "editEmpleado")}</div>
                        <Button variant="outline" size="sm" onClick={() => handleRemoveSystemUser(currentEmpleadoToEdit._id)} className="mt-3 text-destructive hover:bg-destructive/10">
                         <UserX className="mr-2 h-4 w-4"/>Remover Acceso al Sistema
                       </Button>
                     </div>
-                  ) : ( // Si el empleado NO tiene usuario de sistema
+                  ) : ( 
                      renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", undefined, "editEmpleado")
                   )}
                 </div>
-
-                {/* Campos para crear un nuevo acceso si createSystemUser es true Y el empleado no tiene user */}
                 {editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user && (
                   <>
-                    {renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "usuario_sistema", "editEmpleado", undefined, false, false, true)}
-                    {renderDialogField("Contraseña*", "newSystemUserContraseña", "password", "••••••••", "editEmpleado", undefined, false, false, true)}
-                    {renderDialogField("Confirmar Contraseña*", "newSystemUserConfirmContraseña", "password", "••••••••", "editEmpleado", undefined, false, false, true)}
-                    {renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Seleccionar rol...", "editEmpleado", undefined, false, false, true)}
+                    <div className="space-y-1">{renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "usuario_sistema", "editEmpleado", undefined, false, false, true)}</div>
+                    <div className="space-y-1">{renderDialogField("Contraseña*", "newSystemUserContraseña", "password", "••••••••", "editEmpleado", undefined, false, false, true)}</div>
+                    <div className="space-y-1">{renderDialogField("Confirmar Contraseña*", "newSystemUserConfirmContraseña", "password", "••••••••", "editEmpleado", undefined, false, false, true)}</div>
+                    <div className="space-y-1">{renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Seleccionar rol...", "editEmpleado", undefined, false, false, true)}</div>
                   </>
                 )}
               </div>
@@ -3079,9 +3061,9 @@ export default function DashboardPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Crear Nuevo Cliente</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            {renderDialogField("Nombre Completo*", "nombre", "text", "Nombre del cliente", "newClient", undefined, false, false, true)}
-            {renderDialogField("Teléfono", "telefono", "text", "Teléfono de contacto", "newClient")}
-            {renderDialogField("Correo Electrónico", "correo", "email", "ejemplo@correo.com", "newClient")}
+            <div className="space-y-1">{renderDialogField("Nombre Completo*", "nombre", "text", "Nombre del cliente", "newClient", undefined, false, false, true)}</div>
+            <div className="space-y-1">{renderDialogField("Teléfono", "telefono", "text", "Teléfono de contacto", "newClient")}</div>
+            <div className="space-y-1">{renderDialogField("Correo Electrónico", "correo", "email", "ejemplo@correo.com", "newClient")}</div>
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
@@ -3095,9 +3077,9 @@ export default function DashboardPage() {
           <DialogHeader><DialogTitle>Editar Cliente: {currentClientToEdit?.nombre}</DialogTitle></DialogHeader>
           {currentClientToEdit && (
             <div className="space-y-4 py-4">
-              {renderDialogField("Nombre Completo*", "nombre", "text", currentClientToEdit.nombre, "editClient", undefined, false, false, true)}
-              {renderDialogField("Teléfono", "telefono", "text", currentClientToEdit.telefono, "editClient")}
-              {renderDialogField("Correo Electrónico", "correo", "email", currentClientToEdit.correo, "editClient")}
+              <div className="space-y-1">{renderDialogField("Nombre Completo*", "nombre", "text", currentClientToEdit.nombre, "editClient", undefined, false, false, true)}</div>
+              <div className="space-y-1">{renderDialogField("Teléfono", "telefono", "text", currentClientToEdit.telefono, "editClient")}</div>
+              <div className="space-y-1">{renderDialogField("Correo Electrónico", "correo", "email", currentClientToEdit.correo, "editClient")}</div>
             </div>
           )}
           <DialogFooter>
