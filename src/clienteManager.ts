@@ -25,15 +25,15 @@ class ClienteManager {
   constructor() {
     this.collectionPromise = connectDB().then(db => {
       const clientesCollection = db.collection<Cliente>('clientes');
-      // Índice en el nombre del Cliente para búsquedas rápidas u ordenamiento. La unicidad no se fuerza aquí
-      // ya que múltiples clientes podrían compartir un nombre común (ej. "Juan Pérez").
-      // Considerar añadir un índice único en 'rfc' o 'correo' si estos deben ser únicos.
+      // Índice en el nombre del Cliente para búsquedas rápidas u ordenamiento.
       clientesCollection.createIndex({ nombre: 1 }).catch(err => {
         if (err.code !== 11000) console.warn('Failed to create index on clientes.nombre:', err);
       });
+      // Índice único disperso en 'correo' (permite múltiples nulos/ausentes pero valores únicos si existen).
       clientesCollection.createIndex({ correo: 1 }, { unique: true, sparse: true }).catch(err => {
         if (err.code !== 11000) console.warn('Failed to create unique sparse index on clientes.correo:', err);
       });
+      // Índice único disperso en 'rfc' (permite múltiples nulos/ausentes pero valores únicos si existen).
        clientesCollection.createIndex({ rfc: 1 }, { unique: true, sparse: true }).catch(err => {
         if (err.code !== 11000) console.warn('Failed to create unique sparse index on clientes.rfc:', err);
       });
@@ -58,10 +58,10 @@ class ClienteManager {
    * El `_id` para el Cliente es generado automáticamente por MongoDB.
    * El array `ordenes` se inicializa como vacío.
    * @param {NewClienteData} data - Datos para el nuevo cliente (nombre, telefono, correo, rfc).
-   * @returns {Promise<ObjectId | null>} El ObjectId de MongoDB del cliente recién creado, o null en caso de fallo.
+   * @returns {Promise<string | null>} El `_id` (string hexadecimal del ObjectId) del cliente recién creado, o null en caso de fallo.
    * @throws {Error} Si falta el nombre del cliente u ocurren otros errores de base de datos.
    */
-  async createCliente(data: NewClienteData): Promise<ObjectId | null> {
+  async createCliente(data: NewClienteData): Promise<string | null> {
     const collection = await this.getCollection();
 
     if (!data.nombre || !data.nombre.trim()) {
@@ -72,21 +72,21 @@ class ClienteManager {
       nombre: data.nombre,
       telefono: data.telefono,
       correo: data.correo,
-      rfc: data.rfc, // rfc ya no es parte de NewClienteData por defecto, pero se mantiene aquí si se pasa
+      rfc: data.rfc, // RFC es opcional
       ordenes: [], // Inicializar 'ordenes' como un array vacío.
     };
 
     try {
       const result: InsertOneResult<Cliente> = await collection.insertOne(newClienteDocument as Cliente);
       console.log('Cliente creado con _id de MongoDB:', result.insertedId);
-      return result.insertedId;
+      return result.insertedId.toHexString(); // Devolver el _id como string
     } catch (error: any) {
       console.error('Error al crear cliente:', error);
       if (error.code === 11000) { // Error de clave duplicada
-        if (error.message.includes('correo_1') && data.correo) {
+        if (data.correo && error.message.includes('correo_1')) {
           throw new Error(`El correo "${data.correo}" ya está registrado.`);
         }
-        if (error.message.includes('rfc_1') && data.rfc) {
+        if (data.rfc && error.message.includes('rfc_1')) {
           throw new Error(`El RFC "${data.rfc}" ya está registrado.`);
         }
       }
@@ -139,7 +139,7 @@ class ClienteManager {
   /**
    * Actualiza los datos de un cliente.
    * @param {string} id - La cadena hexadecimal del ObjectId de MongoDB del cliente a actualizar.
-   * @param {UpdateClienteData} updateData - Datos a actualizar para el cliente.
+   * @param {UpdateClienteData} updateData - Datos a actualizar para el cliente (nombre, telefono, correo, rfc).
    * @returns {Promise<boolean>} True si la actualización fue exitosa (modifiedCount > 0), false en caso contrario.
    * @throws {Error} Si ocurren errores de base de datos (ej. campo único duplicado).
    */
@@ -153,18 +153,26 @@ class ClienteManager {
       if (Object.keys(updateData).length === 0) {
         return true; // No hay cambios necesarios
       }
+      // Validar que el nombre no esté vacío si se intenta actualizar.
       if (updateData.nombre !== undefined && !updateData.nombre.trim()) {
         throw new Error("El nombre del cliente no puede estar vacío.");
       }
+      // Crear un objeto $set con los campos a actualizar
+      const updatePayload: Partial<Cliente> = {};
+      if (updateData.nombre !== undefined) updatePayload.nombre = updateData.nombre;
+      if (updateData.telefono !== undefined) updatePayload.telefono = updateData.telefono;
+      if (updateData.correo !== undefined) updatePayload.correo = updateData.correo;
+      if (updateData.rfc !== undefined) updatePayload.rfc = updateData.rfc;
+
 
       const result: UpdateResult = await collection.updateOne(
         { _id: new ObjectId(id) },
-        { $set: updateData }
+        { $set: updatePayload }
       );
       return result.modifiedCount > 0;
     } catch (error: any) {
       console.error('Error al actualizar cliente:', error);
-       if (error.code === 11000) {
+       if (error.code === 11000) { // Error de clave duplicada
         if (updateData.correo && error.message.includes('correo_1')) {
           throw new Error(`El correo "${updateData.correo}" ya está registrado.`);
         }
@@ -202,6 +210,7 @@ class ClienteManager {
    * @param {string} clienteId - El `_id` (string ObjectId) del cliente.
    * @param {string} orderId - El `_id` (string ObjectId) de la orden.
    * @returns {Promise<boolean>} True si la referencia de la orden fue añadida, false en caso contrario.
+   * @remarks Usar con precaución si el array `ordenes` puede crecer mucho.
    */
   async addOrderToCliente(clienteId: string, orderId: string): Promise<boolean> {
     const collection = await this.getCollection();
@@ -212,7 +221,7 @@ class ClienteManager {
       }
       const result = await collection.updateOne(
         { _id: new ObjectId(clienteId) },
-        { $addToSet: { ordenes: { orderId: orderId } } } // Usar $addToSet para evitar entradas duplicadas de órdenes
+        { $addToSet: { ordenes: { orderId: orderId } } } // Usar $addToSet para evitar duplicados
       );
       return result.modifiedCount > 0;
     } catch (error) {

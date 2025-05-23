@@ -32,7 +32,10 @@ export interface UserPermissions {
   crearRefacciones?: boolean;
   editarRefacciones?: boolean;
   eliminarRefacciones?: boolean;
-  // Se pueden añadir más permisos específicos según las necesidades del sistema.
+  gestionarEmpleados?: boolean;
+  gestionarMarcas?: boolean;
+  gestionarAseguradoras?: boolean;
+  gestionarConfigGeneral?: boolean;
   [key: string]: boolean | undefined;
 }
 
@@ -45,7 +48,7 @@ export interface UserPermissions {
  */
 export interface SystemUserCredentials {
   usuario: string;
-  contraseña?: string; // Contraseña es opcional al mostrar, pero requerida al crear/actualizar si se cambia.
+  contraseña?: string;
   rol: UserRole;
   permisos?: UserPermissions;
 }
@@ -115,7 +118,7 @@ export interface PresupuestoItem {
   costoRefaccion?: number;
   pintura?: boolean;
   procedimiento?: string;
-  idRefaccion?: string;
+  idRefaccion?: string; // ObjectId (string) de la Refaccion
 }
 
 
@@ -153,7 +156,6 @@ export interface PresupuestoItem {
  * @property {Date} [fechaPromesa] - Fecha promesa de entrega.
  * @property {Date} [fechaBaja] - Fecha de baja de la orden (si se cancela o similar).
  * @property {string} [idPresupuesto] - _id (string ObjectId) de un presupuesto principal asociado (si aplica).
- * @property {string} [urlArchivos] - URL a carpeta de fotos/documentos (se manejará externamente).
  * @property {LogEntry[]} [Log] - Historial de cambios de la orden.
  * @property {PresupuestoItem[]} [presupuestos] - Array de ítems del presupuesto.
  */
@@ -195,8 +197,7 @@ export interface Order {
   fechaPromesa?: Date;
   fechaBaja?: Date;
 
-  idPresupuesto?: string; // Referencia a un _id de una colección de presupuestos (si se decide separar)
-  urlArchivos?: string;
+  idPresupuesto?: string;
   Log?: LogEntry[];
   presupuestos?: PresupuestoItem[];
 }
@@ -246,7 +247,7 @@ export type UpdateMarcaData = Pick<MarcaVehiculo, 'marca'>;
  * @property {string} [correo] - Correo electrónico del ajustador.
  */
 export interface Ajustador {
-  idAjustador: string;
+  idAjustador: string; // Este es un string ObjectId, único dentro de la aseguradora
   nombre: string;
   telefono?: string;
   correo?: string;
@@ -260,7 +261,7 @@ export interface Ajustador {
  * @property {Ajustador[]} [ajustadores] - Array de ajustadores de esta aseguradora.
  */
 export interface Aseguradora {
-  _id: string;
+  _id: string; // Este es el ObjectId de MongoDB para la Aseguradora
   nombre: string;
   telefono?: string;
   ajustadores?: Ajustador[];
@@ -278,7 +279,7 @@ export type UpdateAseguradoraData = Partial<Pick<Aseguradora, 'nombre' | 'telefo
  * @property {string} nombre - Nombre completo o razón social del cliente.
  * @property {string} [telefono] - Número de teléfono.
  * @property {string} [correo] - Correo electrónico.
- * @property {string} [rfc] - RFC del cliente.
+ * @property {string} [rfc] - RFC del cliente (opcional).
  * @property {{ orderId: string }[]} [ordenes] - Array de referencias a órdenes asociadas (almacena el _id de la orden).
  */
 export interface Cliente {
@@ -286,8 +287,8 @@ export interface Cliente {
   nombre: string;
   telefono?: string;
   correo?: string;
-  rfc?: string;
-  ordenes?: { orderId: string }[]; // Aquí orderId es el _id (string ObjectId) de la Order
+  rfc?: string; // RFC es opcional
+  ordenes?: { orderId: string }[]; // orderId es el _id (string ObjectId) de la Order
 }
 /** Tipo de datos para crear un nuevo cliente. `_id` y `ordenes` son generados/manejados automáticamente. */
 export type NewClienteData = Pick<Cliente, 'nombre' | 'telefono' | 'correo' | 'rfc'>;
@@ -301,11 +302,11 @@ export type UpdateClienteData = Partial<NewClienteData>;
  */
 export interface Refaccion {
   _id: string;
-  idOrder?: string;
+  idOrder?: string; // _id de la Order
   refaccion: string;
   cantidad: number;
-  idMarca?: string;
-  idModelo?: string;
+  idMarca?: string; // _id de MarcaVehiculo
+  idModelo?: string; // idModelo del ModeloVehiculo
   año?: number;
   proveedor?: string;
   precio?: number;

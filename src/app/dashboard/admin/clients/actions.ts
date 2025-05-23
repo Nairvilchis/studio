@@ -1,73 +1,66 @@
 
 'use server';
-
-import ClienteManager from '@/clienteManager'; // Import the new ClienteManager
-import type { Cliente, NewClienteData } from '@/lib/types';
+/**
+ * @fileOverview Server Actions para la gestión de Clientes.
+ * Interactúan con ClienteManager para realizar operaciones CRUD.
+ * Manejan la serialización de datos para el cliente (ej. _id de ObjectId a string).
+ */
+import ClienteManager from '@/clienteManager'; // Importar el ClienteManager
+import type { Cliente, NewClienteData, UpdateClienteData } from '@/lib/types'; // Tipos relevantes
 
 /**
- * Interface for the result of server actions.
- * @template T The type of data returned on success.
+ * Interfaz para el resultado de las acciones del servidor.
+ * @template T El tipo de datos devueltos en caso de éxito.
  */
 interface ActionResult<T> {
-  success: boolean; // Indicates if the action was successful.
-  data?: T; // Data returned by the action on success.
-  error?: string; // Error message if the action failed.
-  message?: string; // Optional success or informational message.
+  success: boolean; // Indica si la acción fue exitosa.
+  data?: T; // Datos devueltos por la acción en caso de éxito.
+  error?: string; // Mensaje de error si la acción falló.
+  message?: string; // Mensaje opcional de éxito o informativo.
 }
 
-// Helper to serialize _id to string - ClienteManager already returns _id as string
-// function serializeCliente(clienteFromDb: any): Cliente {
-//   return {
-//     ...clienteFromDb,
-//     _id: clienteFromDb._id ? clienteFromDb._id.toHexString() : undefined,
-//   } as Cliente;
-// }
-
-// function serializeClientes(clientesFromDb: any[]): Cliente[] {
-//   return clientesFromDb.map(serializeCliente);
-// }
-
 /**
- * Server Action to get all clients.
- * @returns {Promise<ActionResult<Cliente[]>>} Result object with an array of clients or an error.
+ * Server Action para obtener todos los clientes.
+ * @returns {Promise<ActionResult<Cliente[]>>} Objeto de resultado con un array de clientes o un error.
+ * @example const { data } = await getAllClientsAction();
  */
 export async function getAllClientsAction(): Promise<ActionResult<Cliente[]>> {
   const manager = new ClienteManager();
-  console.log('Server Action: getAllClientsAction - Fetching clients from database.');
+  console.log('Server Action: getAllClientsAction - Obteniendo clientes de la base de datos.');
   try {
-    // ClienteManager.getAllClientes() already returns clients with _id as string.
+    // ClienteManager.getAllClientes() ya devuelve clientes con _id como string.
     const clientsFromDB = await manager.getAllClientes();
     return { success: true, data: clientsFromDB };
   } catch (error) {
     console.error('Server action getAllClientsAction error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch clients.';
+    const errorMessage = error instanceof Error ? error.message : 'Fallo al obtener clientes.';
     return { success: false, error: errorMessage, data: [] };
   }
 }
 
 /**
- * Server Action to create a new client.
- * @param {NewClienteData} data - Data for the new client (nombre, telefono, correo, rfc).
- * @returns {Promise<ActionResult<{ clienteId: string | null, nuevoCliente?: Cliente }>>} Result object with the new client's MongoDB _id (as string) and the client object, or an error.
+ * Server Action para crear un nuevo cliente.
+ * @param {NewClienteData} data - Datos para el nuevo cliente (nombre, telefono, correo, rfc).
+ * @returns {Promise<ActionResult<{ clienteId: string | null, nuevoCliente?: Cliente }>>} Objeto de resultado con el `_id` (string) del nuevo cliente y el objeto cliente, o un error.
  */
 export async function createClienteAction(data: NewClienteData): Promise<ActionResult<{ clienteId: string | null, nuevoCliente?: Cliente }>> {
   const manager = new ClienteManager();
   try {
-    // The manager's createCliente method returns the MongoDB ObjectId of the new document.
-    const newMongoIdObject = await manager.createCliente(data); 
-    if (newMongoIdObject) {
-      // Fetch the newly created client to return it, ensuring _id is a string.
-      const nuevoCliente = await manager.getClienteById(newMongoIdObject.toHexString());
+    // El método createCliente del manager devuelve el _id (string) del nuevo documento.
+    const newClienteIdString = await manager.createCliente(data); 
+    if (newClienteIdString) {
+      // Obtener el cliente recién creado para devolverlo, asegurando que _id es string.
+      const nuevoCliente = await manager.getClienteById(newClienteIdString);
       return {
         success: true,
         message: 'Cliente creado exitosamente.',
         data: {
-          clienteId: newMongoIdObject.toHexString(), // Convert ObjectId to string for the client.
-          nuevoCliente: nuevoCliente || undefined // Send back the created client object
+          clienteId: newClienteIdString, // _id ya es string desde el manager.
+          nuevoCliente: nuevoCliente || undefined // Devolver el objeto cliente creado
         }
       };
     } else {
-      // This case should ideally not be reached if manager.createCliente throws on failure.
+      // Este caso idealmente no se alcanza si manager.createCliente lanza error en fallo.
       return { success: false, error: 'No se pudo crear el cliente.' };
     }
   } catch (error) {
@@ -76,6 +69,65 @@ export async function createClienteAction(data: NewClienteData): Promise<ActionR
   }
 }
 
-// Puedes añadir otras acciones aquí en el futuro, como updateCliente, deleteCliente, etc.
+/**
+ * Server Action para obtener un cliente por su `_id`.
+ * @param {string} id - El `_id` (string ObjectId) del cliente.
+ * @returns {Promise<ActionResult<Cliente | null>>} Objeto de resultado con los datos del cliente o un error.
+ */
+export async function getClienteByIdAction(id: string): Promise<ActionResult<Cliente | null>> {
+  const manager = new ClienteManager();
+  try {
+    const cliente = await manager.getClienteById(id); // Manager devuelve _id como string
+    if (cliente) {
+      return { success: true, data: cliente };
+    }
+    return { success: true, data: null, message: "Cliente no encontrado." };
+  } catch (error) {
+    console.error("Server action getClienteByIdAction error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Error desconocido al obtener el cliente." };
+  }
+}
 
-    
+/**
+ * Server Action para actualizar un cliente existente.
+ * @param {string} id - El `_id` (string ObjectId) del cliente a actualizar.
+ * @param {UpdateClienteData} updateData - Los datos a actualizar.
+ * @returns {Promise<ActionResult<null>>} Objeto de resultado indicando éxito o error.
+ */
+export async function updateClienteAction(id: string, updateData: UpdateClienteData): Promise<ActionResult<null>> {
+  const manager = new ClienteManager();
+  try {
+    const success = await manager.updateCliente(id, updateData);
+    if (success) {
+      return { success: true, message: 'Cliente actualizado exitosamente.' };
+    } else {
+      // Verificar si no se encontró o no hubo cambios.
+      const exists = await manager.getClienteById(id);
+      if (!exists) return { success: false, error: 'No se pudo actualizar: Cliente no encontrado.' };
+      return { success: true, message: 'Ningún cambio detectado en el cliente.' };
+    }
+  } catch (error) {
+    console.error("Server action updateClienteAction error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Error desconocido al actualizar el cliente." };
+  }
+}
+
+/**
+ * Server Action para eliminar un cliente.
+ * @param {string} id - El `_id` (string ObjectId) del cliente a eliminar.
+ * @returns {Promise<ActionResult<null>>} Objeto de resultado indicando éxito o error.
+ */
+export async function deleteClienteAction(id: string): Promise<ActionResult<null>> {
+  const manager = new ClienteManager();
+  try {
+    const success = await manager.deleteCliente(id);
+    if (success) {
+      return { success: true, message: 'Cliente eliminado exitosamente.' };
+    } else {
+      return { success: false, error: 'No se pudo eliminar el cliente o no se encontró.' };
+    }
+  } catch (error) {
+    console.error("Server action deleteClienteAction error:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Error desconocido al eliminar el cliente." };
+  }
+}
