@@ -20,14 +20,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation'; // Para redirección
 // Componentes UI de ShadCN
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button'; // Importado buttonVariants
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"; // No necesitamos AlertDialogTrigger aquí
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -81,7 +81,8 @@ import {
   updateOrderAction,
   deleteOrderAction,
   getOrderByIdAction,
-} from './service-orders/actions'; // getAjustadoresByAseguradora ya no se usa aquí, se obtiene de aseguradoras/actions
+  getAjustadoresByAseguradora, // Importado para usar en el select de órdenes
+} from './service-orders/actions';
 // Marcas y Modelos
 import {
   getAllMarcasAction,
@@ -104,7 +105,7 @@ import {
   updateAjustadorInAseguradoraAction,
   removeAjustadorFromAseguradoraAction,
   getAseguradoraByIdAction as getAseguradoraForAjustadoresAction,
-  getAjustadoresByAseguradora, // Importado para usar en el select de órdenes
+  // getAjustadoresByAseguradora ya se importa de service-orders/actions
 } from './admin/aseguradoras/actions';
 // Clientes
 import {
@@ -146,6 +147,9 @@ import {
 /**
  * Tipo de datos para el formulario de creación/edición de Órdenes de Servicio.
  * Representa los campos que el usuario puede llenar en la UI.
+ * Los campos de fecha (`fecha...`) se manejan como strings 'YYYY-MM-DD' en el input,
+ * luego se convierten a objetos Date antes de enviar a las Server Actions.
+ * Los campos de ID (ej. `idCliente`, `idMarca`) guardan el `_id` (string) de la entidad referenciada.
  */
 type OrderFormDataType = Partial<Omit<Order, '_id' | 'idOrder' | 'fechaRegistro' | 'Log' | 'presupuestos' | 'aseguradoTercero' | 'deducible' | 'año' | 'piso' | 'grua'>> & {
   año?: string; // Se maneja como string en el input, se convierte a number antes de enviar
@@ -197,11 +201,11 @@ type EditEmpleadoFormDataType = Partial<Omit<Empleado, '_id' | 'fechaRegistro' |
   sueldo?: string; // Sueldo, se convierte a number
   comision?: string; // Comisión, se convierte a number
   // Campos para gestionar acceso al sistema
-  createSystemUser?: boolean; 
-  systemUserUsuario?: string; 
-  systemUserRol?: UserRoleType; 
-  newSystemUserContraseña?: string; 
-  newSystemUserConfirmContraseña?: string; 
+  createSystemUser?: boolean; // Para habilitar la creación si no tiene usuario
+  systemUserUsuario?: string; // Usuario, editable si ya existe o al crear
+  systemUserRol?: UserRoleType; // Rol, editable si ya existe o al crear
+  newSystemUserContraseña?: string; // Para establecer/cambiar contraseña
+  newSystemUserConfirmContraseña?: string; // Para confirmar nueva contraseña
 };
 
 /** Tipo de datos para el formulario de creación/edición de Clientes. RFC eliminado. */
@@ -308,8 +312,8 @@ export default function DashboardPage() {
   const [newEmpleadoData, setNewEmpleadoData] = useState<EmpleadoFormDataType>(initialNewEmpleadoData);
   const [editEmpleadoData, setEditEmpleadoData] = useState<EditEmpleadoFormDataType>({});
   const [empleadoToDeleteId, setEmpleadoToDeleteId] = useState<string | null>(null); // _id del empleado a eliminar
-  const [isConfirmRemoveAccessDialogOpen, setIsConfirmRemoveAccessDialogOpen] = useState(false);
-  const [empleadoIdToRemoveAccess, setEmpleadoIdToRemoveAccess] = useState<string | null>(null);
+  const [isConfirmRemoveAccessDialogOpen, setIsConfirmRemoveAccessDialogOpen] = useState(false); // Para el diálogo de confirmación de remover acceso
+  const [empleadoIdToRemoveAccess, setEmpleadoIdToRemoveAccess] = useState<string | null>(null); // ID del empleado para remover acceso
 
 
   // --- Estados para Administración: Clientes (Gestión Completa y Creación Rápida) ---
@@ -774,11 +778,15 @@ export default function DashboardPage() {
     const setState = formType === 'new' ? setNewOrderData : setEditOrderData;
 
     let processedValue: string | number | undefined = value;
-    if (type === 'number') {
+    // Para inputs de tipo 'number', guardar como string en el estado del formulario
+    // y convertir a número solo al enviar los datos.
+    // Para inputs de tipo 'date', mantener como string 'YYYY-MM-DD'.
+    if (type === 'number' || type === 'date') {
       processedValue = value;
-    } else if (type === 'date') {
-        processedValue = value; // Mantener como string 'YYYY-MM-DD'
+    } else if (name === 'deducible') { // Deducible también debe ser string para el input
+        processedValue = value;
     }
+
 
     setState((prev: OrderFormDataType) => ({ ...prev, [name]: processedValue }));
   };
@@ -875,6 +883,8 @@ export default function DashboardPage() {
       piso: newOrderData.piso || false,
       grua: newOrderData.grua || false,
       proceso: newOrderData.proceso || 'pendiente', // Proceso inicial
+      // urlArchivos: newOrderData.urlArchivos || undefined, // Eliminado temporalmente
+      // Fechas se omiten aquí, se registrarán dinámicamente
     };
 
     const result = await createOrderAction(orderPayload, userIdEmpleado || undefined);
@@ -980,6 +990,7 @@ export default function DashboardPage() {
         idHojalatero: editOrderData.idHojalatero || undefined,
         idPintor: editOrderData.idPintor || undefined,
         proceso: editOrderData.proceso || undefined,
+        // urlArchivos: editOrderData.urlArchivos || undefined, // Eliminado temporalmente
         // Convertir fechas de string 'YYYY-MM-DD' a objetos Date (añadiendo 'T00:00:00Z' para evitar problemas de timezone en la conversión)
         fechaValuacion: editOrderData.fechaValuacion ? new Date(editOrderData.fechaValuacion + 'T00:00:00Z') : undefined,
         fechaReingreso: editOrderData.fechaReingreso ? new Date(editOrderData.fechaReingreso + 'T00:00:00Z') : undefined,
@@ -1590,16 +1601,18 @@ export default function DashboardPage() {
 
   /**
    * Abre el diálogo de confirmación para remover el acceso al sistema de un empleado.
-   * @param {string} empleadoId - El _id del empleado cuyo acceso se va a remover.
+   * Establece el ID del empleado y muestra el diálogo de confirmación.
+   * @param {string} empleadoId El _id (string ObjectId) del empleado cuyo acceso se va a remover.
    */
   const handleRemoveSystemUser = (empleadoId: string) => {
     console.log("handleRemoveSystemUser: Iniciando para empleado ID:", empleadoId);
     setEmpleadoIdToRemoveAccess(empleadoId);
     setIsConfirmRemoveAccessDialogOpen(true);
   };
-
+  
   /**
    * Ejecuta la remoción del acceso al sistema después de la confirmación del usuario.
+   * Se llama desde el botón "Confirmar Remoción" del AlertDialog.
    */
   const executeRemoveSystemUserAccess = async () => {
     if (!empleadoIdToRemoveAccess) {
@@ -1610,32 +1623,32 @@ export default function DashboardPage() {
     console.log("executeRemoveSystemUserAccess: Confirmación aceptada para empleado ID:", empleadoIdToRemoveAccess);
     const result = await removeSystemUserFromEmpleadoAction(empleadoIdToRemoveAccess);
     console.log("executeRemoveSystemUserAccess: Resultado de removeSystemUserFromEmpleadoAction:", result);
-
+  
     if (result.success) {
       toast({ title: "Éxito", description: result.message || "Acceso al sistema removido exitosamente." });
-      fetchEmpleados(); 
-
+      fetchEmpleados(); // Recargar la lista de todos los empleados
+  
+      // Si el empleado actualmente en edición es el mismo al que se le removió el acceso,
+      // actualizar su estado local para reflejar el cambio.
       if (currentEmpleadoToEdit?._id === empleadoIdToRemoveAccess) {
         console.log("executeRemoveSystemUserAccess: Actualizando datos del empleado en edición...");
+        // Obtener el empleado actualizado del servidor (ahora sin 'user')
         const updatedEmpResult = await getEmpleadoForEditAction(empleadoIdToRemoveAccess);
         console.log("executeRemoveSystemUserAccess: Resultado de getEmpleadoForEditAction post-remoción:", updatedEmpResult);
         if (updatedEmpResult.success && updatedEmpResult.data) {
-          setCurrentEmpleadoToEdit(updatedEmpResult.data); 
-          setEditEmpleadoData({
-            nombre: updatedEmpResult.data.nombre,
-            puesto: updatedEmpResult.data.puesto,
-            telefono: updatedEmpResult.data.telefono,
-            correo: updatedEmpResult.data.correo,
-            sueldo: updatedEmpResult.data.sueldo?.toString(),
-            comision: updatedEmpResult.data.comision?.toString(),
-            createSystemUser: true, 
-            systemUserUsuario: '',    
-            systemUserRol: undefined, 
-            newSystemUserContraseña: '',      
+          setCurrentEmpleadoToEdit(updatedEmpResult.data); // Actualizar el empleado actual con su nuevo estado (sin user)
+          // Actualizar el formulario de edición para permitir crear un nuevo acceso
+          setEditEmpleadoData(prev => ({
+            ...prev, // Mantener otros datos del empleado
+            createSystemUser: true, // Habilitar el checkbox para crear nuevo acceso
+            systemUserUsuario: '',    // Limpiar campos de usuario
+            systemUserRol: undefined, // Limpiar rol
+            newSystemUserContraseña: '',      // Limpiar campos de contraseña
             newSystemUserConfirmContraseña: '',
-          });
+          }));
            console.log("executeRemoveSystemUserAccess: Estado de empleado en edición actualizado.");
         } else {
+          // Si falla la recarga del empleado (raro), cerrar el diálogo de edición para evitar inconsistencias.
           console.warn("executeRemoveSystemUserAccess: No se pudo recargar el empleado editado. Cerrando diálogo de edición.");
           setIsEditEmpleadoDialogOpen(false);
           setCurrentEmpleadoToEdit(null);
@@ -1644,6 +1657,7 @@ export default function DashboardPage() {
     } else {
       toast({ title: "Error", description: result.error || "No se pudo remover el acceso al sistema.", variant: "destructive" });
     }
+    // Cerrar el diálogo de confirmación y limpiar el ID
     setIsConfirmRemoveAccessDialogOpen(false);
     setEmpleadoIdToRemoveAccess(null);
   };
@@ -1693,6 +1707,7 @@ export default function DashboardPage() {
         nombre: newClientData.nombre!,
         telefono: newClientData.telefono,
         correo: newClientData.correo,
+        // rfc: newClientData.rfc, // RFC eliminado del formulario
     });
 
     if (result.success && result.data?.clienteId && result.data.nuevoCliente) {
@@ -1725,6 +1740,7 @@ export default function DashboardPage() {
       nombre: client.nombre,
       telefono: client.telefono || '', // Asegurar que sean strings
       correo: client.correo || '',
+      // rfc: client.rfc || '', // RFC eliminado
     });
     setIsEditClientDialogOpen(true);
   };
@@ -1744,6 +1760,7 @@ export default function DashboardPage() {
       nombre: editClientData.nombre!,
       telefono: editClientData.telefono,
       correo: editClientData.correo,
+      // rfc: editClientData.rfc, // RFC eliminado
     });
 
     if (result.success) {
@@ -1950,21 +1967,24 @@ export default function DashboardPage() {
     try {
       let date: Date;
       if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+        // Para strings YYYY-MM-DD, asegurar que se parseen como UTC para evitar corrimientos de día
         date = new Date(dateInput + 'T00:00:00Z'); 
       } else if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
         date = dateInput;
       } else {
+        // Para otros strings o números, intentar parsear directamente
         date = new Date(dateInput);
       }
 
-      if (isNaN(date.getTime())) return ''; 
+      if (isNaN(date.getTime())) return ''; // Devolver vacío si la fecha es inválida
 
       if (format === 'YYYY-MM-DD') {
+        // Formatear a YYYY-MM-DD usando métodos UTC para consistencia
         const year = date.getUTCFullYear();
         const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
         const day = date.getUTCDate().toString().padStart(2, '0');
         return `${year}-${month}-${day}`;
-      } else { 
+      } else { // formato 'dd/MM/yyyy'
         return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
       }
     } catch (error) {
@@ -1975,15 +1995,20 @@ export default function DashboardPage() {
 
   /**
    * Formatea una fecha y hora a un formato legible (ej. para logs).
+   * Utiliza `toLocaleString` con zona horaria UTC para evitar inconsistencias.
    * @param {Date | string | number | undefined} dateInput - La fecha y hora a formatear.
-   * @returns {string} La fecha y hora formateada, o 'N/A' si es inválida.
+   * @returns {string} La fecha y hora formateada (ej. "dd/mm/aaaa, HH:MM"), o 'N/A' si es inválida.
    */
   const formatDateTime = (dateInput?: Date | string | number): string => {
     if (!dateInput) return 'N/A';
     try {
       const date = new Date(dateInput);
-      if (isNaN(date.getTime())) return 'Fecha inválida';
-      return date.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short', timeZone: 'UTC' });
+      if (isNaN(date.getTime())) return 'Fecha inválida'; // Verificar si la fecha es válida
+      return date.toLocaleString('es-MX', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZone: 'UTC' // Mostrar en UTC para consistencia
+      });
     } catch (error) {
       console.error("Error formateando fecha y hora:", dateInput, error);
       return 'Error de fecha';
@@ -2062,8 +2087,8 @@ export default function DashboardPage() {
     let handleCheckbox: any; // Para Checkbox
 
     switch (formType) {
-      case 'newOrder': value = newOrderData[name as keyof OrderFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => handleOrderInputChange(e, 'new'); handleSelect = (val: string | undefined) => handleOrderSelectChange(name as keyof OrderFormDataType | 'idMarca' | 'idAseguradora' | 'idModelo' | 'idAjustador' | 'idCliente' | 'idAsesor' | 'idValuador' | 'idHojalatero' | 'idPintor' | 'color', val, 'new'); handleCheckbox = (checked: boolean) => handleOrderCheckboxChange(name as keyof Pick<OrderFormDataType, 'piso' | 'grua'>, checked, 'new'); break;
-      case 'editOrder': value = editOrderData[name as keyof OrderFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => handleOrderInputChange(e, 'edit'); handleSelect = (val: string | undefined) => handleOrderSelectChange(name as keyof OrderFormDataType | 'idMarca' | 'idAseguradora' | 'idModelo' | 'idAjustador' | 'idCliente' | 'idAsesor' | 'idValuador' | 'idHojalatero' | 'idPintor' | 'color', val, 'edit'); handleCheckbox = (checked: boolean) => handleOrderCheckboxChange(name as keyof Pick<OrderFormDataType, 'piso' | 'grua'>, checked, 'edit'); break;
+      case 'newOrder': value = newOrderData[name as keyof OrderFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => handleOrderInputChange(e, 'new'); handleSelect = (val: string | undefined) => handleOrderSelectChange(name as keyof OrderFormDataType | 'idMarca' | 'idAseguradora' | 'idModelo' | 'idAjustador' | 'idCliente' | 'idAsesor' | 'idValuador' | 'idHojalatero' | 'idPintor' | 'color' | 'aseguradoTerceroString', val, 'new'); handleCheckbox = (checked: boolean) => handleOrderCheckboxChange(name as keyof Pick<OrderFormDataType, 'piso' | 'grua'>, checked, 'new'); break;
+      case 'editOrder': value = editOrderData[name as keyof OrderFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement|HTMLTextAreaElement>) => handleOrderInputChange(e, 'edit'); handleSelect = (val: string | undefined) => handleOrderSelectChange(name as keyof OrderFormDataType | 'idMarca' | 'idAseguradora' | 'idModelo' | 'idAjustador' | 'idCliente' | 'idAsesor' | 'idValuador' | 'idHojalatero' | 'idPintor' | 'color' | 'aseguradoTerceroString', val, 'edit'); handleCheckbox = (checked: boolean) => handleOrderCheckboxChange(name as keyof Pick<OrderFormDataType, 'piso' | 'grua'>, checked, 'edit'); break;
       case 'newMarca': value = newMarcaData[name as keyof MarcaFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewMarcaData); break;
       case 'editMarca': value = editMarcaData[name as keyof MarcaFormDataType]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setEditMarcaData); break;
       case 'newModelo': value = newModeloData[name as keyof Omit<ModeloVehiculo, 'idModelo'>]; handleChange = (e: React.ChangeEvent<HTMLInputElement>) => handleInputChangeGeneric(e, setNewModeloData); break;
@@ -2152,7 +2177,7 @@ export default function DashboardPage() {
 
   // Determinar las clases para la lista de pestañas principales según el rol del usuario
    const mainTabsListClassName = userRole === UserRole.ADMIN ?
-    "grid w-full grid-cols-2 sm:grid-cols-2 md:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" : 
+    "grid w-full grid-cols-2 sm:grid-cols-4 mb-6 rounded-lg p-1 bg-muted" : 
     "grid w-full grid-cols-1 sm:grid-cols-3 mb-6 rounded-lg p-1 bg-muted"; 
 
 
@@ -2310,7 +2335,7 @@ export default function DashboardPage() {
                           <Table>
                             <TableHeader><TableRow><TableHead className="w-[100px]">ID</TableHead><TableHead>Nombre del Puesto</TableHead><TableHead className="text-right w-[100px]">Acciones</TableHead></TableRow></TableHeader>
                             <TableBody>
-                              {puestosList.map((puesto) =>(
+                              {puestosList.map((puesto) => (
                                 <TableRow key={puesto._id}>
                                   <TableCell className="font-mono text-xs truncate max-w-[100px]" title={puesto._id}>{puesto._id.slice(-6)}</TableCell>
                                   <TableCell className="font-medium">{puesto.nombre}</TableCell>
@@ -2343,7 +2368,7 @@ export default function DashboardPage() {
                           <Table>
                             <TableHeader><TableRow><TableHead className="w-[100px]">ID</TableHead><TableHead>Nombre del Color</TableHead><TableHead className="text-right w-[100px]">Acciones</TableHead></TableRow></TableHeader>
                             <TableBody>
-                              {coloresList.map((color) =>(
+                              {coloresList.map((color) => (
                                 <TableRow key={color._id}>
                                   <TableCell className="font-mono text-xs truncate max-w-[100px]" title={color._id}>{color._id.slice(-6)}</TableCell>
                                   <TableCell className="font-medium">{color.nombre}</TableCell>
@@ -2388,7 +2413,7 @@ export default function DashboardPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {clients.map((client) =>(
+                            {clients.map((client) => (
                               <TableRow key={client._id}>
                                 <TableCell className="font-mono text-xs truncate max-w-[100px]" title={client._id}>{client._id.slice(-6)}</TableCell>
                                 <TableCell className="font-medium">{client.nombre}</TableCell>
@@ -2426,7 +2451,7 @@ export default function DashboardPage() {
                       <Table>
                         <TableHeader><TableRow><TableHead className="w-[100px]">ID Marca</TableHead><TableHead>Nombre Marca</TableHead><TableHead>Nº Modelos</TableHead><TableHead className="text-right w-[150px]">Acciones</TableHead></TableRow></TableHeader>
                         <TableBody>
-                          {marcas.map((marca) =>(
+                          {marcas.map((marca) => (
                             <TableRow key={marca._id}>
                               <TableCell className="font-mono text-xs truncate max-w-[100px]" title={marca._id}>{marca._id.slice(-6)}</TableCell>
                               <TableCell className="font-medium">{marca.marca}</TableCell>
@@ -2464,7 +2489,7 @@ export default function DashboardPage() {
                       <Table>
                         <TableHeader><TableRow><TableHead className="w-[100px]">ID Aseg.</TableHead><TableHead>Nombre</TableHead><TableHead>Teléfono</TableHead><TableHead>Nº Ajustadores</TableHead><TableHead className="text-right w-[150px]">Acciones</TableHead></TableRow></TableHeader>
                         <TableBody>
-                          {aseguradoras.map((aseg) =>(
+                          {aseguradoras.map((aseg) => (
                             <TableRow key={aseg._id}>
                               <TableCell className="font-mono text-xs truncate max-w-[100px]" title={aseg._id}>{aseg._id.slice(-6)}</TableCell>
                               <TableCell className="font-medium">{aseg.nombre}</TableCell>
@@ -2512,7 +2537,7 @@ export default function DashboardPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {empleadosList.map((emp) =>(
+                            {empleadosList.map((emp) => (
                               <TableRow key={emp._id}>
                                 <TableCell className="font-mono text-xs truncate max-w-[100px]" title={emp._id}>{emp._id.slice(-6)}</TableCell>
                                 <TableCell className="font-medium">{emp.nombre}</TableCell>
@@ -2864,7 +2889,7 @@ export default function DashboardPage() {
             {currentMarca?.modelos && currentMarca.modelos.length > 0 ? (
               <Table><TableHeader><TableRow><TableHead className="w-[150px]">ID Modelo</TableHead><TableHead>Nombre Modelo</TableHead><TableHead className="text-right w-[100px]">Acciones</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {currentMarca.modelos.map(mod =>(
+                  {currentMarca.modelos.map(mod => (
                     <TableRow key={mod.idModelo}>
                       <TableCell className="font-mono text-xs truncate max-w-[150px]" title={mod.idModelo}>{mod.idModelo.slice(-6)}</TableCell>
                       <TableCell className="font-medium truncate" title={mod.modelo}>{mod.modelo}</TableCell>
@@ -2948,7 +2973,17 @@ export default function DashboardPage() {
             {currentAseguradora?.ajustadores && currentAseguradora.ajustadores.length > 0 ? (
               <Table><TableHeader><TableRow><TableHead className="w-[100px]">ID Ajustador</TableHead><TableHead>Nombre</TableHead><TableHead>Teléfono</TableHead><TableHead>Correo</TableHead><TableHead className="text-right w-[100px]">Acciones</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {currentAseguradora.ajustadores.map(aj => (<TableRow key={aj.idAjustador}><TableCell className="font-mono text-xs truncate max-w-[100px]" title={aj.idAjustador}>{aj.idAjustador.slice(-6)}</TableCell><TableCell className="font-medium">{aj.nombre}</TableCell><TableCell>{aj.telefono || 'N/A'}</TableCell><TableCell className="truncate" title={aj.correo || 'N/A'}>{aj.correo || 'N/A'}</TableCell><TableCell className="text-right space-x-1"><Button variant="ghost" size="icon" onClick={() => openEditAjustadorDialog(aj)} title="Editar Ajustador"><Edit className="h-4 w-4"/></Button><Button variant="ghost" size="icon" onClick={() => handleDeleteAjustador(aj.idAjustador)} title="Eliminar Ajustador"><Trash2 className="h-4 w-4 text-destructive"/></Button></TableCell></TableRow>
+                  {currentAseguradora.ajustadores.map(aj => (
+                  <TableRow key={aj.idAjustador}>
+                    <TableCell className="font-mono text-xs truncate max-w-[100px]" title={aj.idAjustador}>{aj.idAjustador.slice(-6)}</TableCell>
+                    <TableCell className="font-medium">{aj.nombre}</TableCell>
+                    <TableCell>{aj.telefono || 'N/A'}</TableCell>
+                    <TableCell className="truncate" title={aj.correo || 'N/A'}>{aj.correo || 'N/A'}</TableCell>
+                    <TableCell className="text-right space-x-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEditAjustadorDialog(aj)} title="Editar Ajustador"><Edit className="h-4 w-4"/></Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteAjustador(aj.idAjustador)} title="Eliminar Ajustador"><Trash2 className="h-4 w-4 text-destructive"/></Button>
+                    </TableCell>
+                  </TableRow>
                   ))}
                 </TableBody>
               </Table>
@@ -2992,23 +3027,43 @@ export default function DashboardPage() {
           <DialogHeader><DialogTitle>Crear Nuevo Empleado</DialogTitle></DialogHeader>
           <ScrollArea className="max-h-[70vh] p-1">
             <div className="space-y-4 p-4">
-              {renderDialogField("Nombre Completo*", "nombre", "text", "Nombre completo del empleado", "newEmpleado", undefined, false, true)}
-              {renderDialogField("Puesto*", "puesto", "select", "Seleccionar puesto...", "newEmpleado", undefined, false, !puestosList || puestosList.length === 0, true)}
-              {renderDialogField("Teléfono", "telefono", "tel", "Número de teléfono", "newEmpleado")}
-              {renderDialogField("Correo Electrónico", "correo", "email", "correo@ejemplo.com", "newEmpleado")}
-              {renderDialogField("Sueldo", "sueldo", "number", "0.00", "newEmpleado")}
-              {renderDialogField("Comisión (%)", "comision", "number", "0", "newEmpleado")}
+              <div className="space-y-1">
+                {renderDialogField("Nombre Completo*", "nombre", "text", "Nombre completo del empleado", "newEmpleado", undefined, false, true)}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Puesto*", "puesto", "select", "Seleccionar puesto...", "newEmpleado", undefined, false, !puestosList || puestosList.length === 0, true)}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Teléfono", "telefono", "tel", "Número de teléfono", "newEmpleado")}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Correo Electrónico", "correo", "email", "correo@ejemplo.com", "newEmpleado")}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Sueldo", "sueldo", "number", "0.00", "newEmpleado")}
+              </div>
+              <div className="space-y-1">
+                {renderDialogField("Comisión (%)", "comision", "number", "0", "newEmpleado")}
+              </div>
 
               <div className="my-2 border-t pt-4">
-                {renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "", "newEmpleado")}
+                {renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "Permitir acceso al sistema", "newEmpleado")}
               </div>
 
               {newEmpleadoData.createSystemUser && (
                 <>
-                  {renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "usuario_sistema", "newEmpleado", undefined, false, true)}
-                  {renderDialogField("Contraseña*", "systemUserContraseña", "password", "••••••••", "newEmpleado", undefined, false, true)}
-                  {renderDialogField("Confirmar Contraseña*", "systemUserConfirmContraseña", "password", "••••••••", "newEmpleado", undefined, false, true)}
-                  {renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Seleccionar rol...", "newEmpleado", undefined, false, true)}
+                  <div className="space-y-1">
+                    {renderDialogField("Nombre de Usuario*", "systemUserUsuario", "text", "usuario_sistema", "newEmpleado", undefined, false, true)}
+                  </div>
+                  <div className="space-y-1">
+                    {renderDialogField("Contraseña*", "systemUserContraseña", "password", "••••••••", "newEmpleado", undefined, false, true)}
+                  </div>
+                  <div className="space-y-1">
+                    {renderDialogField("Confirmar Contraseña*", "systemUserConfirmContraseña", "password", "••••••••", "newEmpleado", undefined, false, true)}
+                  </div>
+                  <div className="space-y-1">
+                    {renderDialogField("Rol en Sistema*", "systemUserRol", "select", "Seleccionar rol...", "newEmpleado", undefined, false, true)}
+                  </div>
                 </>
               )}
             </div>
@@ -3062,7 +3117,7 @@ export default function DashboardPage() {
                       </Button>
                     </div>
                   ) : (
-                     renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "", "editEmpleado")
+                     renderDialogField("Crear acceso al sistema", "createSystemUser", "checkbox", "Permitir acceso al sistema", "editEmpleado")
                   )}
                 </div>
                 {editEmpleadoData.createSystemUser && !currentEmpleadoToEdit.user && (
