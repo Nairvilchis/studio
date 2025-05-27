@@ -4,9 +4,10 @@
  * @fileOverview Manages vehicle brand (MarcaVehiculo) operations with MongoDB.
  * Brand IDs (`_id`) son MongoDB ObjectIds (strings). Model IDs (`idModelo`) también son MongoDB ObjectIds (strings),
  * únicos dentro del array 'modelos' de su MarcaVehiculo padre.
+ * Se eliminó el campo numérico `idMarca` y la lógica de secuencia asociada.
  */
 
-import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter } from './db';
+import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter, type FindOneAndUpdateOptions } from './db';
 import { connectDB } from './db';
 import type { MarcaVehiculo, ModeloVehiculo, NewMarcaData, UpdateMarcaData } from '@/lib/types';
 
@@ -18,6 +19,8 @@ import type { MarcaVehiculo, ModeloVehiculo, NewMarcaData, UpdateMarcaData } fro
  */
 class MarcaManager {
   private collectionPromise: Promise<Collection<MarcaVehiculo>>;
+  private countersCollectionPromise: Promise<Collection<{ _id: string; sequence_value: number }>>;
+
 
   /**
    * Constructor de MarcaManager.
@@ -28,7 +31,6 @@ class MarcaManager {
     this.collectionPromise = connectDB().then(db => {
       const marcasCollection = db.collection<MarcaVehiculo>('marcas');
       // Índice en el nombre de la Marca para unicidad y búsquedas rápidas.
-      // La colección almacena el campo 'marca', no 'nombre'.
       marcasCollection.createIndex({ marca: 1 }, { unique: true }).catch(err => {
         if (err.code !== 11000) console.warn('Failed to create index on marcas.marca:', err);
       });
@@ -39,8 +41,12 @@ class MarcaManager {
       return marcasCollection;
     }).catch(err => {
       console.error('Error al obtener la colección de marcas:', err);
-      throw err; // Relanzar para ser capturado por quien llama o para fallar el servidor si no se maneja al inicio.
+      throw err; 
     });
+
+    this.countersCollectionPromise = connectDB().then(db => 
+        db.collection<{ _id: string; sequence_value: number }>('counters')
+    );
   }
 
   /**
@@ -52,6 +58,7 @@ class MarcaManager {
   private async getCollection(): Promise<Collection<MarcaVehiculo>> {
     return this.collectionPromise;
   }
+
 
   /**
    * Crea una nueva MarcaVehiculo.
@@ -67,27 +74,25 @@ class MarcaManager {
     if (!marcaData.marca || !marcaData.marca.trim()) {
       throw new Error('El nombre de la marca es requerido.');
     }
-
+    
     const newMarcaDocument: Omit<MarcaVehiculo, '_id'> = {
       marca: marcaData.marca,
-      // Inicializar modelos como un array vacío si no se proporcionan, o mapear modelos proporcionados generando cadenas ObjectId.
       modelos: (marcaData.modelos || []).map(mod => ({
-        ...mod, // Extender otros datos del modelo si se proporcionan (ej. nombre 'modelo')
-        idModelo: new ObjectId().toHexString(), // Generar nueva cadena ObjectId para cada modelo inicial
+        ...mod, 
+        idModelo: new ObjectId().toHexString(), 
       })),
     };
 
     try {
-      // Insertar el nuevo documento de marca. MongoDB genera el `_id`.
       const result: InsertOneResult<MarcaVehiculo> = await collection.insertOne(newMarcaDocument as MarcaVehiculo);
       console.log('Marca creada con _id de MongoDB:', result.insertedId.toHexString());
-      return result.insertedId.toHexString(); // Devolver el _id como string hexadecimal.
+      return result.insertedId.toHexString(); 
     } catch (error: any) {
       console.error('Error al crear marca:', error);
       if (error.code === 11000 && error.message.includes('marca_1')) {
         throw new Error(`La marca con el nombre "${newMarcaDocument.marca}" ya existe.`);
       }
-      throw error; // Relanzar otros errores.
+      throw error; 
     }
   }
 
@@ -101,7 +106,6 @@ class MarcaManager {
     const collection = await this.getCollection();
     try {
       const marcasFromDb = await collection.find(filter || {}).sort({ marca: 1 }).toArray();
-      // Convertir ObjectId de MongoDB (_id) a string para el consumo del lado del cliente.
       return marcasFromDb.map(m => ({ ...m, _id: m._id.toHexString() }));
     } catch (error) {
       console.error('Error al obtener marcas:', error);
@@ -124,10 +128,9 @@ class MarcaManager {
       }
       const marcaFromDb = await collection.findOne({ _id: new ObjectId(id) });
       if (marcaFromDb) {
-        // Convertir _id a string antes de devolver.
         return { ...marcaFromDb, _id: marcaFromDb._id.toHexString() };
       }
-      return null; // Devolver null si no se encuentra ninguna marca.
+      return null; 
     } catch (error) {
       console.error('Error al obtener marca por ID de MongoDB:', error);
       throw error;
@@ -149,20 +152,17 @@ class MarcaManager {
         console.warn('Formato de ObjectId inválido para updateMarca:', id);
         return false;
       }
-      // El tipo `UpdateMarcaData` solo permite el campo 'marca'. Si está vacío o no hay cambios, devolver true.
       if (!updateData.marca || !updateData.marca.trim()) {
         throw new Error("El nombre de la marca no puede estar vacío para actualizar.");
       }
       
-      // Realizar la operación de actualización.
       const result: UpdateResult = await collection.updateOne(
-        { _id: new ObjectId(id) }, // Filtrar por _id.
-        { $set: { marca: updateData.marca } } // Establecer el nuevo nombre de marca.
+        { _id: new ObjectId(id) }, 
+        { $set: { marca: updateData.marca } } 
       );
-      return result.modifiedCount > 0; // Devolver true si al menos un documento fue modificado.
+      return result.modifiedCount > 0; 
     } catch (error: any) {
       console.error('Error al actualizar marca:', error);
-      // Manejar error de nombre duplicado si 'marca' es parte de updateData y se viola el índice único.
       if (error.code === 11000 && updateData.marca) {
          throw new Error(`El nombre de marca "${updateData.marca}" ya está en uso.`);
       }
@@ -184,9 +184,8 @@ class MarcaManager {
         console.warn('Formato de ObjectId inválido para deleteMarca:', id);
         return false;
       }
-      // Realizar la operación de eliminación.
       const result: DeleteResult = await collection.deleteOne({ _id: new ObjectId(id) });
-      return result.deletedCount > 0; // Devolver true si al menos un documento fue eliminado.
+      return result.deletedCount > 0; 
     } catch (error) {
       console.error('Error al eliminar marca:', error);
       throw error;
@@ -217,7 +216,6 @@ class MarcaManager {
 
       const mongoMarcaId = new ObjectId(marcaId);
       
-      // Obtener la marca para verificar nombres de modelo duplicados.
       const marca = await collection.findOne({ _id: mongoMarcaId });
       if (!marca) {
         throw new Error("Marca no encontrada.");
@@ -226,22 +224,19 @@ class MarcaManager {
         throw new Error(`El modelo con nombre "${modeloData.modelo}" ya existe en esta marca.`);
       }
 
-      // Crear el nuevo objeto modelo con una cadena ObjectId generada para idModelo.
       const newModelo: ModeloVehiculo = {
-        ...modeloData, // Contiene el nombre 'modelo'
-        idModelo: new ObjectId().toHexString(), // Generar nueva cadena ObjectId para idModelo
+        ...modeloData, 
+        idModelo: new ObjectId().toHexString(), 
       };
 
-      // Añadir el nuevo modelo al array 'modelos' de la marca especificada.
       const result: UpdateResult = await collection.updateOne(
         { _id: mongoMarcaId },
         { $push: { modelos: newModelo } }
       );
-      // Devolver el objeto newModelo si la actualización fue exitosa.
       return result.modifiedCount > 0 ? newModelo : null;
     } catch (error) {
       console.error('Error al añadir modelo a marca:', error);
-      throw error; // Relanzar para ser manejado por la acción del servidor.
+      throw error; 
     }
   }
 
@@ -261,48 +256,42 @@ class MarcaManager {
         console.warn('Invalid ObjectId for updateModeloInMarca:', marcaId, idModelo);
         throw new Error("ID de marca o modelo inválido.");
       }
-      // Asegurar que haya algo para actualizar.
       if (Object.keys(modeloUpdateData).length === 0) {
-        return true; // No hay cambios especificados.
+        return true; 
       }
-      // Validar nombre del modelo si se proporciona.
       if (modeloUpdateData.modelo !== undefined && !modeloUpdateData.modelo.trim()) {
         throw new Error("El nombre del modelo no puede estar vacío.");
       }
 
       const mongoMarcaId = new ObjectId(marcaId);
 
-      // Si se está actualizando el nombre del modelo, verificar duplicados entre otros modelos en la misma marca.
       if (modeloUpdateData.modelo) {
         const marca = await collection.findOne({ 
           _id: mongoMarcaId, 
-          "modelos.modelo": modeloUpdateData.modelo, // Verificar si el nuevo nombre existe
-          "modelos.idModelo": { $ne: idModelo } // Excluir el modelo actual que se está actualizando de la verificación
+          "modelos.modelo": modeloUpdateData.modelo, 
+          "modelos.idModelo": { $ne: idModelo } 
         });
         if (marca) {
           throw new Error(`Otro modelo con el nombre "${modeloUpdateData.modelo}" ya existe en esta marca.`);
         }
       }
       
-      // Construir el objeto $set para la actualización de MongoDB para apuntar al modelo específico en el array.
       const setUpdate: Record<string, any> = {};
       for (const key in modeloUpdateData) {
         if (Object.prototype.hasOwnProperty.call(modeloUpdateData, key)) {
-          // Apuntar al elemento específico en el array 'modelos' usando $[elem].
           setUpdate[`modelos.$[elem].${key}`] = (modeloUpdateData as any)[key];
         }
       }
 
-      // Realizar la operación de actualización usando arrayFilters para apuntar al modelo correcto por su idModelo.
       const result: UpdateResult = await collection.updateOne(
-        { _id: mongoMarcaId }, // Filtrar por _id de marca.
-        { $set: setUpdate },    // Establecer los nuevos valores para el modelo coincidente.
-        { arrayFilters: [{ "elem.idModelo": idModelo }] } // Identificar el modelo en el array.
+        { _id: mongoMarcaId }, 
+        { $set: setUpdate },    
+        { arrayFilters: [{ "elem.idModelo": idModelo }] } 
       );
       return result.modifiedCount > 0;
     } catch (error) {
       console.error('Error al actualizar modelo en marca:', error);
-      throw error; // Relanzar para ser manejado por la acción del servidor.
+      throw error; 
     }
   }
 
@@ -320,10 +309,9 @@ class MarcaManager {
          console.warn('Invalid ObjectId for removeModeloFromMarca:', marcaId, idModelo);
         throw new Error("ID de marca o modelo inválido.");
       }
-      // Usar $pull para eliminar el modelo del array 'modelos' basado en su idModelo.
       const result: UpdateResult = await collection.updateOne(
-        { _id: new ObjectId(marcaId) }, // Filtrar por _id de marca.
-        { $pull: { modelos: { idModelo: idModelo } } } // Especificar el modelo a eliminar.
+        { _id: new ObjectId(marcaId) }, 
+        { $pull: { modelos: { idModelo: idModelo } } } 
       );
       return result.modifiedCount > 0;
     } catch (error) {
