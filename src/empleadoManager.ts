@@ -60,13 +60,24 @@ class EmpleadoManager {
     let permissions: UserPermissions = {};
     switch (rol) {
       case UserRoleEnum.ADMIN:
-        permissions = { verOrdenes: true, crearOrdenes: true, editarOrdenes: true, eliminarOrdenes: true, verPresupuestos: true, crearPresupuestos: true, editarPresupuestos: true, eliminarPresupuestos: true, verRefacciones: true, crearRefacciones: true, editarRefacciones: true, eliminarRefacciones: true, gestionarEmpleados: true, gestionarMarcas: true, gestionarAseguradoras: true, gestionarConfigGeneral: true };
+        permissions = { 
+          verOrdenes: true, crearOrdenes: true, editarOrdenes: true, eliminarOrdenes: true, 
+          verPresupuestos: true, crearPresupuestos: true, editarPresupuestos: true, eliminarPresupuestos: true, 
+          verRefacciones: true, crearRefacciones: true, editarRefacciones: true, eliminarRefacciones: true,
+          gestionarEmpleados: true, gestionarMarcas: true, gestionarAseguradoras: true, gestionarConfigGeneral: true
+        };
         break;
       case UserRoleEnum.ASESOR:
-        permissions = { verOrdenes: true, crearOrdenes: true, editarOrdenes: true, verPresupuestos: true, crearPresupuestos: true, editarPresupuestos: true };
+        permissions = { 
+          verOrdenes: true, crearOrdenes: true, editarOrdenes: true, 
+          verPresupuestos: true, crearPresupuestos: true, editarPresupuestos: true 
+        };
         break;
       case UserRoleEnum.VALUADOR:
-        permissions = { verOrdenes: true, crearPresupuestos: true, editarPresupuestos: true };
+        permissions = { 
+          verOrdenes: true, 
+          crearPresupuestos: true, editarPresupuestos: true 
+        };
         break;
       // Añadir permisos por defecto para otros roles según sea necesario.
     }
@@ -77,13 +88,13 @@ class EmpleadoManager {
    * Crea un nuevo empleado. Opcionalmente crea credenciales de usuario del sistema.
    * @param {Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>} empleadoData - Datos básicos para el nuevo empleado.
    * @param {Omit<SystemUserCredentials, 'permisos' | '_id'>} [systemUserData] - Credenciales opcionales de usuario del sistema (usuario, contraseña, rol).
-   * @returns {Promise<ObjectId | null>} El ObjectId de MongoDB del empleado recién creado, o null en caso de fallo.
+   * @returns {Promise<string | null>} El _id (string hex) del empleado recién creado, o null en caso de fallo.
    * @throws {Error} Si faltan campos requeridos o si el nombre de usuario está duplicado.
    */
   async createEmpleado(
     empleadoData: Omit<Empleado, '_id' | 'fechaRegistro' | 'user'>, 
     systemUserData?: Omit<SystemUserCredentials, 'permisos' | '_id'> // Se omite _id aquí porque user no lo tiene
-  ): Promise<ObjectId | null> {
+  ): Promise<string | null> {
     console.log("EmpleadoManager: createEmpleado - Iniciando creación...");
     const collection = await this.getCollection();
 
@@ -115,7 +126,7 @@ class EmpleadoManager {
     try {
       const result: InsertOneResult<Empleado> = await collection.insertOne(newEmpleadoDocument as Empleado);
       console.log('EmpleadoManager: createEmpleado - Empleado creado con ID de MongoDB:', result.insertedId);
-      return result.insertedId;
+      return result.insertedId ? result.insertedId.toHexString() : null;
     } catch (error: any) {
       console.error('EmpleadoManager: Error al crear empleado en DB:', error);
       // Manejar error de nombre de usuario duplicado.
@@ -372,4 +383,3 @@ class EmpleadoManager {
 }
 
 export default EmpleadoManager;
-

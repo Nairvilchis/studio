@@ -5,9 +5,10 @@
  * Brand IDs (`_id`) son MongoDB ObjectIds (strings). Model IDs (`idModelo`) también son MongoDB ObjectIds (strings),
  * únicos dentro del array 'modelos' de su MarcaVehiculo padre.
  * Se eliminó el campo numérico `idMarca` y la lógica de secuencia asociada.
+ * Todos los IDs devueltos al cliente o a las actions deben ser strings.
  */
 
-import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter, type FindOneAndUpdateOptions } from './db';
+import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter } from './db';
 import { connectDB } from './db';
 import type { MarcaVehiculo, ModeloVehiculo, NewMarcaData, UpdateMarcaData } from '@/lib/types';
 
@@ -19,8 +20,7 @@ import type { MarcaVehiculo, ModeloVehiculo, NewMarcaData, UpdateMarcaData } fro
  */
 class MarcaManager {
   private collectionPromise: Promise<Collection<MarcaVehiculo>>;
-  private countersCollectionPromise: Promise<Collection<{ _id: string; sequence_value: number }>>;
-
+  // Eliminada la colección de contadores para idMarca
 
   /**
    * Constructor de MarcaManager.
@@ -43,10 +43,7 @@ class MarcaManager {
       console.error('Error al obtener la colección de marcas:', err);
       throw err; 
     });
-
-    this.countersCollectionPromise = connectDB().then(db => 
-        db.collection<{ _id: string; sequence_value: number }>('counters')
-    );
+    // Eliminada la inicialización de countersCollectionPromise para idMarca
   }
 
   /**
@@ -85,8 +82,8 @@ class MarcaManager {
 
     try {
       const result: InsertOneResult<MarcaVehiculo> = await collection.insertOne(newMarcaDocument as MarcaVehiculo);
-      console.log('Marca creada con _id de MongoDB:', result.insertedId.toHexString());
-      return result.insertedId.toHexString(); 
+      console.log('Marca creada con _id de MongoDB:', result.insertedId);
+      return result.insertedId ? result.insertedId.toHexString() : null; 
     } catch (error: any) {
       console.error('Error al crear marca:', error);
       if (error.code === 11000 && error.message.includes('marca_1')) {
@@ -252,7 +249,7 @@ class MarcaManager {
   async updateModeloInMarca(marcaId: string, idModelo: string, modeloUpdateData: Partial<Omit<ModeloVehiculo, 'idModelo'>>): Promise<boolean> {
     const collection = await this.getCollection();
     try {
-      if (!ObjectId.isValid(marcaId) || !ObjectId.isValid(idModelo)) {
+      if (!ObjectId.isValid(marcaId) || !ObjectId.isValid(idModelo)) { // idModelo es string ObjectId, pero se valida con ObjectId.isValid
         console.warn('Invalid ObjectId for updateModeloInMarca:', marcaId, idModelo);
         throw new Error("ID de marca o modelo inválido.");
       }

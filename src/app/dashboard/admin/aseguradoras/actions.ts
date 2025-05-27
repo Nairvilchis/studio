@@ -4,11 +4,12 @@
  * @fileOverview Server Actions for managing Aseguradora (insurance company) operations.
  * These actions interact with AseguradoraManager to perform CRUD operations.
  * They ensure data is properly serialized for client consumption, especially ObjectIds.
+ * El manager ahora devuelve el _id de la aseguradora como string.
  */
 
 import AseguradoraManager from '@/aseguradoraManager';
 import type { Aseguradora, NewAseguradoraData, UpdateAseguradoraData, Ajustador } from '@/lib/types';
-// Eliminamos la importación directa de ObjectId de mongodb, ya que el manager se encarga de la conversión.
+// Ya no se importa ObjectId de mongodb aquí.
 
 /**
  * Interface for the result of server actions.
@@ -74,14 +75,14 @@ export async function getAllAseguradorasAction(): Promise<ActionResult<Asegurado
 export async function createAseguradoraAction(data: NewAseguradoraData): Promise<ActionResult<{ aseguradoraId: string | null }>> {
   const manager = new AseguradoraManager();
   try {
-    // El método createAseguradora del manager devuelve el ObjectId de MongoDB del nuevo documento.
-    const newMongoIdObject = await manager.createAseguradora(data);
-    if (newMongoIdObject) {
+    // El método createAseguradora del manager ahora devuelve el _id (string) o null.
+    const newAseguradoraIdString = await manager.createAseguradora(data);
+    if (newAseguradoraIdString) {
       return {
         success: true,
         message: 'Aseguradora creada exitosamente.',
         data: {
-          aseguradoraId: newMongoIdObject.toHexString(), // Convertir ObjectId a string para el cliente.
+          aseguradoraId: newAseguradoraIdString, // Usar directamente el ID string.
         }
       };
     } else {

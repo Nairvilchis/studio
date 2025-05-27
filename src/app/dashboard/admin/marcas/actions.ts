@@ -3,7 +3,7 @@
 
 import MarcaManager from '@/marcaManager';
 import type { MarcaVehiculo, NewMarcaData, UpdateMarcaData, ModeloVehiculo } from '@/lib/types';
-// Eliminamos la importación de ObjectId, ya que el manager maneja la conversión.
+// Ya no se importa ObjectId de mongodb aquí.
 
 /**
  * Interface for the result of server actions.
@@ -71,14 +71,14 @@ export async function getAllMarcasAction(): Promise<ActionResult<MarcaVehiculo[]
 export async function createMarcaAction(marcaData: NewMarcaData): Promise<ActionResult<{ marcaId: string | null }>> {
   const marcaManager = new MarcaManager();
   try {
-    // El método createMarca del manager devuelve el ObjectId de MongoDB del nuevo documento.
-    const newMongoIdObject = await marcaManager.createMarca(marcaData);
-    if (newMongoIdObject) {
+    // El método createMarca del manager ahora devuelve el _id (string) o null.
+    const newMarcaIdString = await marcaManager.createMarca(marcaData);
+    if (newMarcaIdString) {
       return {
         success: true,
         message: 'Marca creada exitosamente.',
         data: {
-          marcaId: newMongoIdObject.toHexString(), // Convertir ObjectId a string para el cliente.
+          marcaId: newMarcaIdString, // Usar directamente el ID string.
         }
       };
     } else {
@@ -256,4 +256,3 @@ export async function getModelosByMarcaAction(marcaId: string): Promise<ActionRe
     return { success: false, error: error instanceof Error ? error.message : "Error desconocido al obtener modelos." };
  }
 }
-

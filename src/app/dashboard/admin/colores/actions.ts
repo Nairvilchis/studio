@@ -27,12 +27,12 @@ interface ActionResult<T> {
 export async function createColorVehiculoAction(data: NewColorVehiculoData): Promise<ActionResult<{ colorId: string | null }>> {
   const manager = new ColorVehiculoManager();
   try {
-    const newMongoIdObject = await manager.createColor(data);
-    if (newMongoIdObject) {
+    const newColorIdString = await manager.createColor(data); // Manager returns string ID or null
+    if (newColorIdString) {
       return {
         success: true,
         message: 'Color de vehículo creado exitosamente.',
-        data: { colorId: newMongoIdObject.toHexString() }
+        data: { colorId: newColorIdString } // Use string ID directly
       };
     } else {
       return { success: false, error: 'No se pudo crear el color del vehículo.' };

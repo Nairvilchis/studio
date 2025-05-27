@@ -4,6 +4,7 @@
  * @fileOverview Manages insurance company (Aseguradora) operations with MongoDB.
  * Aseguradora IDs (_id) son MongoDB ObjectIds. Ajustador IDs (idAjustador) también son ObjectIds (como strings)
  * y son únicos dentro del array 'ajustadores' de su Aseguradora padre.
+ * Todos los IDs devueltos al cliente o a las actions deben ser strings.
  */
 
 import { ObjectId, type Collection, type InsertOneResult, type UpdateResult, type DeleteResult, type Filter } from './db';
@@ -81,8 +82,8 @@ class AseguradoraManager {
     try {
       // Insertar el nuevo documento de aseguradora en la colección.
       const result: InsertOneResult<Aseguradora> = await collection.insertOne(newAseguradoraDocument as Aseguradora);
-      console.log('Aseguradora creada con _id de MongoDB:', result.insertedId.toHexString());
-      return result.insertedId.toHexString(); // Devolver el _id como string hexadecimal.
+      console.log('Aseguradora creada con _id de MongoDB:', result.insertedId);
+      return result.insertedId ? result.insertedId.toHexString() : null;
     } catch (error: any) {
       console.error('Error al crear aseguradora:', error);
       // Manejar errores específicos de MongoDB, como clave duplicada para 'nombre'.
@@ -266,7 +267,7 @@ class AseguradoraManager {
     const collection = await this.getCollection();
     try {
       // Validar ObjectIds.
-      if (!ObjectId.isValid(aseguradoraId) || !ObjectId.isValid(idAjustador)) {
+      if (!ObjectId.isValid(aseguradoraId) || !ObjectId.isValid(idAjustador)) { // idAjustador es un string ObjectId, pero se valida con ObjectId.isValid
         console.warn('Invalid ObjectId for updateAjustadorInAseguradora:', aseguradoraId, idAjustador);
         throw new Error("ID de aseguradora o ajustador inválido.");
       }

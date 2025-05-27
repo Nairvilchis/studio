@@ -97,13 +97,13 @@ export async function createEmpleadoAction(
   console.log("Server Action: createEmpleadoAction - Creando empleado con datos:", empleadoData, "y usuario:", systemUserData);
   const manager = new EmpleadoManager();
   try {
-    const newMongoIdObject = await manager.createEmpleado(empleadoData, systemUserData);
-    if (newMongoIdObject) {
-      console.log("Server Action: createEmpleadoAction - Empleado creado con ID de MongoDB:", newMongoIdObject.toHexString());
+    const newEmpleadoIdString = await manager.createEmpleado(empleadoData, systemUserData); // Manager returns string ID or null
+    if (newEmpleadoIdString) {
+      console.log("Server Action: createEmpleadoAction - Empleado creado con ID de MongoDB:", newEmpleadoIdString);
       return {
         success: true,
         message: 'Empleado creado exitosamente.',
-        data: { empleadoId: newMongoIdObject.toHexString() } // Convert ObjectId to string for the client.
+        data: { empleadoId: newEmpleadoIdString } // Use string ID directly
       };
     } else {
       console.error("Server Action: createEmpleadoAction - El manager retornó null al crear empleado.");
@@ -298,4 +298,3 @@ export async function getEmpleadosByPuestoAction(puesto: string): Promise<Action
     return { success: false, error: error instanceof Error ? error.message : `Error al obtener empleados por puesto ${puesto}.` };
   }
 }
-

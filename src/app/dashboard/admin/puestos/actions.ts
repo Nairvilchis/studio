@@ -27,12 +27,12 @@ interface ActionResult<T> {
 export async function createPuestoAction(data: NewPuestoData): Promise<ActionResult<{ puestoId: string | null }>> {
   const manager = new PuestoManager();
   try {
-    const newMongoIdObject = await manager.createPuesto(data);
-    if (newMongoIdObject) {
+    const newPuestoIdString = await manager.createPuesto(data); // Manager returns string ID or null
+    if (newPuestoIdString) {
       return {
         success: true,
         message: 'Puesto creado exitosamente.',
-        data: { puestoId: newMongoIdObject.toHexString() }
+        data: { puestoId: newPuestoIdString } // Use string ID directly
       };
     } else {
       return { success: false, error: 'No se pudo crear el puesto.' };
